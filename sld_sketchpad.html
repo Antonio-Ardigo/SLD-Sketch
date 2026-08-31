@@ -1,0 +1,882 @@
+<title>SLD Sketchpad</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #f4f3ef;
+    --surface: #ffffff;
+    --ink: #1d1f22;
+    --muted: #6d6c66;
+    --border: #ddDBd3;
+    --accent: #155e8f;
+    --accent-ink: #ffffff;
+    --danger: #a33b2e;
+    --field: #faf9f6;
+    --sheet-shadow: 0 1px 3px rgba(30,32,35,.12), 0 8px 24px rgba(30,32,35,.08);
+  }
+  :root:not([data-theme="light"]) { }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #1a1c1f;
+      --surface: #232629;
+      --ink: #e9e8e4;
+      --muted: #9b9a93;
+      --border: #383b40;
+      --accent: #66aede;
+      --accent-ink: #10222f;
+      --danger: #e08072;
+      --field: #1e2124;
+      --sheet-shadow: 0 1px 3px rgba(0,0,0,.5), 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #1a1c1f;
+    --surface: #232629;
+    --ink: #e9e8e4;
+    --muted: #9b9a93;
+    --border: #383b40;
+    --accent: #66aede;
+    --accent-ink: #10222f;
+    --danger: #e08072;
+    --field: #1e2124;
+    --sheet-shadow: 0 1px 3px rgba(0,0,0,.5), 0 10px 30px rgba(0,0,0,.35);
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 20px 20px 64px; }
+
+  header.top {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px;
+    padding: 6px 0 14px; border-bottom: 2px solid var(--ink); margin-bottom: 18px;
+  }
+  .brand { font-size: 21px; font-weight: 700; letter-spacing: .01em; }
+  .brand small {
+    display: block; font-size: 11.5px; font-weight: 500; color: var(--muted);
+    letter-spacing: .04em;
+  }
+  .top-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  select, input[type="text"], textarea {
+    font: 500 13px/1.3 "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    color: var(--ink); background: var(--field);
+    border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px;
+  }
+  select:focus, input:focus, textarea:focus, button:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 1px;
+  }
+  button {
+    font: 600 13px "Archivo", sans-serif; color: var(--ink);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 4px; padding: 6px 12px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary {
+    background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+  }
+  button.primary:hover { filter: brightness(1.08); color: var(--accent-ink); }
+
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 16px 18px; margin-bottom: 18px;
+  }
+  .panel h2 {
+    margin: 0 0 12px; font-size: 12px; font-weight: 700;
+    letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
+  }
+
+  .info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 760px) { .info-grid { grid-template-columns: 1fr 1fr; } }
+  .info-grid label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: 12px; }
+  .info-grid input { width: 100%; box-sizing: border-box; }
+
+  .tbl-scroll { overflow-x: auto; }
+  table.eq { border-collapse: collapse; width: 100%; min-width: 900px; }
+  table.eq th {
+    font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--muted); text-align: left; padding: 4px 6px 8px;
+    border-bottom: 2px solid var(--ink); white-space: nowrap;
+  }
+  table.eq td { padding: 3px 3px; border-bottom: 1px solid var(--border); }
+  table.eq input, table.eq select {
+    width: 100%; box-sizing: border-box; border-color: transparent; background: transparent;
+    padding: 5px 6px; border-radius: 3px;
+  }
+  table.eq tr:hover input, table.eq tr:hover select { background: var(--field); }
+  table.eq input:focus, table.eq select:focus { background: var(--field); border-color: var(--border); }
+  td.rowops { white-space: nowrap; text-align: right; }
+  td.rowops button {
+    padding: 3px 7px; font-size: 12px; line-height: 1.2;
+    border-color: transparent; background: transparent; color: var(--muted);
+  }
+  td.rowops button:hover { color: var(--accent); border-color: var(--border); }
+  td.rowops button.del:hover { color: var(--danger); }
+  .tbl-foot { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+  .hint { color: var(--muted); font-size: 12.5px; margin-left: auto; }
+
+  .problems { margin: 0 0 18px; }
+  .problems div {
+    color: var(--danger); font: 500 13px "IBM Plex Mono", monospace;
+    padding: 8px 12px; border: 1px solid var(--danger); border-radius: 4px;
+    margin-bottom: 6px; background: var(--surface);
+  }
+
+  .sheet-bar { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+  .sheet-bar h2 {
+    margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .sheet-bar .copystate { font-size: 12.5px; color: var(--muted); }
+  .sheet-scroll {
+    overflow-x: auto; background: var(--ground);
+    border-radius: 6px; padding: 4px 2px 10px;
+  }
+  /* the drawing is a paper object: always white, always dark ink */
+  #sheet svg { display: block; box-shadow: var(--sheet-shadow); border-radius: 3px; }
+
+  footer.note { margin-top: 22px; color: var(--muted); font-size: 12.5px; max-width: 68ch; }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">SLD Sketchpad
+      <small>site survey &rarr; single-line diagram</small>
+    </div>
+    <div class="top-actions">
+      <select id="preset" aria-label="Load an example configuration">
+        <option value="">Load example…</option>
+        <option value="1">1 · Single transformer</option>
+        <option value="2">2 · Twin transformers + coupler</option>
+        <option value="3">3 · Ring main (2 incomers)</option>
+        <option value="4">4 · Dual MV boards, pumps, MCCs</option>
+        <option value="5">5 · Three RMUs, radial</option>
+        <option value="6">6 · Three RMUs, closed ring</option>
+      </select>
+      <button id="clear">Clear all</button>
+    </div>
+  </header>
+
+  <section class="panel">
+    <h2>Survey info</h2>
+    <div class="info-grid">
+      <label>Site <input type="text" id="i-site" placeholder="Substation name"></label>
+      <label>Date <input type="text" id="i-date" placeholder="2026-08-31"></label>
+      <label>Surveyed by <input type="text" id="i-by" placeholder="Initials / name"></label>
+      <label>Notes <input type="text" id="i-notes" placeholder="Anything worth remembering"></label>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Equipment — one row per item, top of the network first</h2>
+    <div class="tbl-scroll">
+      <table class="eq" id="eqtable">
+        <thead>
+          <tr>
+            <th style="width:9%">ID</th>
+            <th style="width:13%">Type</th>
+            <th style="width:22%">Description</th>
+            <th style="width:11%">Rating</th>
+            <th style="width:11%">Voltage</th>
+            <th style="width:12%">Feeds from</th>
+            <th style="width:16%">Notes</th>
+            <th style="width:6%"></th>
+          </tr>
+        </thead>
+        <tbody id="eqbody"></tbody>
+      </table>
+    </div>
+    <div class="tbl-foot">
+      <button id="addrow" class="primary">+ Add row</button>
+      <span class="hint">Feeds from = the ID of the item supplying this one; comma for two supplies (bus tie: <code>BB1, BB2</code> — ring RMU: <code>RMU1, RMU2</code>). Row order sets left-to-right order.</span>
+    </div>
+  </section>
+
+  <div class="problems" id="problems" hidden></div>
+
+  <section>
+    <div class="sheet-bar">
+      <h2>Drawing</h2>
+      <button id="copysvg">Copy SVG</button>
+      <span class="copystate" id="copystate"></span>
+    </div>
+    <div class="sheet-scroll"><div id="sheet"></div></div>
+  </section>
+
+  <footer class="note">
+    The drawing rebuilds as you type. Topology comes only from <strong>ID</strong> and
+    <strong>Feeds from</strong> — Description, Rating, Voltage and Notes are printed as labels.
+    Your table is kept in this browser between visits.
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------ types */
+const MV_INCOMER="mv incomer", RMU="rmu", MV_BUSBAR="mv busbar",
+      TRANSFORMER="transformer", PUMP="pump", LV_BUSBAR="lv busbar",
+      FEEDER="feeder", MCC="mcc", BUS_COUPLER="bus coupler";
+
+const TYPE_LABELS = [
+  ["MV Incomer", MV_INCOMER], ["MV Busbar", MV_BUSBAR], ["RMU", RMU],
+  ["Transformer", TRANSFORMER], ["Pump", PUMP], ["LV Busbar", LV_BUSBAR],
+  ["Feeder", FEEDER], ["MCC", MCC], ["Bus Coupler", BUS_COUPLER]
+];
+const ALIASES = {
+  "mv incomer":MV_INCOMER, "incomer":MV_INCOMER, "mv":MV_INCOMER,
+  "rmu":RMU, "ring main unit":RMU,
+  "mv busbar":MV_BUSBAR, "mv board":MV_BUSBAR, "mv switchboard":MV_BUSBAR,
+  "mv distribution board":MV_BUSBAR,
+  "transformer":TRANSFORMER, "trafo":TRANSFORMER, "tx":TRANSFORMER,
+  "pump":PUMP, "motor":PUMP, "load":PUMP,
+  "lv busbar":LV_BUSBAR, "busbar":LV_BUSBAR, "lv board":LV_BUSBAR,
+  "lv switchboard":LV_BUSBAR,
+  "feeder":FEEDER, "lv feeder":FEEDER, "outgoing":FEEDER,
+  "mcc":MCC, "motor control centre":MCC, "motor control center":MCC,
+  "bus coupler":BUS_COUPLER, "coupler":BUS_COUPLER
+};
+
+/* ------------------------------------------------ geometry constants */
+const MARGIN=90, FEEDER_SPACING=95, BUS_GAP=110, MIN_BUS_WIDTH=170,
+      SLOT_GAP=30, PUMP_SLOT=115,
+      Y_LABEL=34, Y_MV_TOP=62, Y_RMU_TOP=150, Y_RMU_BOT=268, Y_MVBUS=208,
+      Y_PUMP=352, PUMP_R=20, Y_TX_C1=342, TX_R=19, Y_TX_C2=Y_TX_C1+27,
+      Y_BUS=486, Y_FEED_BRK=516, Y_ARROW=574, Y_FEED_LBL=592, DIAG_H=780;
+
+/* ------------------------------------------------ model helpers */
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")
+  .replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+function childrenOf(items, order, pid, types){
+  const out=[];
+  for(const oid of order){
+    const it=items[oid];
+    if(it.parents.includes(pid) && (!types || types.includes(it.type))) out.push(it);
+  }
+  return out;
+}
+
+/* build items from table rows; returns {items, order, errors, warnings} */
+function buildModel(rows){
+  const items={}, order=[], errors=[], warnings=[];
+  rows.forEach((r,i)=>{
+    const id=r.id.trim();
+    if(!id){
+      const any=[r.type,r.desc,r.rating,r.voltage,r.from,r.notes].some(v=>v.trim());
+      if(any) warnings.push(`Row ${i+1} has data but no ID — it is ignored.`);
+      return;
+    }
+    if(items[id]){ errors.push(`Duplicate ID "${id}" (row ${i+1}).`); return; }
+    const type = ALIASES[r.type.trim().toLowerCase()] || null;
+    if(!type) warnings.push(`Row "${id}": unknown type "${r.type}" — drawn as a feeder.`);
+    items[id]={ id, type: type||FEEDER, desc:r.desc.trim(), rating:r.rating.trim(),
+      voltage:r.voltage.trim(), notes:r.notes.trim(),
+      parents:r.from.split(",").map(s=>s.trim()).filter(Boolean),
+      x:null, xLeft:null, xRight:null };
+    order.push(id);
+  });
+  for(const id of order)
+    for(const p of items[id].parents)
+      if(!items[p]) errors.push(`"${id}" feeds from unknown ID "${p}" — check the Feeds from column.`);
+  return {items, order, errors, warnings};
+}
+
+/* ------------------------------------------------ layout */
+function placeLvBoard(items, order, bb, cx){
+  const kids=childrenOf(items,order,bb.id,[FEEDER,MCC]);
+  const width=Math.max(MIN_BUS_WIDTH, kids.length*FEEDER_SPACING);
+  bb.xLeft=cx-width/2; bb.xRight=cx+width/2; bb.x=cx;
+  const pad=(width-kids.length*FEEDER_SPACING)/2;
+  kids.forEach((k,i)=>{ k.x=bb.xLeft+pad+FEEDER_SPACING*(i+0.5); });
+  return width;
+}
+function slotWidth(items, order, item){
+  if(item.type===PUMP) return PUMP_SLOT;
+  if(item.type===TRANSFORMER){
+    let w=130;
+    for(const bb of childrenOf(items,order,item.id,[LV_BUSBAR])){
+      const kids=childrenOf(items,order,bb.id,[FEEDER,MCC]);
+      w=Math.max(w, MIN_BUS_WIDTH, kids.length*FEEDER_SPACING);
+    }
+    return w;
+  }
+  return 130;
+}
+function layoutMvBoards(items, order){
+  const mvbs=order.map(i=>items[i]).filter(t=>t.type===MV_BUSBAR);
+  const mvs=order.map(i=>items[i]).filter(t=>t.type===MV_INCOMER);
+  let x=MARGIN;
+  for(const mvb of mvbs){
+    const kids=childrenOf(items,order,mvb.id,[TRANSFORMER,PUMP]);
+    const widths=kids.map(k=>slotWidth(items,order,k));
+    const need=widths.reduce((a,b)=>a+b,0)+SLOT_GAP*Math.max(0,kids.length-1);
+    const total=Math.max(MIN_BUS_WIDTH,need);
+    mvb.xLeft=x; mvb.xRight=x+total; mvb.x=x+total/2;
+    let cursor=x+(total-need)/2;
+    kids.forEach((k,i)=>{
+      k.x=cursor+widths[i]/2; cursor+=widths[i]+SLOT_GAP;
+      if(k.type===TRANSFORMER)
+        for(const bb of childrenOf(items,order,k.id,[LV_BUSBAR]))
+          placeLvBoard(items,order,bb,k.x);
+    });
+    x=mvb.xRight+BUS_GAP;
+  }
+  for(const m of mvs){
+    for(const mvb of mvbs){
+      const feeds=mvs.filter(i=>childrenOf(items,order,i.id).some(k=>k.id===mvb.id));
+      if(feeds.includes(m)){
+        m.x=mvb.x+(feeds.indexOf(m)-(feeds.length-1)/2)*80; break;
+      }
+    }
+  }
+  for(const oid of order){
+    const it=items[oid];
+    if(it.x===null){
+      it.x=x+40;
+      if(it.type===LV_BUSBAR||it.type===MV_BUSBAR){ it.xLeft=it.x-85; it.xRight=it.x+85; }
+      x+=130;
+    }
+  }
+  return Math.max(x-BUS_GAP+MARGIN,640)+230;
+}
+function layout(items, order){
+  if(order.some(i=>items[i].type===MV_BUSBAR)) return layoutMvBoards(items,order);
+  const busbars=order.map(i=>items[i]).filter(t=>t.type===LV_BUSBAR);
+  const rmus=order.map(i=>items[i]).filter(t=>t.type===RMU);
+  const txs=order.map(i=>items[i]).filter(t=>t.type===TRANSFORMER);
+  const mvs=order.map(i=>items[i]).filter(t=>t.type===MV_INCOMER);
+
+  let x=MARGIN;
+  for(const bb of busbars){
+    const feeders=childrenOf(items,order,bb.id,[FEEDER,MCC]);
+    const width=Math.max(MIN_BUS_WIDTH,feeders.length*FEEDER_SPACING);
+    bb.xLeft=x; bb.xRight=x+width; bb.x=x+width/2;
+    const pad=(width-feeders.length*FEEDER_SPACING)/2;
+    feeders.forEach((f,i)=>{ f.x=bb.xLeft+pad+FEEDER_SPACING*(i+0.5); });
+    x=bb.xRight+BUS_GAP;
+  }
+  for(const tx of txs){
+    const fed=childrenOf(items,order,tx.id,[LV_BUSBAR]);
+    if(!fed.length) continue;
+    const siblings=txs.filter(t=>{
+      const f2=childrenOf(items,order,t.id,[LV_BUSBAR]);
+      return f2.length===fed.length && f2.every((b,i)=>b===fed[i]);
+    });
+    if(siblings.length>1){
+      tx.x=fed[0].x+(siblings.indexOf(tx)-(siblings.length-1)/2)*90;
+    } else {
+      tx.x=fed.reduce((a,b)=>a+b.x,0)/fed.length;
+    }
+  }
+  for(const rmu of rmus){
+    const kids=childrenOf(items,order,rmu.id,[TRANSFORMER]);
+    if(kids.length && kids.every(k=>k.x!==null))
+      rmu.x=kids.reduce((a,k)=>a+k.x,0)/kids.length;
+  }
+  for(const rmu of rmus){
+    if(rmu.x===null){
+      const placed=childrenOf(items,order,rmu.id,[RMU]).filter(k=>k.x!==null);
+      if(placed.length) rmu.x=placed.reduce((a,k)=>a+k.x,0)/placed.length;
+    }
+  }
+  for(const rmu of rmus){
+    if(rmu.x===null) continue;
+    const feeds=mvs.filter(m=>childrenOf(items,order,m.id).some(k=>k.id===rmu.id));
+    feeds.forEach((m,i)=>{ m.x=rmu.x+(i-(feeds.length-1)/2)*80; });
+  }
+  for(const m of mvs){
+    if(m.x===null){
+      const placed=childrenOf(items,order,m.id).filter(k=>k.x!==null);
+      if(placed.length) m.x=placed.reduce((a,k)=>a+k.x,0)/placed.length;
+    }
+  }
+  for(const oid of order){
+    const it=items[oid];
+    if(it.x===null){
+      it.x=x+40;
+      if(it.type===LV_BUSBAR){ it.xLeft=it.x-85; it.xRight=it.x+85; }
+      x+=130;
+    }
+  }
+  return Math.max(x-BUS_GAP+MARGIN,640)+230;
+}
+
+/* ------------------------------------------------ SVG builder */
+class SVG {
+  constructor(){ this.parts=[]; }
+  line(x1,y1,x2,y2,w=2,dash=null){
+    this.parts.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#111" stroke-width="${w}"${dash?` stroke-dasharray="${dash}"`:""} stroke-linecap="round"/>`);
+  }
+  rect(x,y,w,h,sw=2,dash=null,fill="none"){
+    this.parts.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${fill}" stroke="#111" stroke-width="${sw}"${dash?` stroke-dasharray="${dash}"`:""}/>`);
+  }
+  circle(x,y,r,sw=2){
+    this.parts.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="none" stroke="#111" stroke-width="${sw}"/>`);
+  }
+  dot(x,y,r=3.2){
+    this.parts.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="#111"/>`);
+  }
+  poly(pts,fill="#111"){
+    this.parts.push(`<polygon points="${pts.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ")}" fill="${fill}"/>`);
+  }
+  text(x,y,s,{size=12,anchor="middle",bold=false,rotate=null}={}){
+    if(!s) return;
+    const tr=rotate!==null?` transform="translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${rotate})"`:"";
+    const xy=rotate!==null?'x="0" y="0"':`x="${x.toFixed(1)}" y="${y.toFixed(1)}"`;
+    this.parts.push(`<text ${xy}${tr} font-family="Arial, Helvetica, sans-serif" font-size="${size}" fill="#111" text-anchor="${anchor}"${bold?' font-weight="bold"':""}>${esc(s)}</text>`);
+  }
+  lbs(x,yt,yb){                       /* load-break switch */
+    this.line(x,yt,x,yt+5);
+    this.line(x,yt+5,x+9,yb-9);
+    this.line(x-6,yb-9,x+6,yb-9);
+    this.line(x,yb-9,x,yb);
+  }
+  fuseSwitch(x,yt,yb){
+    const mid=(yt+yb)/2;
+    this.lbs(x,yt,mid+4);
+    this.rect(x-4,mid+6,8,yb-mid-8);
+    this.line(x,mid+4,x,mid+6);
+    this.line(x,yb-2,x,yb);
+  }
+  breaker(x,y,size=13){ this.rect(x-size/2,y-size/2,size,size,2,null,"white"); }
+  transformer(x,lines){
+    this.circle(x,Y_TX_C1,TX_R,2.2); this.circle(x,Y_TX_C2,TX_R,2.2);
+    let ty=Y_TX_C1-6;
+    for(const s of lines){ this.text(x+TX_R+10,ty,s,{anchor:"start"}); ty+=15; }
+  }
+  arrowDown(x,ytip){ this.poly([[x-6,ytip-11],[x+6,ytip-11],[x,ytip]]); }
+}
+
+/* ------------------------------------------------ render */
+function render(info, items, order, width, warnings){
+  const svg=new SVG();
+  const by=t=>order.map(i=>items[i]).filter(o=>t.includes(o.type));
+  const busbars=by([LV_BUSBAR]), mvbs=by([MV_BUSBAR]), rmus=by([RMU]),
+        txs=by([TRANSFORMER]), pumps=by([PUMP]), mvs=by([MV_INCOMER]),
+        couplers=by([BUS_COUPLER]), feeders=by([FEEDER,MCC]);
+
+  const title=(info.site?info.site+" — ":"")+"Single Line Diagram (sketch)";
+  svg.text(24,DIAG_H-26,title,{size:16,anchor:"start",bold:true});
+
+  /* RMU link topology */
+  const sideLinks=[], ringLinks=[], ringEntries={};
+  for(const rmu of rmus)
+    for(const p of rmu.parents){
+      if(items[p].type!==RMU) continue;
+      if(items[p].x===null||rmu.x===null) continue;
+      const [a,b]=[items[p],rmu].sort((u,v)=>u.x-v.x);
+      const between=rmus.some(r=>r!==a&&r!==b&&a.x<r.x&&r.x<b.x);
+      if(between){
+        const xa=a.x-28, xb=b.x+28;
+        (ringEntries[a.id]=ringEntries[a.id]||[]).push(xa);
+        (ringEntries[b.id]=ringEntries[b.id]||[]).push(xb);
+        ringLinks.push([xa,xb]);
+      } else sideLinks.push([a,b]);
+    }
+
+  /* RMU enclosures */
+  const rmuBox={};
+  const ymid=(Y_RMU_TOP+Y_RMU_BOT)/2;
+  for(const rmu of rmus){
+    const waysIn=mvs.filter(m=>childrenOf(items,order,m.id).some(k=>k.id===rmu.id));
+    const waysOut=childrenOf(items,order,rmu.id,[TRANSFORMER]);
+    let xs=waysIn.concat(waysOut).map(w=>w.x).filter(v=>v!==null);
+    if(!xs.length) xs=[rmu.x];
+    xs=xs.concat(ringEntries[rmu.id]||[]);
+    const left=Math.min(...xs)-42, right=Math.max(...xs)+42;
+    const busL=Math.min(...xs)-18, busR=Math.max(...xs)+18;
+    rmuBox[rmu.id]=[left,right,busL,busR];
+    svg.rect(left,Y_RMU_TOP,right-left,Y_RMU_BOT-Y_RMU_TOP,1.6,"7 5");
+    svg.line(busL,ymid,busR,ymid,3.4);
+    for(const m of waysIn){
+      svg.lbs(m.x,Y_RMU_TOP+12,ymid);
+      svg.line(m.x,Y_RMU_TOP,m.x,Y_RMU_TOP+12);
+      svg.dot(m.x,ymid);
+    }
+    for(const xe of ringEntries[rmu.id]||[]){
+      svg.lbs(xe,Y_RMU_TOP+12,ymid);
+      svg.line(xe,Y_RMU_TOP,xe,Y_RMU_TOP+12);
+      svg.dot(xe,ymid);
+    }
+    for(const t of waysOut){
+      svg.fuseSwitch(t.x,ymid+4,Y_RMU_BOT-8);
+      svg.line(t.x,ymid,t.x,ymid+4);
+      svg.line(t.x,Y_RMU_BOT-8,t.x,Y_RMU_BOT);
+      svg.dot(t.x,ymid);
+    }
+    const lbl=[rmu.id,rmu.desc,[rmu.rating,rmu.voltage].filter(Boolean).join(" ")];
+    let ty=Y_RMU_TOP+16;
+    lbl.forEach((s,i)=>{ svg.text(right+10,ty,s,{anchor:"start",bold:i===0}); ty+=15; });
+  }
+
+  /* RMU-to-RMU cables */
+  for(const [a,b] of sideLinks){
+    if(!rmuBox[a.id]||!rmuBox[b.id]) continue;
+    const aR=rmuBox[a.id][1], aBusR=rmuBox[a.id][3];
+    const bL=rmuBox[b.id][0], bBusL=rmuBox[b.id][2];
+    svg.line(aBusR,ymid,bBusL,ymid,2);
+    for(const xe of [aR,bL]) svg.line(xe-6,ymid+6,xe+6,ymid-6);
+  }
+  const yRing=Y_RMU_TOP-26;
+  for(const [xa,xb] of ringLinks){
+    svg.line(xa,Y_RMU_TOP,xa,yRing);
+    svg.line(xa,yRing,xb,yRing);
+    svg.line(xb,yRing,xb,Y_RMU_TOP);
+  }
+
+  /* MV incomers */
+  for(const m of mvs){
+    const kids=childrenOf(items,order,m.id);
+    svg.line(m.x-11,Y_MV_TOP,m.x+11,Y_MV_TOP,3);
+    const lbl=[m.id,m.desc,m.voltage];
+    let ty=Y_LABEL-16;
+    lbl.forEach((s,i)=>{ svg.text(m.x,ty,s,{size:11.5,bold:i===0}); ty+=14; });
+    for(const k of kids){
+      if(k.type===RMU) svg.line(m.x,Y_MV_TOP,m.x,Y_RMU_TOP);
+      else if(k.type===MV_BUSBAR){
+        const yb=(Y_MV_TOP+Y_MVBUS)/2;
+        svg.line(m.x,Y_MV_TOP,m.x,yb-8); svg.breaker(m.x,yb);
+        svg.line(m.x,yb+8,m.x,Y_MVBUS); svg.dot(m.x,Y_MVBUS);
+      }
+      else if(k.type===TRANSFORMER) svg.line(m.x,Y_MV_TOP,m.x,Y_TX_C1-TX_R);
+    }
+  }
+
+  /* MV switchboards */
+  for(const mvb of mvbs){
+    svg.line(mvb.xLeft,Y_MVBUS,mvb.xRight,Y_MVBUS,5.5);
+    svg.text(mvb.xLeft,Y_MVBUS-12,[mvb.id,mvb.desc,mvb.rating,mvb.voltage].filter(Boolean).join(" "),
+             {size:11.5,anchor:"start",bold:true});
+  }
+
+  /* pumps */
+  for(const p of pumps){
+    if(p.x===null) continue;
+    for(const q of p.parents){
+      const par=items[q];
+      if(par.type===MV_BUSBAR){
+        const yb=(Y_MVBUS+Y_PUMP-PUMP_R)/2;
+        svg.line(p.x,Y_MVBUS,p.x,yb-8); svg.dot(p.x,Y_MVBUS);
+        svg.breaker(p.x,yb); svg.line(p.x,yb+8,p.x,Y_PUMP-PUMP_R);
+      } else if(par.type===RMU) svg.line(p.x,Y_RMU_BOT,p.x,Y_PUMP-PUMP_R);
+    }
+    svg.circle(p.x,Y_PUMP,PUMP_R,2.2);
+    svg.text(p.x,Y_PUMP+5,"M",{size:15,bold:true});
+    svg.text(p.x+4,Y_PUMP+PUMP_R+14,[p.id,p.desc,p.rating].filter(Boolean).join(" · "),
+             {size:11,anchor:"start",rotate:90});
+  }
+
+  /* transformers */
+  for(const tx of txs){
+    if(tx.x===null) continue;
+    svg.transformer(tx.x,[tx.id,tx.desc,[tx.rating,tx.voltage].filter(Boolean).join(" ")].filter(Boolean));
+    for(const q of tx.parents){
+      const par=items[q];
+      if(par.type===RMU) svg.line(tx.x,Y_RMU_BOT,tx.x,Y_TX_C1-TX_R);
+      else if(par.type===MV_BUSBAR){
+        const yb=(Y_MVBUS+Y_TX_C1-TX_R)/2;
+        svg.line(tx.x,Y_MVBUS,tx.x,yb-8); svg.dot(tx.x,Y_MVBUS);
+        svg.breaker(tx.x,yb); svg.line(tx.x,yb+8,tx.x,Y_TX_C1-TX_R);
+      }
+    }
+    const fed=childrenOf(items,order,tx.id,[LV_BUSBAR]);
+    if(fed.length===1 && Math.abs(fed[0].x-tx.x)<1){
+      const yb=(Y_TX_C2+TX_R+Y_BUS)/2;
+      svg.line(tx.x,Y_TX_C2+TX_R,tx.x,yb-8); svg.breaker(tx.x,yb);
+      svg.line(tx.x,yb+8,tx.x,Y_BUS); svg.dot(tx.x,Y_BUS);
+    } else if(fed.length){
+      const ysplit=Y_TX_C2+TX_R+32;
+      svg.line(tx.x,Y_TX_C2+TX_R,tx.x,ysplit);
+      const xs=fed.map(b=>b.x).concat([tx.x]);
+      svg.line(Math.min(...xs),ysplit,Math.max(...xs),ysplit);
+      for(const bb of fed){
+        const yb=(ysplit+Y_BUS)/2;
+        svg.dot(bb.x,ysplit); svg.line(bb.x,ysplit,bb.x,yb-8);
+        svg.breaker(bb.x,yb); svg.line(bb.x,yb+8,bb.x,Y_BUS); svg.dot(bb.x,Y_BUS);
+      }
+    }
+  }
+
+  /* LV busbars */
+  for(const bb of busbars){
+    if(bb.xLeft===null) continue;
+    svg.line(bb.xLeft,Y_BUS,bb.xRight,Y_BUS,5.5);
+    svg.text(bb.xLeft,Y_BUS-12,[bb.id,bb.desc,bb.rating,bb.voltage].filter(Boolean).join(" "),
+             {size:11.5,anchor:"start",bold:true});
+  }
+
+  /* bus couplers / ties */
+  for(const bc of couplers){
+    const ends=bc.parents.map(p=>items[p]).filter(e=>e.type===LV_BUSBAR||e.type===MV_BUSBAR);
+    if(ends.length!==2 || ends[0].type!==ends[1].type){
+      warnings.push(`Bus coupler "${bc.id}" should feed from exactly two busbars of the same kind — skipped.`);
+      continue;
+    }
+    const y=ends[0].type===MV_BUSBAR?Y_MVBUS:Y_BUS;
+    const [a,b]=ends.slice().sort((u,v)=>u.x-v.x);
+    const xm=(a.xRight+b.xLeft)/2;
+    svg.line(a.xRight,y,xm-8,y,2); svg.breaker(xm,y); svg.line(xm+8,y,b.xLeft,y,2);
+    svg.text(xm,y+24,[bc.id,bc.rating].filter(Boolean).join(" "),{size:11});
+    svg.text(xm,y+38,bc.notes,{size:10});
+  }
+
+  /* feeders and MCCs */
+  for(const f of feeders){
+    if(f.x===null) continue;
+    svg.line(f.x,Y_BUS,f.x,Y_FEED_BRK-7); svg.dot(f.x,Y_BUS);
+    svg.breaker(f.x,Y_FEED_BRK);
+    if(f.type===MCC){
+      svg.line(f.x,Y_FEED_BRK+7,f.x,Y_ARROW-26);
+      svg.rect(f.x-14,Y_ARROW-26,28,26,2);
+      svg.text(f.x,Y_ARROW-8,"MCC",{size:8});
+    } else {
+      svg.line(f.x,Y_FEED_BRK+7,f.x,Y_ARROW-10);
+      svg.arrowDown(f.x,Y_ARROW);
+    }
+    svg.text(f.x+4,Y_FEED_LBL,[f.id,f.desc,f.rating].filter(Boolean).join(" · "),
+             {size:11,anchor:"start",rotate:90});
+  }
+
+  /* title block */
+  const tbW=288,tbH=96,tbX=width-tbW-24,tbY=DIAG_H-tbH-20;
+  svg.rect(tbX,tbY,tbW,tbH,1.5);
+  svg.line(tbX,tbY+24,tbX+tbW,tbY+24,1.5);
+  svg.text(tbX+10,tbY+17,"SLD SKETCH — SITE SURVEY",{size:12,anchor:"start",bold:true});
+  let ty=tbY+40;
+  for(const [k,v] of [["Site",info.site],["Date",info.date],["By",info.by],["Notes",info.notes]]){
+    svg.text(tbX+10,ty,k+":",{size:11,anchor:"start",bold:true});
+    svg.text(tbX+58,ty,(v||"").slice(0,44),{size:11,anchor:"start"});
+    ty+=16;
+  }
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width)}" height="${DIAG_H}" viewBox="0 0 ${Math.round(width)} ${DIAG_H}"><rect width="100%" height="100%" fill="white"/>${svg.parts.join("")}</svg>`;
+}
+
+/* ------------------------------------------------ presets (mirror examples/) */
+function R(id,type,desc,rating,voltage,from,notes){ return {id,type,desc,rating,voltage,from,notes}; }
+const PRESETS={
+  "1":{info:{site:"Example Site A",date:"2026-08-31",by:"A. Ardigo",notes:"Config 1 - single transformer substation"},rows:[
+    R("MV1","MV Incomer","Utility supply","","11 kV","","Cable from utility"),
+    R("RMU1","RMU","3-way ring main unit","630 A","11 kV","MV1",""),
+    R("TX1","Transformer","Oil-immersed, Dyn11","1000 kVA","11/0.4 kV","RMU1",""),
+    R("BB1","LV Busbar","Main LV board","1600 A","400 V","TX1",""),
+    R("F1","Feeder","Lighting","100 A","400 V","BB1",""),
+    R("F2","Feeder","Small power","160 A","400 V","BB1",""),
+    R("F3","Feeder","HVAC","250 A","400 V","BB1",""),
+    R("F4","Feeder","Spare","100 A","400 V","BB1","")]},
+  "2":{info:{site:"Example Site B",date:"2026-08-31",by:"A. Ardigo",notes:"Config 2 - twin transformers with bus coupler"},rows:[
+    R("MV1","MV Incomer","Utility supply","","11 kV","",""),
+    R("RMU1","RMU","4-way ring main unit","630 A","11 kV","MV1",""),
+    R("TX1","Transformer","Cast resin, Dyn11","1600 kVA","11/0.4 kV","RMU1",""),
+    R("TX2","Transformer","Cast resin, Dyn11","1600 kVA","11/0.4 kV","RMU1",""),
+    R("BB1","LV Busbar","LV board A","2500 A","400 V","TX1",""),
+    R("BB2","LV Busbar","LV board B","2500 A","400 V","TX2",""),
+    R("BC1","Bus Coupler","Bus section coupler","2500 A","400 V","BB1, BB2","Normally open"),
+    R("F1","Feeder","Chillers","630 A","400 V","BB1",""),
+    R("F2","Feeder","Riser 1","400 A","400 V","BB1",""),
+    R("F3","Feeder","Lighting","160 A","400 V","BB1",""),
+    R("F4","Feeder","Pumps","400 A","400 V","BB2",""),
+    R("F5","Feeder","Riser 2","400 A","400 V","BB2",""),
+    R("F6","Feeder","Spare","250 A","400 V","BB2","")]},
+  "3":{info:{site:"Example Site C",date:"2026-08-31",by:"A. Ardigo",notes:"Config 3 - ring main, two MV incomers"},rows:[
+    R("MV1","MV Incomer","Ring in","","11 kV","","From substation North"),
+    R("MV2","MV Incomer","Ring out","","11 kV","","To substation South"),
+    R("RMU1","RMU","3-way ring main unit","630 A","11 kV","MV1, MV2",""),
+    R("TX1","Transformer","Oil-immersed, Dyn11","800 kVA","11/0.4 kV","RMU1",""),
+    R("BB1","LV Busbar","Main LV board","1250 A","400 V","TX1",""),
+    R("F1","Feeder","Distribution board 1","250 A","400 V","BB1",""),
+    R("F2","Feeder","Distribution board 2","250 A","400 V","BB1",""),
+    R("F3","Feeder","Spare","160 A","400 V","BB1","")]},
+  "4":{info:{site:"Example Site D",date:"2026-08-31",by:"A. Ardigo",notes:"Config 4 - dual MV boards, riser feeders, N.O. tie"},rows:[
+    R("MV1","MV Incomer","Utility incomer A","","11 kV","",""),
+    R("MV2","MV Incomer","Utility incomer B","","11 kV","",""),
+    R("MVB1","MV Busbar","MV switchboard A","630 A","11 kV","MV1","6 feeders to risers"),
+    R("MVB2","MV Busbar","MV switchboard B","630 A","11 kV","MV2","6 feeders to risers"),
+    R("TIE1","Bus Coupler","MV bus tie","630 A","11 kV","MVB1, MVB2","Normally open"),
+    R("TX1","Transformer","Riser R1, Dyn11","1600 kVA","11/0.4 kV","MVB1",""),
+    R("TX2","Transformer","Riser R2, Dyn11","1250 kVA","11/0.4 kV","MVB1",""),
+    R("TX3","Transformer","Riser R3, Dyn11","1000 kVA","11/0.4 kV","MVB1",""),
+    R("P1","Pump","CHW pump 1","315 kW","11 kV","MVB1",""),
+    R("P2","Pump","CHW pump 2","315 kW","11 kV","MVB1",""),
+    R("P3","Pump","CW pump 1","160 kW","11 kV","MVB1",""),
+    R("LVB1","LV Busbar","LV board R1","2500 A","400 V","TX1",""),
+    R("MCC1","MCC","AHU plant","400 A","400 V","LVB1",""),
+    R("MCC2","MCC","Pump room","400 A","400 V","LVB1",""),
+    R("MCC3","MCC","Ventilation","250 A","400 V","LVB1",""),
+    R("LVB2","LV Busbar","LV board R2","2000 A","400 V","TX2",""),
+    R("MCC4","MCC","AHU plant","400 A","400 V","LVB2",""),
+    R("MCC5","MCC","Ventilation","250 A","400 V","LVB2",""),
+    R("LVB3","LV Busbar","LV board R3","1600 A","400 V","TX3",""),
+    R("MCC6","MCC","AHU plant","400 A","400 V","LVB3",""),
+    R("MCC7","MCC","Ventilation","250 A","400 V","LVB3",""),
+    R("TX4","Transformer","Riser R4, Dyn11","1600 kVA","11/0.4 kV","MVB2",""),
+    R("TX5","Transformer","Riser R5, Dyn11","1250 kVA","11/0.4 kV","MVB2",""),
+    R("TX6","Transformer","Riser R6, Dyn11","1000 kVA","11/0.4 kV","MVB2",""),
+    R("P4","Pump","CHW pump 3","315 kW","11 kV","MVB2",""),
+    R("P5","Pump","CHW pump 4","315 kW","11 kV","MVB2",""),
+    R("P6","Pump","CW pump 2","160 kW","11 kV","MVB2",""),
+    R("LVB4","LV Busbar","LV board R4","2500 A","400 V","TX4",""),
+    R("MCC8","MCC","AHU plant","400 A","400 V","LVB4",""),
+    R("MCC9","MCC","Pump room","400 A","400 V","LVB4",""),
+    R("MCC10","MCC","Ventilation","250 A","400 V","LVB4",""),
+    R("LVB5","LV Busbar","LV board R5","2000 A","400 V","TX5",""),
+    R("MCC11","MCC","AHU plant","400 A","400 V","LVB5",""),
+    R("MCC12","MCC","Ventilation","250 A","400 V","LVB5",""),
+    R("LVB6","LV Busbar","LV board R6","1600 A","400 V","TX6",""),
+    R("MCC13","MCC","AHU plant","400 A","400 V","LVB6",""),
+    R("MCC14","MCC","Ventilation","250 A","400 V","LVB6","")]},
+  "5":{info:{site:"Example Site E",date:"2026-08-31",by:"A. Ardigo",notes:"Config 5 - three 3-way RMUs, RMU1 feeds RMU2 and RMU3"},rows:[
+    R("MV1","MV Incomer","Utility supply","","11 kV","",""),
+    R("RMU1","RMU","3-way RMU, main","630 A","11 kV","MV1","Feeds RMU2 and RMU3"),
+    R("RMU2","RMU","3-way RMU, substation 2","630 A","11 kV","RMU1",""),
+    R("RMU3","RMU","3-way RMU, substation 3","630 A","11 kV","RMU1",""),
+    R("TX1","Transformer","Oil-immersed, Dyn11","1000 kVA","11/0.4 kV","RMU2",""),
+    R("TX2","Transformer","Oil-immersed, Dyn11","1000 kVA","11/0.4 kV","RMU3",""),
+    R("LVP1","LV Busbar","LV panel 1","800 A","400 V","TX1",""),
+    R("LVP2","LV Busbar","LV panel 2","800 A","400 V","TX1",""),
+    R("LVP3","LV Busbar","LV panel 3","800 A","400 V","TX2",""),
+    R("LVP4","LV Busbar","LV panel 4","800 A","400 V","TX2",""),
+    R("F1","Feeder","Distribution board 1","250 A","400 V","LVP1",""),
+    R("F2","Feeder","Spare","160 A","400 V","LVP1",""),
+    R("F3","Feeder","Distribution board 2","250 A","400 V","LVP2",""),
+    R("F4","Feeder","Spare","160 A","400 V","LVP2",""),
+    R("F5","Feeder","Distribution board 3","250 A","400 V","LVP3",""),
+    R("F6","Feeder","Spare","160 A","400 V","LVP3",""),
+    R("F7","Feeder","Distribution board 4","250 A","400 V","LVP4",""),
+    R("F8","Feeder","Spare","160 A","400 V","LVP4","")]},
+  "6":null /* built from 5 below */
+};
+PRESETS["6"]=JSON.parse(JSON.stringify(PRESETS["5"]));
+PRESETS["6"].info.site="Example Site F";
+PRESETS["6"].info.notes="Config 6 - closed ring: RMU1-RMU2-RMU3-RMU1";
+PRESETS["6"].rows[3].from="RMU1, RMU2";
+PRESETS["6"].rows[3].notes="Ring closed via RMU2";
+
+/* ------------------------------------------------ UI wiring */
+const FIELDS=["id","type","desc","rating","voltage","from","notes"];
+let state={info:{site:"",date:"",by:"",notes:""},rows:[]};
+
+const $=s=>document.querySelector(s);
+const eqbody=$("#eqbody");
+
+function typeSelect(value){
+  const opts=['<option value=""></option>'].concat(
+    TYPE_LABELS.map(([lbl])=>`<option${lbl===value?" selected":""}>${lbl}</option>`));
+  return `<select data-f="type" aria-label="Type">${opts.join("")}</select>`;
+}
+function rebuildTable(){
+  eqbody.innerHTML=state.rows.map((r,i)=>`<tr data-i="${i}">
+    <td><input data-f="id" value="${esc(r.id)}" aria-label="ID"></td>
+    <td>${typeSelect(r.type)}</td>
+    <td><input data-f="desc" value="${esc(r.desc)}" aria-label="Description"></td>
+    <td><input data-f="rating" value="${esc(r.rating)}" aria-label="Rating"></td>
+    <td><input data-f="voltage" value="${esc(r.voltage)}" aria-label="Voltage"></td>
+    <td><input data-f="from" value="${esc(r.from)}" aria-label="Feeds from"></td>
+    <td><input data-f="notes" value="${esc(r.notes)}" aria-label="Notes"></td>
+    <td class="rowops">
+      <button data-op="up" title="Move up">&uarr;</button><button data-op="down" title="Move down">&darr;</button><button data-op="del" class="del" title="Delete row">&times;</button>
+    </td>
+  </tr>`).join("");
+}
+function readInfoInputs(){
+  state.info={site:$("#i-site").value,date:$("#i-date").value,
+              by:$("#i-by").value,notes:$("#i-notes").value};
+}
+function writeInfoInputs(){
+  $("#i-site").value=state.info.site; $("#i-date").value=state.info.date;
+  $("#i-by").value=state.info.by; $("#i-notes").value=state.info.notes;
+}
+
+function redraw(){
+  const {items,order,errors,warnings}=buildModel(state.rows);
+  const probs=$("#problems");
+  if(!order.length){
+    $("#sheet").innerHTML="";
+    probs.hidden=false;
+    probs.innerHTML="<div>No equipment yet — add rows or load an example.</div>";
+    return;
+  }
+  if(errors.length){
+    probs.hidden=false;
+    probs.innerHTML=errors.concat(warnings).map(e=>`<div>${esc(e)}</div>`).join("");
+    return; /* keep the last good drawing on screen */
+  }
+  const width=layout(items,order);
+  const svgStr=render(state.info,items,order,width,warnings);
+  $("#sheet").innerHTML=svgStr;
+  probs.hidden=!warnings.length;
+  probs.innerHTML=warnings.map(e=>`<div>${esc(e)}</div>`).join("");
+}
+
+function persist(){
+  try{ localStorage.setItem("sld-sketchpad", JSON.stringify(state)); }catch(e){}
+}
+let timer=null;
+function queue(){
+  clearTimeout(timer);
+  timer=setTimeout(()=>{ redraw(); persist(); },250);
+}
+
+eqbody.addEventListener("input",e=>{
+  const tr=e.target.closest("tr"); if(!tr) return;
+  const f=e.target.dataset.f; if(!f) return;
+  state.rows[+tr.dataset.i][f]=e.target.value;
+  queue();
+});
+eqbody.addEventListener("click",e=>{
+  const btn=e.target.closest("button"); if(!btn) return;
+  const i=+btn.closest("tr").dataset.i, op=btn.dataset.op;
+  if(op==="del") state.rows.splice(i,1);
+  else if(op==="up"&&i>0) [state.rows[i-1],state.rows[i]]=[state.rows[i],state.rows[i-1]];
+  else if(op==="down"&&i<state.rows.length-1) [state.rows[i+1],state.rows[i]]=[state.rows[i],state.rows[i+1]];
+  else return;
+  rebuildTable(); redraw(); persist();
+});
+$("#addrow").addEventListener("click",()=>{
+  state.rows.push(R("","","","","","",""));
+  rebuildTable(); persist();
+  const last=eqbody.querySelector("tr:last-child input"); if(last) last.focus();
+});
+for(const id of ["i-site","i-date","i-by","i-notes"])
+  document.getElementById(id).addEventListener("input",()=>{ readInfoInputs(); queue(); });
+
+$("#preset").addEventListener("change",e=>{
+  const p=PRESETS[e.target.value]; e.target.value="";
+  if(!p) return;
+  state=JSON.parse(JSON.stringify(p));
+  writeInfoInputs(); rebuildTable(); redraw(); persist();
+});
+$("#clear").addEventListener("click",()=>{
+  state={info:{site:"",date:"",by:"",notes:""},rows:[R("","","","","","","")]};
+  writeInfoInputs(); rebuildTable(); redraw(); persist();
+});
+$("#copysvg").addEventListener("click",async ()=>{
+  const el=$("#sheet").innerHTML, out=$("#copystate");
+  if(!el){ out.textContent="Nothing to copy yet."; return; }
+  try{
+    await navigator.clipboard.writeText(el);
+    out.textContent="SVG copied — paste into a file or a drawing tool.";
+  }catch(e){
+    out.textContent="Copying is blocked here — select the drawing and use the browser's copy instead.";
+  }
+  setTimeout(()=>{ out.textContent=""; },5000);
+});
+
+/* boot: restore last session, else start on example 1 */
+(function(){
+  let restored=null;
+  try{
+    const raw=localStorage.getItem("sld-sketchpad");
+    if(raw){
+      const s=JSON.parse(raw);
+      if(s && Array.isArray(s.rows) && s.info) restored=s;
+    }
+  }catch(e){}
+  state=restored||JSON.parse(JSON.stringify(PRESETS["1"]));
+  writeInfoInputs(); rebuildTable(); redraw();
+})();
+</script>

@@ -17,6 +17,11 @@ python sld_sketch.py examples/config1_single_tx.xlsx -o output/config1.svg
 Open the SVG in any browser. To start a new survey, copy
 `examples/template.xlsx` and fill in the yellow cells.
 
+**No Python at hand?** Open `sld_sketchpad.html` in a browser — the same layout
+engine ported to JavaScript, with an editable equipment table instead of Excel
+and the drawing rebuilding live as you type. The six example configurations are
+built in, and your table is kept in the browser between visits.
+
 ## The spreadsheet
 
 One workbook per site, two sheets (plus a "How to fill" sheet with these same
