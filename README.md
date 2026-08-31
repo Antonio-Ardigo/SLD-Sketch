@@ -67,13 +67,14 @@ IEC-style sketch symbols: MV incomers come in from the top (source tick),
 the RMU is a dashed enclosure with load-break switches on the incoming ways and
 a fuse-switch on each transformer tee-off, MV and LV busbars are the thick
 horizontal bars, transformers are the two overlapping circles, pumps/motors are
-a circle with an "M", MCCs are small labelled boxes, and the open squares are
-breakers (every way on an MV switchboard gets one). Feeders drop off a busbar
+a circle with an "M", MCCs are small labelled boxes, and an × on a line is a
+circuit breaker (every way on an MV switchboard gets one). Feeders drop off a busbar
 and end in an arrow; a Bus Coupler between two busbars is drawn as a breaker in
 the gap, with its Notes text (e.g. "Normally open") underneath.
 
-The Protection column swaps the device drawn on an item's supply side: an open
-square is a circuit breaker, a blade with a contact bar is a load-break switch,
+The Protection column swaps the device drawn on an item's supply side: an ×
+on the line is a circuit breaker (IEC 60617 style), a blade with a contact bar
+is a load-break switch,
 a small rectangle on the line is a fuse (blade + rectangle = fuse-switch), and
 an arc is a contactor. Protection never changes the topology — only `Feeds
 From` does — it only changes which symbol sits on the connection. Protection

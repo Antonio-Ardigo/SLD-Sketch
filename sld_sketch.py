@@ -463,9 +463,10 @@ class SVG:
         self.line(x, ybot - 2, x, ybot)
 
     def breaker(self, x, y, size=13):
-        """LV circuit breaker: open square on the conductor."""
+        """Circuit breaker, IEC style: an X-cross on the conductor."""
         h = size / 2
-        self.rect(x - h, y - h, size, size, sw=2, fill="white")
+        self.line(x - h, y - h, x + h, y + h)
+        self.line(x - h, y + h, x + h, y - h)
 
     def device(self, kind, x, y):
         """Protection device centred at y on a vertical conductor.
@@ -484,7 +485,7 @@ class SVG:
             self.path(f"M {x:.1f},{y+7:.1f} A 7,7 0 0 1 {x:.1f},{y-7:.1f}")
             return 7
         self.breaker(x, y)  # 'cb' and anything unknown
-        return 8
+        return 0            # the conductor runs through the X
 
     def device_h(self, kind, x, y):
         """Protection device centred at x on a horizontal conductor.
@@ -511,7 +512,7 @@ class SVG:
             self.line(x + 4, y, x + 13, y)
             return 13
         self.breaker(x, y)
-        return 8
+        return 0            # the conductor runs through the X
 
     def drop(self, x, ytop, ybot, kind, ydev=None):
         """Vertical conductor with a protection device on it."""
@@ -809,9 +810,8 @@ def render(info, items, order, width):
         y = Y_MVBUS if ends[0].type == MV_BUSBAR else Y_BUS
         a, b = sorted(ends, key=lambda e: e.x)
         xm = (a.x_right + b.x_left) / 2
-        svg.line(a.x_right, y, xm - 8, y, w=2)
+        svg.line(a.x_right, y, b.x_left, y, w=2)
         svg.breaker(xm, y)
-        svg.line(xm + 8, y, b.x_left, y, w=2)
         raw, kind = prot_for(bc)
         extra = raw if raw and kind != "cb" else ""  # coupler device kind
         lbl = " ".join(v for v in (bc.id, bc.rating, extra) if v)

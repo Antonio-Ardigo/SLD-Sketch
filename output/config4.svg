@@ -5,17 +5,19 @@
 <text x="670.0" y="18.0" font-family="Arial, Helvetica, sans-serif" font-size="11.5" fill="#111" text-anchor="middle" font-weight="bold">MV1</text>
 <text x="670.0" y="32.0" font-family="Arial, Helvetica, sans-serif" font-size="11.5" fill="#111" text-anchor="middle">Utility incomer A</text>
 <text x="670.0" y="46.0" font-family="Arial, Helvetica, sans-serif" font-size="11.5" fill="#111" text-anchor="middle">11 kV</text>
-<rect x="663.5" y="128.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="670.0" y1="62.0" x2="670.0" y2="127.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="670.0" y1="143.0" x2="670.0" y2="208.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="663.5" y1="128.5" x2="676.5" y2="141.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="663.5" y1="141.5" x2="676.5" y2="128.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="670.0" y1="62.0" x2="670.0" y2="135.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="670.0" y1="135.0" x2="670.0" y2="208.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="670.0" cy="208.0" r="3.2" fill="#111"/>
 <line x1="1929.0" y1="62.0" x2="1951.0" y2="62.0" stroke="#111" stroke-width="3" stroke-linecap="round"/>
 <text x="1940.0" y="18.0" font-family="Arial, Helvetica, sans-serif" font-size="11.5" fill="#111" text-anchor="middle" font-weight="bold">MV2</text>
 <text x="1940.0" y="32.0" font-family="Arial, Helvetica, sans-serif" font-size="11.5" fill="#111" text-anchor="middle">Utility incomer B</text>
 <text x="1940.0" y="46.0" font-family="Arial, Helvetica, sans-serif" font-size="11.5" fill="#111" text-anchor="middle">11 kV</text>
-<rect x="1933.5" y="128.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="1940.0" y1="62.0" x2="1940.0" y2="127.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="1940.0" y1="143.0" x2="1940.0" y2="208.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1933.5" y1="128.5" x2="1946.5" y2="141.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1933.5" y1="141.5" x2="1946.5" y2="128.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1940.0" y1="62.0" x2="1940.0" y2="135.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1940.0" y1="135.0" x2="1940.0" y2="208.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="1940.0" cy="208.0" r="3.2" fill="#111"/>
 <line x1="90.0" y1="208.0" x2="1250.0" y2="208.0" stroke="#111" stroke-width="5.5" stroke-linecap="round"/>
 <text x="90.0" y="196.0" font-family="Arial, Helvetica, sans-serif" font-size="11.5" fill="#111" text-anchor="start" font-weight="bold">MVB1 MV switchboard A 630 A 11 kV</text>
@@ -68,78 +70,90 @@
 <text x="261.5" y="336.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">TX1</text>
 <text x="261.5" y="351.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">Riser R1, Dyn11</text>
 <text x="261.5" y="366.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">1600 kVA 11/0.4 kV</text>
-<rect x="226.0" y="259.0" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="232.5" y1="208.0" x2="232.5" y2="257.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="232.5" y1="273.5" x2="232.5" y2="323.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="226.0" y1="259.0" x2="239.0" y2="272.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="226.0" y1="272.0" x2="239.0" y2="259.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="232.5" y1="208.0" x2="232.5" y2="265.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="232.5" y1="265.5" x2="232.5" y2="323.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="232.5" cy="208.0" r="3.2" fill="#111"/>
-<rect x="226.0" y="430.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="232.5" y1="388.0" x2="232.5" y2="429.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="232.5" y1="445.0" x2="232.5" y2="486.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="226.0" y1="430.5" x2="239.0" y2="443.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="226.0" y1="443.5" x2="239.0" y2="430.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="232.5" y1="388.0" x2="232.5" y2="437.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="232.5" y1="437.0" x2="232.5" y2="486.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="232.5" cy="486.0" r="3.2" fill="#111"/>
 <circle cx="500.0" cy="342.0" r="19" fill="none" stroke="#111" stroke-width="2.2"/>
 <circle cx="500.0" cy="369.0" r="19" fill="none" stroke="#111" stroke-width="2.2"/>
 <text x="529.0" y="336.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">TX2</text>
 <text x="529.0" y="351.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">Riser R2, Dyn11</text>
 <text x="529.0" y="366.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">1250 kVA 11/0.4 kV</text>
-<rect x="493.5" y="259.0" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="500.0" y1="208.0" x2="500.0" y2="257.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="500.0" y1="273.5" x2="500.0" y2="323.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="493.5" y1="259.0" x2="506.5" y2="272.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="493.5" y1="272.0" x2="506.5" y2="259.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="500.0" y1="208.0" x2="500.0" y2="265.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="500.0" y1="265.5" x2="500.0" y2="323.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="500.0" cy="208.0" r="3.2" fill="#111"/>
-<rect x="493.5" y="430.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="500.0" y1="388.0" x2="500.0" y2="429.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="500.0" y1="445.0" x2="500.0" y2="486.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="493.5" y1="430.5" x2="506.5" y2="443.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="493.5" y1="443.5" x2="506.5" y2="430.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="500.0" y1="388.0" x2="500.0" y2="437.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="500.0" y1="437.0" x2="500.0" y2="486.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="500.0" cy="486.0" r="3.2" fill="#111"/>
 <circle cx="720.0" cy="342.0" r="19" fill="none" stroke="#111" stroke-width="2.2"/>
 <circle cx="720.0" cy="369.0" r="19" fill="none" stroke="#111" stroke-width="2.2"/>
 <text x="749.0" y="336.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">TX3</text>
 <text x="749.0" y="351.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">Riser R3, Dyn11</text>
 <text x="749.0" y="366.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">1000 kVA 11/0.4 kV</text>
-<rect x="713.5" y="259.0" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="720.0" y1="208.0" x2="720.0" y2="257.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="720.0" y1="273.5" x2="720.0" y2="323.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="713.5" y1="259.0" x2="726.5" y2="272.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="713.5" y1="272.0" x2="726.5" y2="259.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="720.0" y1="208.0" x2="720.0" y2="265.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="720.0" y1="265.5" x2="720.0" y2="323.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="720.0" cy="208.0" r="3.2" fill="#111"/>
-<rect x="713.5" y="430.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="720.0" y1="388.0" x2="720.0" y2="429.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="720.0" y1="445.0" x2="720.0" y2="486.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="713.5" y1="430.5" x2="726.5" y2="443.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="713.5" y1="443.5" x2="726.5" y2="430.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="720.0" y1="388.0" x2="720.0" y2="437.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="720.0" y1="437.0" x2="720.0" y2="486.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="720.0" cy="486.0" r="3.2" fill="#111"/>
 <circle cx="1502.5" cy="342.0" r="19" fill="none" stroke="#111" stroke-width="2.2"/>
 <circle cx="1502.5" cy="369.0" r="19" fill="none" stroke="#111" stroke-width="2.2"/>
 <text x="1531.5" y="336.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">TX4</text>
 <text x="1531.5" y="351.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">Riser R4, Dyn11</text>
 <text x="1531.5" y="366.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">1600 kVA 11/0.4 kV</text>
-<rect x="1496.0" y="259.0" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="1502.5" y1="208.0" x2="1502.5" y2="257.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="1502.5" y1="273.5" x2="1502.5" y2="323.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1496.0" y1="259.0" x2="1509.0" y2="272.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1496.0" y1="272.0" x2="1509.0" y2="259.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1502.5" y1="208.0" x2="1502.5" y2="265.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1502.5" y1="265.5" x2="1502.5" y2="323.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="1502.5" cy="208.0" r="3.2" fill="#111"/>
-<rect x="1496.0" y="430.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="1502.5" y1="388.0" x2="1502.5" y2="429.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="1502.5" y1="445.0" x2="1502.5" y2="486.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1496.0" y1="430.5" x2="1509.0" y2="443.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1496.0" y1="443.5" x2="1509.0" y2="430.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1502.5" y1="388.0" x2="1502.5" y2="437.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1502.5" y1="437.0" x2="1502.5" y2="486.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="1502.5" cy="486.0" r="3.2" fill="#111"/>
 <circle cx="1770.0" cy="342.0" r="19" fill="none" stroke="#111" stroke-width="2.2"/>
 <circle cx="1770.0" cy="369.0" r="19" fill="none" stroke="#111" stroke-width="2.2"/>
 <text x="1799.0" y="336.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">TX5</text>
 <text x="1799.0" y="351.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">Riser R5, Dyn11</text>
 <text x="1799.0" y="366.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">1250 kVA 11/0.4 kV</text>
-<rect x="1763.5" y="259.0" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="1770.0" y1="208.0" x2="1770.0" y2="257.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="1770.0" y1="273.5" x2="1770.0" y2="323.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1763.5" y1="259.0" x2="1776.5" y2="272.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1763.5" y1="272.0" x2="1776.5" y2="259.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1770.0" y1="208.0" x2="1770.0" y2="265.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1770.0" y1="265.5" x2="1770.0" y2="323.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="1770.0" cy="208.0" r="3.2" fill="#111"/>
-<rect x="1763.5" y="430.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="1770.0" y1="388.0" x2="1770.0" y2="429.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="1770.0" y1="445.0" x2="1770.0" y2="486.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1763.5" y1="430.5" x2="1776.5" y2="443.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1763.5" y1="443.5" x2="1776.5" y2="430.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1770.0" y1="388.0" x2="1770.0" y2="437.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1770.0" y1="437.0" x2="1770.0" y2="486.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="1770.0" cy="486.0" r="3.2" fill="#111"/>
 <circle cx="1990.0" cy="342.0" r="19" fill="none" stroke="#111" stroke-width="2.2"/>
 <circle cx="1990.0" cy="369.0" r="19" fill="none" stroke="#111" stroke-width="2.2"/>
 <text x="2019.0" y="336.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">TX6</text>
 <text x="2019.0" y="351.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">Riser R6, Dyn11</text>
 <text x="2019.0" y="366.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">1000 kVA 11/0.4 kV</text>
-<rect x="1983.5" y="259.0" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="1990.0" y1="208.0" x2="1990.0" y2="257.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="1990.0" y1="273.5" x2="1990.0" y2="323.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1983.5" y1="259.0" x2="1996.5" y2="272.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1983.5" y1="272.0" x2="1996.5" y2="259.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1990.0" y1="208.0" x2="1990.0" y2="265.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1990.0" y1="265.5" x2="1990.0" y2="323.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="1990.0" cy="208.0" r="3.2" fill="#111"/>
-<rect x="1983.5" y="430.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="1990.0" y1="388.0" x2="1990.0" y2="429.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="1990.0" y1="445.0" x2="1990.0" y2="486.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1983.5" y1="430.5" x2="1996.5" y2="443.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1983.5" y1="443.5" x2="1996.5" y2="430.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1990.0" y1="388.0" x2="1990.0" y2="437.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1990.0" y1="437.0" x2="1990.0" y2="486.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="1990.0" cy="486.0" r="3.2" fill="#111"/>
 <line x1="90.0" y1="486.0" x2="375.0" y2="486.0" stroke="#111" stroke-width="5.5" stroke-linecap="round"/>
 <text x="90.0" y="474.0" font-family="Arial, Helvetica, sans-serif" font-size="11.5" fill="#111" text-anchor="start" font-weight="bold">LVB1 LV board R1 2500 A 400 V</text>
@@ -153,106 +167,120 @@
 <text x="1675.0" y="474.0" font-family="Arial, Helvetica, sans-serif" font-size="11.5" fill="#111" text-anchor="start" font-weight="bold">LVB5 LV board R5 2000 A 400 V</text>
 <line x1="1895.0" y1="486.0" x2="2085.0" y2="486.0" stroke="#111" stroke-width="5.5" stroke-linecap="round"/>
 <text x="1895.0" y="474.0" font-family="Arial, Helvetica, sans-serif" font-size="11.5" fill="#111" text-anchor="start" font-weight="bold">LVB6 LV board R6 1600 A 400 V</text>
-<line x1="1250.0" y1="208.0" x2="1297.0" y2="208.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<rect x="1298.5" y="201.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="1313.0" y1="208.0" x2="1360.0" y2="208.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1250.0" y1="208.0" x2="1360.0" y2="208.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1298.5" y1="201.5" x2="1311.5" y2="214.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1298.5" y1="214.5" x2="1311.5" y2="201.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <text x="1305.0" y="232.0" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="middle">TIE1 630 A</text>
 <text x="1305.0" y="246.0" font-family="Arial, Helvetica, sans-serif" font-size="10" fill="#111" text-anchor="middle">Normally open</text>
 <circle cx="137.5" cy="486.0" r="3.2" fill="#111"/>
-<rect x="131.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="137.5" y1="486.0" x2="137.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="137.5" y1="524.0" x2="137.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="131.0" y1="509.5" x2="144.0" y2="522.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="131.0" y1="522.5" x2="144.0" y2="509.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="137.5" y1="486.0" x2="137.5" y2="516.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="137.5" y1="516.0" x2="137.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <rect x="123.5" y="548.0" width="28.0" height="26.0" fill="none" stroke="#111" stroke-width="2"/>
 <text x="137.5" y="566.0" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#111" text-anchor="middle">MCC</text>
 <text x="0" y="0" transform="translate(141.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">MCC1 · AHU plant · 400 A</text>
 <circle cx="232.5" cy="486.0" r="3.2" fill="#111"/>
-<rect x="226.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="232.5" y1="486.0" x2="232.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="232.5" y1="524.0" x2="232.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="226.0" y1="509.5" x2="239.0" y2="522.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="226.0" y1="522.5" x2="239.0" y2="509.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="232.5" y1="486.0" x2="232.5" y2="516.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="232.5" y1="516.0" x2="232.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <rect x="218.5" y="548.0" width="28.0" height="26.0" fill="none" stroke="#111" stroke-width="2"/>
 <text x="232.5" y="566.0" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#111" text-anchor="middle">MCC</text>
 <text x="0" y="0" transform="translate(236.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">MCC2 · Pump room · 400 A</text>
 <circle cx="327.5" cy="486.0" r="3.2" fill="#111"/>
-<rect x="321.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="327.5" y1="486.0" x2="327.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="327.5" y1="524.0" x2="327.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="321.0" y1="509.5" x2="334.0" y2="522.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="321.0" y1="522.5" x2="334.0" y2="509.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="327.5" y1="486.0" x2="327.5" y2="516.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="327.5" y1="516.0" x2="327.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <rect x="313.5" y="548.0" width="28.0" height="26.0" fill="none" stroke="#111" stroke-width="2"/>
 <text x="327.5" y="566.0" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#111" text-anchor="middle">MCC</text>
 <text x="0" y="0" transform="translate(331.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">MCC3 · Ventilation · 250 A</text>
 <circle cx="452.5" cy="486.0" r="3.2" fill="#111"/>
-<rect x="446.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="452.5" y1="486.0" x2="452.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="452.5" y1="524.0" x2="452.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="446.0" y1="509.5" x2="459.0" y2="522.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="446.0" y1="522.5" x2="459.0" y2="509.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="452.5" y1="486.0" x2="452.5" y2="516.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="452.5" y1="516.0" x2="452.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <rect x="438.5" y="548.0" width="28.0" height="26.0" fill="none" stroke="#111" stroke-width="2"/>
 <text x="452.5" y="566.0" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#111" text-anchor="middle">MCC</text>
 <text x="0" y="0" transform="translate(456.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">MCC4 · AHU plant · 400 A</text>
 <circle cx="547.5" cy="486.0" r="3.2" fill="#111"/>
-<rect x="541.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="547.5" y1="486.0" x2="547.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="547.5" y1="524.0" x2="547.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="541.0" y1="509.5" x2="554.0" y2="522.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="541.0" y1="522.5" x2="554.0" y2="509.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="547.5" y1="486.0" x2="547.5" y2="516.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="547.5" y1="516.0" x2="547.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <rect x="533.5" y="548.0" width="28.0" height="26.0" fill="none" stroke="#111" stroke-width="2"/>
 <text x="547.5" y="566.0" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#111" text-anchor="middle">MCC</text>
 <text x="0" y="0" transform="translate(551.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">MCC5 · Ventilation · 250 A</text>
 <circle cx="672.5" cy="486.0" r="3.2" fill="#111"/>
-<rect x="666.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="672.5" y1="486.0" x2="672.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="672.5" y1="524.0" x2="672.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="666.0" y1="509.5" x2="679.0" y2="522.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="666.0" y1="522.5" x2="679.0" y2="509.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="672.5" y1="486.0" x2="672.5" y2="516.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="672.5" y1="516.0" x2="672.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <rect x="658.5" y="548.0" width="28.0" height="26.0" fill="none" stroke="#111" stroke-width="2"/>
 <text x="672.5" y="566.0" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#111" text-anchor="middle">MCC</text>
 <text x="0" y="0" transform="translate(676.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">MCC6 · AHU plant · 400 A</text>
 <circle cx="767.5" cy="486.0" r="3.2" fill="#111"/>
-<rect x="761.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="767.5" y1="486.0" x2="767.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="767.5" y1="524.0" x2="767.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="761.0" y1="509.5" x2="774.0" y2="522.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="761.0" y1="522.5" x2="774.0" y2="509.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="767.5" y1="486.0" x2="767.5" y2="516.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="767.5" y1="516.0" x2="767.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <rect x="753.5" y="548.0" width="28.0" height="26.0" fill="none" stroke="#111" stroke-width="2"/>
 <text x="767.5" y="566.0" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#111" text-anchor="middle">MCC</text>
 <text x="0" y="0" transform="translate(771.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">MCC7 · Ventilation · 250 A</text>
 <circle cx="1407.5" cy="486.0" r="3.2" fill="#111"/>
-<rect x="1401.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="1407.5" y1="486.0" x2="1407.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="1407.5" y1="524.0" x2="1407.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1401.0" y1="509.5" x2="1414.0" y2="522.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1401.0" y1="522.5" x2="1414.0" y2="509.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1407.5" y1="486.0" x2="1407.5" y2="516.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1407.5" y1="516.0" x2="1407.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <rect x="1393.5" y="548.0" width="28.0" height="26.0" fill="none" stroke="#111" stroke-width="2"/>
 <text x="1407.5" y="566.0" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#111" text-anchor="middle">MCC</text>
 <text x="0" y="0" transform="translate(1411.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">MCC8 · AHU plant · 400 A</text>
 <circle cx="1502.5" cy="486.0" r="3.2" fill="#111"/>
-<rect x="1496.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="1502.5" y1="486.0" x2="1502.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="1502.5" y1="524.0" x2="1502.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1496.0" y1="509.5" x2="1509.0" y2="522.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1496.0" y1="522.5" x2="1509.0" y2="509.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1502.5" y1="486.0" x2="1502.5" y2="516.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1502.5" y1="516.0" x2="1502.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <rect x="1488.5" y="548.0" width="28.0" height="26.0" fill="none" stroke="#111" stroke-width="2"/>
 <text x="1502.5" y="566.0" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#111" text-anchor="middle">MCC</text>
 <text x="0" y="0" transform="translate(1506.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">MCC9 · Pump room · 400 A</text>
 <circle cx="1597.5" cy="486.0" r="3.2" fill="#111"/>
-<rect x="1591.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="1597.5" y1="486.0" x2="1597.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="1597.5" y1="524.0" x2="1597.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1591.0" y1="509.5" x2="1604.0" y2="522.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1591.0" y1="522.5" x2="1604.0" y2="509.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1597.5" y1="486.0" x2="1597.5" y2="516.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1597.5" y1="516.0" x2="1597.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <rect x="1583.5" y="548.0" width="28.0" height="26.0" fill="none" stroke="#111" stroke-width="2"/>
 <text x="1597.5" y="566.0" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#111" text-anchor="middle">MCC</text>
 <text x="0" y="0" transform="translate(1601.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">MCC10 · Ventilation · 250 A</text>
 <circle cx="1722.5" cy="486.0" r="3.2" fill="#111"/>
-<rect x="1716.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="1722.5" y1="486.0" x2="1722.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="1722.5" y1="524.0" x2="1722.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1716.0" y1="509.5" x2="1729.0" y2="522.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1716.0" y1="522.5" x2="1729.0" y2="509.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1722.5" y1="486.0" x2="1722.5" y2="516.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1722.5" y1="516.0" x2="1722.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <rect x="1708.5" y="548.0" width="28.0" height="26.0" fill="none" stroke="#111" stroke-width="2"/>
 <text x="1722.5" y="566.0" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#111" text-anchor="middle">MCC</text>
 <text x="0" y="0" transform="translate(1726.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">MCC11 · AHU plant · 400 A</text>
 <circle cx="1817.5" cy="486.0" r="3.2" fill="#111"/>
-<rect x="1811.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="1817.5" y1="486.0" x2="1817.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="1817.5" y1="524.0" x2="1817.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1811.0" y1="509.5" x2="1824.0" y2="522.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1811.0" y1="522.5" x2="1824.0" y2="509.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1817.5" y1="486.0" x2="1817.5" y2="516.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1817.5" y1="516.0" x2="1817.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <rect x="1803.5" y="548.0" width="28.0" height="26.0" fill="none" stroke="#111" stroke-width="2"/>
 <text x="1817.5" y="566.0" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#111" text-anchor="middle">MCC</text>
 <text x="0" y="0" transform="translate(1821.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">MCC12 · Ventilation · 250 A</text>
 <circle cx="1942.5" cy="486.0" r="3.2" fill="#111"/>
-<rect x="1936.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="1942.5" y1="486.0" x2="1942.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="1942.5" y1="524.0" x2="1942.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1936.0" y1="509.5" x2="1949.0" y2="522.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1936.0" y1="522.5" x2="1949.0" y2="509.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1942.5" y1="486.0" x2="1942.5" y2="516.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="1942.5" y1="516.0" x2="1942.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <rect x="1928.5" y="548.0" width="28.0" height="26.0" fill="none" stroke="#111" stroke-width="2"/>
 <text x="1942.5" y="566.0" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#111" text-anchor="middle">MCC</text>
 <text x="0" y="0" transform="translate(1946.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">MCC13 · AHU plant · 400 A</text>
 <circle cx="2037.5" cy="486.0" r="3.2" fill="#111"/>
-<rect x="2031.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="2037.5" y1="486.0" x2="2037.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="2037.5" y1="524.0" x2="2037.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="2031.0" y1="509.5" x2="2044.0" y2="522.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="2031.0" y1="522.5" x2="2044.0" y2="509.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="2037.5" y1="486.0" x2="2037.5" y2="516.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="2037.5" y1="516.0" x2="2037.5" y2="548.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <rect x="2023.5" y="548.0" width="28.0" height="26.0" fill="none" stroke="#111" stroke-width="2"/>
 <text x="2037.5" y="566.0" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#111" text-anchor="middle">MCC</text>
 <text x="0" y="0" transform="translate(2041.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">MCC14 · Ventilation · 250 A</text>
@@ -269,9 +297,10 @@
 <text x="2716.0" y="752.0" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">Config 4 - dual MV boards, riser feeders, N.</text>
 <rect x="24.0" y="786.0" width="830.0" height="82.0" fill="none" stroke="#111" stroke-width="1.2"/>
 <text x="32.0" y="800.0" font-family="Arial, Helvetica, sans-serif" font-size="10" fill="#111" text-anchor="start" font-weight="bold">LEGEND</text>
-<rect x="62.5" y="816.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="69.0" y1="808.0" x2="69.0" y2="815.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="69.0" y1="831.0" x2="69.0" y2="838.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="62.5" y1="816.5" x2="75.5" y2="829.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="62.5" y1="829.5" x2="75.5" y2="816.5" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="69.0" y1="808.0" x2="69.0" y2="823.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="69.0" y1="823.0" x2="69.0" y2="838.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <text x="69.0" y="850.0" font-family="Arial, Helvetica, sans-serif" font-size="9" fill="#111" text-anchor="middle">Circuit</text>
 <text x="69.0" y="860.0" font-family="Arial, Helvetica, sans-serif" font-size="9" fill="#111" text-anchor="middle">breaker</text>
 <line x1="143.0" y1="808.0" x2="143.0" y2="813.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>

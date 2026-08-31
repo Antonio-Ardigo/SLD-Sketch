@@ -478,7 +478,12 @@ class SVG {
     this.line(x,mid+4,x,mid+6);
     this.line(x,yb-2,x,yb);
   }
-  breaker(x,y,size=13){ this.rect(x-size/2,y-size/2,size,size,2,null,"white"); }
+  /* circuit breaker, IEC style: an X-cross on the conductor */
+  breaker(x,y,size=13){
+    const h=size/2;
+    this.line(x-h,y-h,x+h,y+h);
+    this.line(x-h,y+h,x+h,y-h);
+  }
   path(d,sw=2){
     this.parts.push(`<path d="${d}" fill="none" stroke="#111" stroke-width="${sw}" stroke-linecap="round"/>`);
   }
@@ -492,7 +497,7 @@ class SVG {
       this.path(`M ${x.toFixed(1)},${(y+7).toFixed(1)} A 7,7 0 0 1 ${x.toFixed(1)},${(y-7).toFixed(1)}`);
       return 7;
     }
-    this.breaker(x,y); return 8;  /* 'cb' and anything unknown */
+    this.breaker(x,y); return 0;  /* 'cb'/unknown: conductor runs through */
   }
   /* protection device centred at x on a horizontal conductor */
   deviceH(kind,x,y){
@@ -517,7 +522,7 @@ class SVG {
       this.line(x+4,y,x+13,y);
       return 13;
     }
-    this.breaker(x,y); return 8;
+    this.breaker(x,y); return 0;  /* conductor runs through the X */
   }
   drop(x,ytop,ybot,kind,ydev){
     const y=(ydev!==undefined)?ydev:(ytop+ybot)/2;
@@ -750,7 +755,7 @@ function render(info, items, order, width, warnings){
     const y=ends[0].type===MV_BUSBAR?Y_MVBUS:Y_BUS;
     const [a,b]=ends.slice().sort((u,v)=>u.x-v.x);
     const xm=(a.xRight+b.xLeft)/2;
-    svg.line(a.xRight,y,xm-8,y,2); svg.breaker(xm,y); svg.line(xm+8,y,b.xLeft,y,2);
+    svg.line(a.xRight,y,b.xLeft,y,2); svg.breaker(xm,y);
     const [craw,ckind]=protFor(bc);
     const extra=(craw && ckind!=="cb")?craw:"";  /* coupler device kind */
     svg.text(xm,y+24,[bc.id,bc.rating,extra].filter(Boolean).join(" "),{size:11});
