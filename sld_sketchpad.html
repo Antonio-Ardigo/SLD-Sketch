@@ -494,6 +494,31 @@ class SVG {
     }
     this.breaker(x,y); return 8;  /* 'cb' and anything unknown */
   }
+  /* protection device centred at x on a horizontal conductor */
+  deviceH(kind,x,y){
+    if(kind==="fuse"){ this.rect(x-11,y-4,22,8); this.line(x-11,y,x+11,y); return 11; }
+    if(kind==="fuse-switch"){
+      this.line(x-16,y,x-12,y);
+      this.line(x-12,y,x+1,y-9);
+      this.line(x+1,y-6,x+1,y+6);
+      this.rect(x+3,y-4,12,8);
+      this.line(x+1,y,x+3,y);
+      this.line(x+15,y,x+16,y);
+      return 16;
+    }
+    if(kind==="contactor"){
+      this.path(`M ${(x-7).toFixed(1)},${y.toFixed(1)} A 7,7 0 0 1 ${(x+7).toFixed(1)},${y.toFixed(1)}`);
+      return 7;
+    }
+    if(kind==="lbs"){
+      this.line(x-13,y,x-8,y);
+      this.line(x-8,y,x+4,y-9);
+      this.line(x+4,y-6,x+4,y+6);
+      this.line(x+4,y,x+13,y);
+      return 13;
+    }
+    this.breaker(x,y); return 8;
+  }
   drop(x,ytop,ybot,kind,ydev){
     const y=(ydev!==undefined)?ydev:(ytop+ybot)/2;
     const gap=this.device(kind,x,y);
@@ -534,6 +559,10 @@ function render(info, items, order, width, warnings){
         ringLinks.push([xa,xb]);
       } else sideLinks.push([a,b]);
     }
+  /* linked sides get a wider enclosure so the way switch fits inside */
+  const padL={}, padR={};
+  for(const r of rmus){ padL[r.id]=42; padR[r.id]=42; }
+  for(const [a,b] of sideLinks){ padR[a.id]=64; padL[b.id]=64; }
 
   /* RMU enclosures */
   const rmuBox={};
@@ -544,7 +573,7 @@ function render(info, items, order, width, warnings){
     let xs=waysIn.concat(waysOut).map(w=>w.x).filter(v=>v!==null);
     if(!xs.length) xs=[rmu.x];
     xs=xs.concat((ringEntries[rmu.id]||[]).map(e=>e[0]));
-    const left=Math.min(...xs)-42, right=Math.max(...xs)+42;
+    const left=Math.min(...xs)-padL[rmu.id], right=Math.max(...xs)+padR[rmu.id];
     const busL=Math.min(...xs)-18, busR=Math.max(...xs)+18;
     rmuBox[rmu.id]=[left,right,busL,busR];
     svg.rect(left,Y_RMU_TOP,right-left,Y_RMU_BOT-Y_RMU_TOP,1.6,"7 5");
@@ -577,8 +606,17 @@ function render(info, items, order, width, warnings){
     if(!rmuBox[a.id]||!rmuBox[b.id]) continue;
     const aR=rmuBox[a.id][1], aBusR=rmuBox[a.id][3];
     const bL=rmuBox[b.id][0], bBusL=rmuBox[b.id][2];
-    svg.line(aBusR,ymid,bBusL,ymid,2);
-    for(const xe of [aR,bL]) svg.line(xe-6,ymid+6,xe+6,ymid-6);
+    svg.line(aR,ymid,bL,ymid,2);  /* cable between boxes */
+    /* the way switch inside each box, between the wall and the bus
+       (default LBS; the fed RMU's Protection entry can override it) */
+    for(const [xe,xc,owner,other] of [[aR,aBusR,a,b],[bL,bBusL,b,a]]){
+      const kind=(owner.parents.includes(other.id)?protFor(owner,other.id)[1]:null)||"lbs";
+      const xm=(xe+xc)/2;
+      const gap=svg.deviceH(kind,xm,ymid);
+      const lo=Math.min(xe,xc), hi=Math.max(xe,xc);
+      svg.line(lo,ymid,xm-gap,ymid,2);
+      svg.line(xm+gap,ymid,hi,ymid,2);
+    }
   }
   const yRing=Y_RMU_TOP-26;
   for(const [xa,xb] of ringLinks){

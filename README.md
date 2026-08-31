@@ -77,8 +77,10 @@ square is a circuit breaker, a blade with a contact bar is a load-break switch,
 a small rectangle on the line is a fuse (blade + rectangle = fuse-switch), and
 an arc is a contactor. Protection never changes the topology — only `Feeds
 From` does — it only changes which symbol sits on the connection. Protection
-on an MV Incomer is the utility's device and is not drawn (you get a warning);
-RMU-to-RMU interconnecting cables always draw as load-break switches.
+on an MV Incomer is the utility's device and is not drawn (you get a warning).
+RMU-to-RMU interconnecting cables draw a load-break switch inside each
+enclosure by default; the fed RMU's Protection entry can override the symbol
+on its incoming way.
 
 This is a *sketch* tool for survey records — not a protection study or a
 CAD-grade drawing.

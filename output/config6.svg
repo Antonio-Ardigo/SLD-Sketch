@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1500" height="780" viewBox="0 0 1500 780">
 <rect width="100%" height="100%" fill="white"/>
 <text x="24.0" y="754.0" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#111" text-anchor="start" font-weight="bold">Example Site F — Single Line Diagram (sketch)</text>
-<rect x="593.0" y="150.0" width="84.0" height="118.0" fill="none" stroke="#111" stroke-width="1.6" stroke-dasharray="7 5"/>
+<rect x="571.0" y="150.0" width="128.0" height="118.0" fill="none" stroke="#111" stroke-width="1.6" stroke-dasharray="7 5"/>
 <line x1="617.0" y1="209.0" x2="653.0" y2="209.0" stroke="#111" stroke-width="3.4" stroke-linecap="round"/>
 <line x1="635.0" y1="162.0" x2="635.0" y2="167.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <line x1="635.0" y1="167.0" x2="644.0" y2="200.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
@@ -9,10 +9,10 @@
 <line x1="635.0" y1="200.0" x2="635.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <line x1="635.0" y1="150.0" x2="635.0" y2="162.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="635.0" cy="209.0" r="3.2" fill="#111"/>
-<text x="687.0" y="166.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start" font-weight="bold">RMU1</text>
-<text x="687.0" y="181.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">3-way RMU, main</text>
-<text x="687.0" y="196.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">630 A 11 kV</text>
-<rect x="265.0" y="150.0" width="112.0" height="118.0" fill="none" stroke="#111" stroke-width="1.6" stroke-dasharray="7 5"/>
+<text x="709.0" y="166.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start" font-weight="bold">RMU1</text>
+<text x="709.0" y="181.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">3-way RMU, main</text>
+<text x="709.0" y="196.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">630 A 11 kV</text>
+<rect x="265.0" y="150.0" width="134.0" height="118.0" fill="none" stroke="#111" stroke-width="1.6" stroke-dasharray="7 5"/>
 <line x1="289.0" y1="209.0" x2="353.0" y2="209.0" stroke="#111" stroke-width="3.4" stroke-linecap="round"/>
 <line x1="307.0" y1="162.0" x2="307.0" y2="167.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <line x1="307.0" y1="167.0" x2="316.0" y2="200.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
@@ -30,10 +30,10 @@
 <line x1="335.0" y1="209.0" x2="335.0" y2="213.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <line x1="335.0" y1="260.0" x2="335.0" y2="268.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="335.0" cy="209.0" r="3.2" fill="#111"/>
-<text x="387.0" y="166.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start" font-weight="bold">RMU2</text>
-<text x="387.0" y="181.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">3-way RMU, substation 2</text>
-<text x="387.0" y="196.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">630 A 11 kV</text>
-<rect x="893.0" y="150.0" width="112.0" height="118.0" fill="none" stroke="#111" stroke-width="1.6" stroke-dasharray="7 5"/>
+<text x="409.0" y="166.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start" font-weight="bold">RMU2</text>
+<text x="409.0" y="181.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">3-way RMU, substation 2</text>
+<text x="409.0" y="196.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">630 A 11 kV</text>
+<rect x="871.0" y="150.0" width="134.0" height="118.0" fill="none" stroke="#111" stroke-width="1.6" stroke-dasharray="7 5"/>
 <line x1="917.0" y1="209.0" x2="981.0" y2="209.0" stroke="#111" stroke-width="3.4" stroke-linecap="round"/>
 <line x1="963.0" y1="162.0" x2="963.0" y2="167.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <line x1="963.0" y1="167.0" x2="972.0" y2="200.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
@@ -54,12 +54,32 @@
 <text x="1015.0" y="166.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start" font-weight="bold">RMU3</text>
 <text x="1015.0" y="181.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">3-way RMU, substation 3</text>
 <text x="1015.0" y="196.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">630 A 11 kV</text>
-<line x1="353.0" y1="209.0" x2="617.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="371.0" y1="215.0" x2="383.0" y2="203.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="587.0" y1="215.0" x2="599.0" y2="203.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="653.0" y1="209.0" x2="917.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="671.0" y1="215.0" x2="683.0" y2="203.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="887.0" y1="215.0" x2="899.0" y2="203.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="399.0" y1="209.0" x2="571.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="363.0" y1="209.0" x2="368.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="368.0" y1="209.0" x2="380.0" y2="200.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="380.0" y1="203.0" x2="380.0" y2="215.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="380.0" y1="209.0" x2="389.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="353.0" y1="209.0" x2="363.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="389.0" y1="209.0" x2="399.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="581.0" y1="209.0" x2="586.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="586.0" y1="209.0" x2="598.0" y2="200.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="598.0" y1="203.0" x2="598.0" y2="215.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="598.0" y1="209.0" x2="607.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="571.0" y1="209.0" x2="581.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="607.0" y1="209.0" x2="617.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="699.0" y1="209.0" x2="871.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="663.0" y1="209.0" x2="668.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="668.0" y1="209.0" x2="680.0" y2="200.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="680.0" y1="203.0" x2="680.0" y2="215.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="680.0" y1="209.0" x2="689.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="653.0" y1="209.0" x2="663.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="689.0" y1="209.0" x2="699.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="881.0" y1="209.0" x2="886.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="886.0" y1="209.0" x2="898.0" y2="200.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="898.0" y1="203.0" x2="898.0" y2="215.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="898.0" y1="209.0" x2="907.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="871.0" y1="209.0" x2="881.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="907.0" y1="209.0" x2="917.0" y2="209.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <line x1="307.0" y1="150.0" x2="307.0" y2="124.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <line x1="307.0" y1="124.0" x2="963.0" y2="124.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <line x1="963.0" y1="124.0" x2="963.0" y2="150.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>

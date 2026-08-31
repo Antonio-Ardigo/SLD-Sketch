@@ -485,6 +485,33 @@ class SVG:
         self.breaker(x, y)  # 'cb' and anything unknown
         return 8
 
+    def device_h(self, kind, x, y):
+        """Protection device centred at x on a horizontal conductor.
+        Returns the half-width the conductor must leave clear."""
+        if kind == "fuse":
+            self.rect(x - 11, y - 4, 22, 8)
+            self.line(x - 11, y, x + 11, y)
+            return 11
+        if kind == "fuse-switch":
+            self.line(x - 16, y, x - 12, y)
+            self.line(x - 12, y, x + 1, y - 9)      # blade
+            self.line(x + 1, y - 6, x + 1, y + 6)   # contact bar
+            self.rect(x + 3, y - 4, 12, 8)          # fuse
+            self.line(x + 1, y, x + 3, y)
+            self.line(x + 15, y, x + 16, y)
+            return 16
+        if kind == "contactor":
+            self.path(f"M {x-7:.1f},{y:.1f} A 7,7 0 0 1 {x+7:.1f},{y:.1f}")
+            return 7
+        if kind == "lbs":
+            self.line(x - 13, y, x - 8, y)
+            self.line(x - 8, y, x + 4, y - 9)       # blade
+            self.line(x + 4, y - 6, x + 4, y + 6)   # contact bar
+            self.line(x + 4, y, x + 13, y)
+            return 13
+        self.breaker(x, y)
+        return 8
+
     def drop(self, x, ytop, ybot, kind, ydev=None):
         """Vertical conductor with a protection device on it."""
         y = ydev if ydev is not None else (ytop + ybot) / 2
@@ -545,6 +572,13 @@ def render(info, items, order, width):
             else:
                 side_links.append((a, b))
 
+    # linked sides get a wider enclosure so the way switch fits inside
+    pad_l = {r.id: 42 for r in rmus}
+    pad_r = {r.id: 42 for r in rmus}
+    for a, b in side_links:
+        pad_r[a.id] = 64
+        pad_l[b.id] = 64
+
     # --- RMU enclosures --------------------------------------------------
     rmu_box = {}
     for rmu in rmus:
@@ -553,7 +587,8 @@ def render(info, items, order, width):
         ways_out = children_of(items, order, rmu.id, {TRANSFORMER})
         xs = [w.x for w in ways_in + ways_out if w.x is not None] or [rmu.x]
         xs = xs + [e[0] for e in ring_entries.get(rmu.id, [])]
-        left, right = min(xs) - 42, max(xs) + 42
+        left = min(xs) - pad_l[rmu.id]
+        right = max(xs) + pad_r[rmu.id]
         bus_l, bus_r = min(xs) - 18, max(xs) + 18
         rmu_box[rmu.id] = (left, right, bus_l, bus_r)
         svg.rect(left, Y_RMU_TOP, right - left, Y_RMU_BOT - Y_RMU_TOP,
@@ -601,9 +636,18 @@ def render(info, items, order, width):
             continue
         _, a_right, _, a_bus_r = rmu_box[a.id]
         b_left, _, b_bus_l, _ = rmu_box[b.id]
-        svg.line(a_bus_r, y_link, b_bus_l, y_link, w=2)
-        for xe in (a_right, b_left):  # blade where the cable enters a box
-            svg.line(xe - 6, y_link + 6, xe + 6, y_link - 6)
+        svg.line(a_right, y_link, b_left, y_link, w=2)  # cable between boxes
+        # the way switch inside each box, between the wall and the bus
+        # (default LBS; the fed RMU's Protection entry can override it)
+        for xe, xc, owner, other in ((a_right, a_bus_r, a, b),
+                                     (b_left, b_bus_l, b, a)):
+            kind = (prot_for(owner, other.id)[1]
+                    if other.id in owner.parents else None) or "lbs"
+            xm = (xe + xc) / 2
+            gap = svg.device_h(kind, xm, y_link)
+            lo, hi = min(xe, xc), max(xe, xc)
+            svg.line(lo, y_link, xm - gap, y_link, w=2)
+            svg.line(xm + gap, y_link, hi, y_link, w=2)
     y_ring = Y_RMU_TOP - 26
     for xa, xb in ring_links:  # loop over the top of the boxes in between
         svg.line(xa, Y_RMU_TOP, xa, y_ring)
