@@ -95,7 +95,7 @@
   .info-grid input { width: 100%; box-sizing: border-box; }
 
   .tbl-scroll { overflow-x: auto; }
-  table.eq { border-collapse: collapse; width: 100%; min-width: 900px; }
+  table.eq { border-collapse: collapse; width: 100%; min-width: 1020px; }
   table.eq th {
     font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
     color: var(--muted); text-align: left; padding: 4px 6px 8px;
@@ -176,22 +176,27 @@
       <table class="eq" id="eqtable">
         <thead>
           <tr>
-            <th style="width:9%">ID</th>
-            <th style="width:13%">Type</th>
-            <th style="width:22%">Description</th>
-            <th style="width:11%">Rating</th>
-            <th style="width:11%">Voltage</th>
-            <th style="width:12%">Feeds from</th>
-            <th style="width:16%">Notes</th>
+            <th style="width:8%">ID</th>
+            <th style="width:12%">Type</th>
+            <th style="width:19%">Description</th>
+            <th style="width:10%">Rating</th>
+            <th style="width:10%">Voltage</th>
+            <th style="width:11%">Protection</th>
+            <th style="width:11%">Feeds from</th>
+            <th style="width:13%">Notes</th>
             <th style="width:6%"></th>
           </tr>
         </thead>
         <tbody id="eqbody"></tbody>
       </table>
+      <datalist id="protlist">
+        <option>CB</option><option>LBS</option><option>Fuse</option>
+        <option>Fuse-switch</option><option>Contactor</option>
+      </datalist>
     </div>
     <div class="tbl-foot">
       <button id="addrow" class="primary">+ Add row</button>
-      <span class="hint">Feeds from = the ID of the item supplying this one; comma for two supplies (bus tie: <code>BB1, BB2</code> — ring RMU: <code>RMU1, RMU2</code>). Row order sets left-to-right order.</span>
+      <span class="hint">Feeds from = the ID of the item supplying this one; comma for two supplies (bus tie: <code>BB1, BB2</code> — ring RMU: <code>RMU1, RMU2</code>). Protection = the device on this item's supply side (CB, LBS, Fuse, Fuse-switch, Contactor; blank = the usual default; comma list matches Feeds from). Row order sets left-to-right order.</span>
     </div>
   </section>
 
@@ -239,6 +244,28 @@ const ALIASES = {
   "mcc":MCC, "motor control centre":MCC, "motor control center":MCC,
   "bus coupler":BUS_COUPLER, "coupler":BUS_COUPLER
 };
+const PROT_ALIASES = {
+  "cb":"cb", "circuit breaker":"cb", "breaker":"cb", "acb":"cb",
+  "mccb":"cb", "mcb":"cb", "vcb":"cb",
+  "lbs":"lbs", "load break switch":"lbs", "load-break switch":"lbs",
+  "switch":"lbs", "isolator":"lbs", "disconnector":"lbs",
+  "fuse":"fuse", "fuses":"fuse",
+  "fuse-switch":"fuse-switch", "fuse switch":"fuse-switch",
+  "switch-fuse":"fuse-switch", "switch fuse":"fuse-switch",
+  "sfu":"fuse-switch",
+  "contactor":"contactor", "vacuum contactor":"contactor"
+};
+/* Protection entry for item's supply from parentId: [raw, kind|null].
+   One value covers every supply; a comma list matches Feeds From order. */
+function protFor(item, parentId){
+  if(!item.prots || !item.prots.length) return ["", null];
+  let raw=item.prots[0];
+  if(parentId!=null && item.prots.length>1 && item.parents.includes(parentId)){
+    const i=item.parents.indexOf(parentId);
+    if(i<item.prots.length) raw=item.prots[i];
+  }
+  return [raw, PROT_ALIASES[raw.toLowerCase().split(/\s+/).join(" ")]||null];
+}
 
 /* ------------------------------------------------ geometry constants */
 const MARGIN=90, FEEDER_SPACING=95, BUS_GAP=110, MIN_BUS_WIDTH=170,
@@ -276,12 +303,21 @@ function buildModel(rows){
     items[id]={ id, type: type||FEEDER, desc:r.desc.trim(), rating:r.rating.trim(),
       voltage:r.voltage.trim(), notes:r.notes.trim(),
       parents:r.from.split(",").map(s=>s.trim()).filter(Boolean),
+      prots:(r.prot||"").split(",").map(s=>s.trim()).filter(Boolean),
       x:null, xLeft:null, xRight:null };
     order.push(id);
   });
-  for(const id of order)
-    for(const p of items[id].parents)
+  for(const id of order){
+    const it=items[id];
+    for(const p of it.parents)
       if(!items[p]) errors.push(`"${id}" feeds from unknown ID "${p}" — check the Feeds from column.`);
+    if(it.prots.length && it.type===MV_INCOMER)
+      warnings.push(`"${id}": protection on an MV incomer is on the utility side — not drawn.`);
+    else if(![LV_BUSBAR,MV_BUSBAR,BUS_COUPLER].includes(it.type))
+      for(const raw of it.prots)
+        if(!PROT_ALIASES[raw.toLowerCase().split(/\s+/).join(" ")])
+          warnings.push(`"${id}": unknown protection "${raw}" — the default symbol is drawn.`);
+  }
   return {items, order, errors, warnings};
 }
 
@@ -443,6 +479,27 @@ class SVG {
     this.line(x,yb-2,x,yb);
   }
   breaker(x,y,size=13){ this.rect(x-size/2,y-size/2,size,size,2,null,"white"); }
+  path(d,sw=2){
+    this.parts.push(`<path d="${d}" fill="none" stroke="#111" stroke-width="${sw}" stroke-linecap="round"/>`);
+  }
+  /* protection device centred at y on a vertical conductor;
+     returns the half-height the conductor must leave clear */
+  device(kind,x,y){
+    if(kind==="fuse"){ this.rect(x-4,y-11,8,22); this.line(x,y-11,x,y+11); return 11; }
+    if(kind==="lbs"){ this.lbs(x,y-13,y+13); return 13; }
+    if(kind==="fuse-switch"){ this.fuseSwitch(x,y-16,y+16); return 16; }
+    if(kind==="contactor"){
+      this.path(`M ${x.toFixed(1)},${(y+7).toFixed(1)} A 7,7 0 0 1 ${x.toFixed(1)},${(y-7).toFixed(1)}`);
+      return 7;
+    }
+    this.breaker(x,y); return 8;  /* 'cb' and anything unknown */
+  }
+  drop(x,ytop,ybot,kind,ydev){
+    const y=(ydev!==undefined)?ydev:(ytop+ybot)/2;
+    const gap=this.device(kind,x,y);
+    this.line(x,ytop,x,y-gap);
+    this.line(x,y+gap,x,ybot);
+  }
   transformer(x,lines){
     this.circle(x,Y_TX_C1,TX_R,2.2); this.circle(x,Y_TX_C2,TX_R,2.2);
     let ty=Y_TX_C1-6;
@@ -472,8 +529,8 @@ function render(info, items, order, width, warnings){
       const between=rmus.some(r=>r!==a&&r!==b&&a.x<r.x&&r.x<b.x);
       if(between){
         const xa=a.x-28, xb=b.x+28;
-        (ringEntries[a.id]=ringEntries[a.id]||[]).push(xa);
-        (ringEntries[b.id]=ringEntries[b.id]||[]).push(xb);
+        (ringEntries[a.id]=ringEntries[a.id]||[]).push([xa,b.id]);
+        (ringEntries[b.id]=ringEntries[b.id]||[]).push([xb,a.id]);
         ringLinks.push([xa,xb]);
       } else sideLinks.push([a,b]);
     }
@@ -486,26 +543,28 @@ function render(info, items, order, width, warnings){
     const waysOut=childrenOf(items,order,rmu.id,[TRANSFORMER]);
     let xs=waysIn.concat(waysOut).map(w=>w.x).filter(v=>v!==null);
     if(!xs.length) xs=[rmu.x];
-    xs=xs.concat(ringEntries[rmu.id]||[]);
+    xs=xs.concat((ringEntries[rmu.id]||[]).map(e=>e[0]));
     const left=Math.min(...xs)-42, right=Math.max(...xs)+42;
     const busL=Math.min(...xs)-18, busR=Math.max(...xs)+18;
     rmuBox[rmu.id]=[left,right,busL,busR];
     svg.rect(left,Y_RMU_TOP,right-left,Y_RMU_BOT-Y_RMU_TOP,1.6,"7 5");
     svg.line(busL,ymid,busR,ymid,3.4);
-    for(const m of waysIn){
-      svg.lbs(m.x,Y_RMU_TOP+12,ymid);
-      svg.line(m.x,Y_RMU_TOP,m.x,Y_RMU_TOP+12);
-      svg.dot(m.x,ymid);
-    }
-    for(const xe of ringEntries[rmu.id]||[]){
-      svg.lbs(xe,Y_RMU_TOP+12,ymid);
-      svg.line(xe,Y_RMU_TOP,xe,Y_RMU_TOP+12);
-      svg.dot(xe,ymid);
-    }
-    for(const t of waysOut){
-      svg.fuseSwitch(t.x,ymid+4,Y_RMU_BOT-8);
-      svg.line(t.x,ymid,t.x,ymid+4);
-      svg.line(t.x,Y_RMU_BOT-8,t.x,Y_RMU_BOT);
+    const inWay=(x,kind)=>{  /* default LBS, overridden by Protection */
+      if(kind && kind!=="lbs") svg.drop(x,Y_RMU_TOP,ymid,kind);
+      else { svg.lbs(x,Y_RMU_TOP+12,ymid); svg.line(x,Y_RMU_TOP,x,Y_RMU_TOP+12); }
+      svg.dot(x,ymid);
+    };
+    for(const m of waysIn) inWay(m.x, protFor(rmu,m.id)[1]);
+    for(const [xe,other] of ringEntries[rmu.id]||[])
+      inWay(xe, rmu.parents.includes(other)?protFor(rmu,other)[1]:null);
+    for(const t of waysOut){  /* default fuse-switch, per fed item's row */
+      const kind=protFor(t,rmu.id)[1];
+      if(kind && kind!=="fuse-switch") svg.drop(t.x,ymid,Y_RMU_BOT,kind);
+      else {
+        svg.fuseSwitch(t.x,ymid+4,Y_RMU_BOT-8);
+        svg.line(t.x,ymid,t.x,ymid+4);
+        svg.line(t.x,Y_RMU_BOT-8,t.x,Y_RMU_BOT);
+      }
       svg.dot(t.x,ymid);
     }
     const lbl=[rmu.id,rmu.desc,[rmu.rating,rmu.voltage].filter(Boolean).join(" ")];
@@ -538,9 +597,8 @@ function render(info, items, order, width, warnings){
     for(const k of kids){
       if(k.type===RMU) svg.line(m.x,Y_MV_TOP,m.x,Y_RMU_TOP);
       else if(k.type===MV_BUSBAR){
-        const yb=(Y_MV_TOP+Y_MVBUS)/2;
-        svg.line(m.x,Y_MV_TOP,m.x,yb-8); svg.breaker(m.x,yb);
-        svg.line(m.x,yb+8,m.x,Y_MVBUS); svg.dot(m.x,Y_MVBUS);
+        svg.drop(m.x,Y_MV_TOP,Y_MVBUS,protFor(k,m.id)[1]||"cb");
+        svg.dot(m.x,Y_MVBUS);
       }
       else if(k.type===TRANSFORMER) svg.line(m.x,Y_MV_TOP,m.x,Y_TX_C1-TX_R);
     }
@@ -549,7 +607,9 @@ function render(info, items, order, width, warnings){
   /* MV switchboards */
   for(const mvb of mvbs){
     svg.line(mvb.xLeft,Y_MVBUS,mvb.xRight,Y_MVBUS,5.5);
-    svg.text(mvb.xLeft,Y_MVBUS-12,[mvb.id,mvb.desc,mvb.rating,mvb.voltage].filter(Boolean).join(" "),
+    const [praw,pkind]=protFor(mvb);
+    const zone=(praw && !pkind)?(" · "+praw):"";  /* e.g. 87B differential */
+    svg.text(mvb.xLeft,Y_MVBUS-12,[mvb.id,mvb.desc,mvb.rating,mvb.voltage].filter(Boolean).join(" ")+zone,
              {size:11.5,anchor:"start",bold:true});
   }
 
@@ -559,10 +619,13 @@ function render(info, items, order, width, warnings){
     for(const q of p.parents){
       const par=items[q];
       if(par.type===MV_BUSBAR){
-        const yb=(Y_MVBUS+Y_PUMP-PUMP_R)/2;
-        svg.line(p.x,Y_MVBUS,p.x,yb-8); svg.dot(p.x,Y_MVBUS);
-        svg.breaker(p.x,yb); svg.line(p.x,yb+8,p.x,Y_PUMP-PUMP_R);
-      } else if(par.type===RMU) svg.line(p.x,Y_RMU_BOT,p.x,Y_PUMP-PUMP_R);
+        svg.drop(p.x,Y_MVBUS,Y_PUMP-PUMP_R,protFor(p,par.id)[1]||"cb");
+        svg.dot(p.x,Y_MVBUS);
+      } else if(par.type===RMU){
+        const kind=protFor(p,par.id)[1];
+        if(kind) svg.drop(p.x,Y_RMU_BOT,Y_PUMP-PUMP_R,kind);
+        else svg.line(p.x,Y_RMU_BOT,p.x,Y_PUMP-PUMP_R);
+      }
     }
     svg.circle(p.x,Y_PUMP,PUMP_R,2.2);
     svg.text(p.x,Y_PUMP+5,"M",{size:15,bold:true});
@@ -578,25 +641,23 @@ function render(info, items, order, width, warnings){
       const par=items[q];
       if(par.type===RMU) svg.line(tx.x,Y_RMU_BOT,tx.x,Y_TX_C1-TX_R);
       else if(par.type===MV_BUSBAR){
-        const yb=(Y_MVBUS+Y_TX_C1-TX_R)/2;
-        svg.line(tx.x,Y_MVBUS,tx.x,yb-8); svg.dot(tx.x,Y_MVBUS);
-        svg.breaker(tx.x,yb); svg.line(tx.x,yb+8,tx.x,Y_TX_C1-TX_R);
+        svg.drop(tx.x,Y_MVBUS,Y_TX_C1-TX_R,protFor(tx,par.id)[1]||"cb");
+        svg.dot(tx.x,Y_MVBUS);
       }
     }
     const fed=childrenOf(items,order,tx.id,[LV_BUSBAR]);
     if(fed.length===1 && Math.abs(fed[0].x-tx.x)<1){
-      const yb=(Y_TX_C2+TX_R+Y_BUS)/2;
-      svg.line(tx.x,Y_TX_C2+TX_R,tx.x,yb-8); svg.breaker(tx.x,yb);
-      svg.line(tx.x,yb+8,tx.x,Y_BUS); svg.dot(tx.x,Y_BUS);
+      svg.drop(tx.x,Y_TX_C2+TX_R,Y_BUS,protFor(fed[0],tx.id)[1]||"cb");
+      svg.dot(tx.x,Y_BUS);
     } else if(fed.length){
       const ysplit=Y_TX_C2+TX_R+32;
       svg.line(tx.x,Y_TX_C2+TX_R,tx.x,ysplit);
       const xs=fed.map(b=>b.x).concat([tx.x]);
       svg.line(Math.min(...xs),ysplit,Math.max(...xs),ysplit);
       for(const bb of fed){
-        const yb=(ysplit+Y_BUS)/2;
-        svg.dot(bb.x,ysplit); svg.line(bb.x,ysplit,bb.x,yb-8);
-        svg.breaker(bb.x,yb); svg.line(bb.x,yb+8,bb.x,Y_BUS); svg.dot(bb.x,Y_BUS);
+        svg.dot(bb.x,ysplit);
+        svg.drop(bb.x,ysplit,Y_BUS,protFor(bb,tx.id)[1]||"cb");
+        svg.dot(bb.x,Y_BUS);
       }
     }
   }
@@ -605,7 +666,9 @@ function render(info, items, order, width, warnings){
   for(const bb of busbars){
     if(bb.xLeft===null) continue;
     svg.line(bb.xLeft,Y_BUS,bb.xRight,Y_BUS,5.5);
-    svg.text(bb.xLeft,Y_BUS-12,[bb.id,bb.desc,bb.rating,bb.voltage].filter(Boolean).join(" "),
+    const [praw,pkind]=protFor(bb);
+    const zone=(praw && !pkind)?(" · "+praw):"";  /* e.g. 87B differential */
+    svg.text(bb.xLeft,Y_BUS-12,[bb.id,bb.desc,bb.rating,bb.voltage].filter(Boolean).join(" ")+zone,
              {size:11.5,anchor:"start",bold:true});
   }
 
@@ -620,21 +683,23 @@ function render(info, items, order, width, warnings){
     const [a,b]=ends.slice().sort((u,v)=>u.x-v.x);
     const xm=(a.xRight+b.xLeft)/2;
     svg.line(a.xRight,y,xm-8,y,2); svg.breaker(xm,y); svg.line(xm+8,y,b.xLeft,y,2);
-    svg.text(xm,y+24,[bc.id,bc.rating].filter(Boolean).join(" "),{size:11});
+    const [craw,ckind]=protFor(bc);
+    const extra=(craw && ckind!=="cb")?craw:"";  /* coupler device kind */
+    svg.text(xm,y+24,[bc.id,bc.rating,extra].filter(Boolean).join(" "),{size:11});
     svg.text(xm,y+38,bc.notes,{size:10});
   }
 
   /* feeders and MCCs */
   for(const f of feeders){
     if(f.x===null) continue;
-    svg.line(f.x,Y_BUS,f.x,Y_FEED_BRK-7); svg.dot(f.x,Y_BUS);
-    svg.breaker(f.x,Y_FEED_BRK);
+    const kind=protFor(f,f.parents[0]||null)[1]||"cb";
+    svg.dot(f.x,Y_BUS);
     if(f.type===MCC){
-      svg.line(f.x,Y_FEED_BRK+7,f.x,Y_ARROW-26);
+      svg.drop(f.x,Y_BUS,Y_ARROW-26,kind,Y_FEED_BRK);
       svg.rect(f.x-14,Y_ARROW-26,28,26,2);
       svg.text(f.x,Y_ARROW-8,"MCC",{size:8});
     } else {
-      svg.line(f.x,Y_FEED_BRK+7,f.x,Y_ARROW-10);
+      svg.drop(f.x,Y_BUS,Y_ARROW-10,kind,Y_FEED_BRK);
       svg.arrowDown(f.x,Y_ARROW);
     }
     svg.text(f.x+4,Y_FEED_LBL,[f.id,f.desc,f.rating].filter(Boolean).join(" · "),
@@ -657,7 +722,7 @@ function render(info, items, order, width, warnings){
 }
 
 /* ------------------------------------------------ presets (mirror examples/) */
-function R(id,type,desc,rating,voltage,from,notes){ return {id,type,desc,rating,voltage,from,notes}; }
+function R(id,type,desc,rating,voltage,from,notes,prot){ return {id,type,desc,rating,voltage,from,notes,prot:prot||""}; }
 const PRESETS={
   "1":{info:{site:"Example Site A",date:"2026-08-31",by:"A. Ardigo",notes:"Config 1 - single transformer substation"},rows:[
     R("MV1","MV Incomer","Utility supply","","11 kV","","Cable from utility"),
@@ -755,9 +820,26 @@ PRESETS["6"].info.site="Example Site F";
 PRESETS["6"].info.notes="Config 6 - closed ring: RMU1-RMU2-RMU3-RMU1";
 PRESETS["6"].rows[3].from="RMU1, RMU2";
 PRESETS["6"].rows[3].notes="Ring closed via RMU2";
+/* fill Protection per type (the survey data the examples would carry) */
+const PRESET_PROTS={"RMU":"LBS","Transformer":"Fuse-switch","LV Busbar":"CB",
+  "Feeder":"CB","MCC":"CB","Pump":"Contactor","MV Busbar":"CB",
+  "Bus Coupler":"CB"};
+for(const key of Object.keys(PRESETS)){
+  const rows=PRESETS[key].rows;
+  for(const r of rows){
+    if(!r.prot){
+      r.prot=PRESET_PROTS[r.type]||"";
+      if(r.type==="RMU" && r.from.includes(",")) r.prot="LBS, LBS";
+      if(r.type==="Transformer"){  /* breaker way off an MV switchboard */
+        const par=rows.find(q=>q.id===r.from.trim());
+        if(par && par.type==="MV Busbar") r.prot="CB";
+      }
+    }
+  }
+}
 
 /* ------------------------------------------------ UI wiring */
-const FIELDS=["id","type","desc","rating","voltage","from","notes"];
+const FIELDS=["id","type","desc","rating","voltage","prot","from","notes"];
 let state={info:{site:"",date:"",by:"",notes:""},rows:[]};
 
 const $=s=>document.querySelector(s);
@@ -775,6 +857,7 @@ function rebuildTable(){
     <td><input data-f="desc" value="${esc(r.desc)}" aria-label="Description"></td>
     <td><input data-f="rating" value="${esc(r.rating)}" aria-label="Rating"></td>
     <td><input data-f="voltage" value="${esc(r.voltage)}" aria-label="Voltage"></td>
+    <td><input data-f="prot" value="${esc(r.prot||"")}" aria-label="Protection" list="protlist"></td>
     <td><input data-f="from" value="${esc(r.from)}" aria-label="Feeds from"></td>
     <td><input data-f="notes" value="${esc(r.notes)}" aria-label="Notes"></td>
     <td class="rowops">

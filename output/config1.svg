@@ -33,34 +33,34 @@
 <text x="309.0" y="351.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">Oil-immersed, Dyn11</text>
 <text x="309.0" y="366.0" font-family="Arial, Helvetica, sans-serif" font-size="12" fill="#111" text-anchor="start">1000 kVA 11/0.4 kV</text>
 <line x1="280.0" y1="268.0" x2="280.0" y2="323.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
-<line x1="280.0" y1="388.0" x2="280.0" y2="429.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <rect x="273.5" y="430.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
+<line x1="280.0" y1="388.0" x2="280.0" y2="429.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <line x1="280.0" y1="445.0" x2="280.0" y2="486.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="280.0" cy="486.0" r="3.2" fill="#111"/>
 <line x1="90.0" y1="486.0" x2="470.0" y2="486.0" stroke="#111" stroke-width="5.5" stroke-linecap="round"/>
 <text x="90.0" y="474.0" font-family="Arial, Helvetica, sans-serif" font-size="11.5" fill="#111" text-anchor="start" font-weight="bold">BB1 Main LV board 1600 A 400 V</text>
-<line x1="137.5" y1="486.0" x2="137.5" y2="509.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="137.5" cy="486.0" r="3.2" fill="#111"/>
 <rect x="131.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="137.5" y1="523.0" x2="137.5" y2="564.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="137.5" y1="486.0" x2="137.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="137.5" y1="524.0" x2="137.5" y2="564.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <polygon points="131.5,563.0 143.5,563.0 137.5,574.0" fill="#111"/>
 <text x="0" y="0" transform="translate(141.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">F1 · Lighting · 100 A</text>
-<line x1="232.5" y1="486.0" x2="232.5" y2="509.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="232.5" cy="486.0" r="3.2" fill="#111"/>
 <rect x="226.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="232.5" y1="523.0" x2="232.5" y2="564.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="232.5" y1="486.0" x2="232.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="232.5" y1="524.0" x2="232.5" y2="564.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <polygon points="226.5,563.0 238.5,563.0 232.5,574.0" fill="#111"/>
 <text x="0" y="0" transform="translate(236.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">F2 · Small power · 160 A</text>
-<line x1="327.5" y1="486.0" x2="327.5" y2="509.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="327.5" cy="486.0" r="3.2" fill="#111"/>
 <rect x="321.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="327.5" y1="523.0" x2="327.5" y2="564.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="327.5" y1="486.0" x2="327.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="327.5" y1="524.0" x2="327.5" y2="564.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <polygon points="321.5,563.0 333.5,563.0 327.5,574.0" fill="#111"/>
 <text x="0" y="0" transform="translate(331.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">F3 · HVAC · 250 A</text>
-<line x1="422.5" y1="486.0" x2="422.5" y2="509.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <circle cx="422.5" cy="486.0" r="3.2" fill="#111"/>
 <rect x="416.0" y="509.5" width="13.0" height="13.0" fill="white" stroke="#111" stroke-width="2"/>
-<line x1="422.5" y1="523.0" x2="422.5" y2="564.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="422.5" y1="486.0" x2="422.5" y2="508.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+<line x1="422.5" y1="524.0" x2="422.5" y2="564.0" stroke="#111" stroke-width="2" stroke-linecap="round"/>
 <polygon points="416.5,563.0 428.5,563.0 422.5,574.0" fill="#111"/>
 <text x="0" y="0" transform="translate(426.5,592.0) rotate(90)" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#111" text-anchor="start">F4 · Spare · 100 A</text>
 <rect x="558.0" y="664.0" width="288.0" height="96.0" fill="none" stroke="#111" stroke-width="1.5"/>

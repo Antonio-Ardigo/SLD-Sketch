@@ -65,8 +65,39 @@ TYPE_ALIASES = {
 }
 
 
+PROT_ALIASES = {
+    "cb": "cb", "circuit breaker": "cb", "breaker": "cb", "acb": "cb",
+    "mccb": "cb", "mcb": "cb", "vcb": "cb",
+    "lbs": "lbs", "load break switch": "lbs", "load-break switch": "lbs",
+    "switch": "lbs", "isolator": "lbs", "disconnector": "lbs",
+    "fuse": "fuse", "fuses": "fuse",
+    "fuse-switch": "fuse-switch", "fuse switch": "fuse-switch",
+    "switch-fuse": "fuse-switch", "switch fuse": "fuse-switch",
+    "sfu": "fuse-switch",
+    "contactor": "contactor", "vacuum contactor": "contactor",
+}
+
+
+def prot_for(item, parent_id=None):
+    """The Protection entry for this item's supply from parent_id.
+
+    Returns (raw_text, normalised_kind_or_None). One value applies to
+    every supply; a comma list matches the Feeds From order.
+    """
+    if not item.prots:
+        return "", None
+    raw = item.prots[0]
+    if parent_id is not None and len(item.prots) > 1 \
+            and parent_id in item.parents:
+        i = item.parents.index(parent_id)
+        if i < len(item.prots):
+            raw = item.prots[i]
+    return raw, PROT_ALIASES.get(" ".join(raw.lower().split()))
+
+
 class Item:
-    def __init__(self, id_, type_, desc, rating, voltage, parents, notes):
+    def __init__(self, id_, type_, desc, rating, voltage, parents, notes,
+                 prots=None):
         self.id = id_
         self.type = type_
         self.desc = desc
@@ -74,6 +105,7 @@ class Item:
         self.voltage = voltage
         self.parents = parents  # list of parent IDs
         self.notes = notes
+        self.prots = prots or []  # protection, one entry per supply
         self.x = None  # centre x, assigned during layout
         # busbar geometry
         self.x_left = None
@@ -131,6 +163,7 @@ def read_workbook(path):
     c_desc = col("desc")
     c_rating = col("rating")
     c_volt = col("volt")
+    c_prot = col("protection", "prot")
     c_parent = col("feeds from", "parent", "from")
     c_notes = col("note")
 
@@ -151,10 +184,12 @@ def read_workbook(path):
                   f"- drawing it as a generic feeder", file=sys.stderr)
             type_ = FEEDER
         parents = [p.strip() for p in cell(row, c_parent).split(",") if p.strip()]
+        prots = [p.strip() for p in cell(row, c_prot).split(",") if p.strip()]
         if id_ in items:
             sys.exit(f"error: duplicate ID '{id_}' in Equipment sheet")
         items[id_] = Item(id_, type_, cell(row, c_desc), cell(row, c_rating),
-                          cell(row, c_volt), parents, cell(row, c_notes))
+                          cell(row, c_volt), parents, cell(row, c_notes),
+                          prots)
         order.append(id_)
 
     if not items:
@@ -165,6 +200,15 @@ def read_workbook(path):
             if p not in items:
                 sys.exit(f"error: '{it.id}' feeds from unknown ID '{p}' "
                          f"- check the 'Feeds From' column")
+        if it.prots and it.type == MV_INCOMER:
+            print(f"warning: '{it.id}' - protection on an MV incomer is on "
+                  f"the utility side and is not drawn", file=sys.stderr)
+        elif it.type not in (LV_BUSBAR, MV_BUSBAR, BUS_COUPLER):
+            for raw in it.prots:
+                if PROT_ALIASES.get(" ".join(raw.lower().split())) is None:
+                    print(f"warning: '{it.id}' - unknown protection "
+                          f"'{raw}', the default symbol is drawn",
+                          file=sys.stderr)
 
     return info, items, order
 
@@ -395,6 +439,11 @@ class SVG:
             f'font-size="{size}" fill="{color}" text-anchor="{anchor}"{wgt}>'
             f'{escape(str(s))}</text>')
 
+    def path(self, d, sw=2):
+        self.parts.append(
+            f'<path d="{d}" fill="none" stroke="#111" stroke-width="{sw}" '
+            f'stroke-linecap="round"/>')
+
     # -- composite symbols ------------------------------------------------
 
     def load_break_switch(self, x, ytop, ybot):
@@ -416,6 +465,32 @@ class SVG:
         """LV circuit breaker: open square on the conductor."""
         h = size / 2
         self.rect(x - h, y - h, size, size, sw=2, fill="white")
+
+    def device(self, kind, x, y):
+        """Protection device centred at y on a vertical conductor.
+        Returns the half-height the conductor must leave clear."""
+        if kind == "fuse":
+            self.rect(x - 4, y - 11, 8, 22)
+            self.line(x, y - 11, x, y + 11)
+            return 11
+        if kind == "lbs":
+            self.load_break_switch(x, y - 13, y + 13)
+            return 13
+        if kind == "fuse-switch":
+            self.fuse_switch(x, y - 16, y + 16)
+            return 16
+        if kind == "contactor":
+            self.path(f"M {x:.1f},{y+7:.1f} A 7,7 0 0 1 {x:.1f},{y-7:.1f}")
+            return 7
+        self.breaker(x, y)  # 'cb' and anything unknown
+        return 8
+
+    def drop(self, x, ytop, ybot, kind, ydev=None):
+        """Vertical conductor with a protection device on it."""
+        y = ydev if ydev is not None else (ytop + ybot) / 2
+        gap = self.device(kind, x, y)
+        self.line(x, ytop, x, y - gap)
+        self.line(x, y + gap, x, ybot)
 
     def transformer(self, x, label_lines):
         self.circle(x, Y_TX_C1, TX_R, sw=2.2)
@@ -464,8 +539,8 @@ def render(info, items, order, width):
                           for r in rmus)
             if between:
                 xa, xb = a.x - 28, b.x + 28
-                ring_entries.setdefault(a.id, []).append(xa)
-                ring_entries.setdefault(b.id, []).append(xb)
+                ring_entries.setdefault(a.id, []).append((xa, b.id))
+                ring_entries.setdefault(b.id, []).append((xb, a.id))
                 ring_links.append((xa, xb))
             else:
                 side_links.append((a, b))
@@ -477,7 +552,7 @@ def render(info, items, order, width):
             rmu.id == k.id for k in children_of(items, order, m.id))]
         ways_out = children_of(items, order, rmu.id, {TRANSFORMER})
         xs = [w.x for w in ways_in + ways_out if w.x is not None] or [rmu.x]
-        xs = xs + ring_entries.get(rmu.id, [])
+        xs = xs + [e[0] for e in ring_entries.get(rmu.id, [])]
         left, right = min(xs) - 42, max(xs) + 42
         bus_l, bus_r = min(xs) - 18, max(xs) + 18
         rmu_box[rmu.id] = (left, right, bus_l, bus_r)
@@ -486,21 +561,31 @@ def render(info, items, order, width):
         # internal bus
         ymid = (Y_RMU_TOP + Y_RMU_BOT) / 2
         svg.line(bus_l, ymid, bus_r, ymid, w=3.4)
-        # incoming ways: load-break switches from the top edge to the bus
+        # incoming ways from the top edge to the bus (default LBS,
+        # overridden by the RMU row's Protection entry for that supply)
+        def in_way(x, kind):
+            if kind and kind != "lbs":
+                svg.drop(x, Y_RMU_TOP, ymid, kind)
+            else:
+                svg.load_break_switch(x, Y_RMU_TOP + 12, ymid)
+                svg.line(x, Y_RMU_TOP, x, Y_RMU_TOP + 12)
+            svg.dot(x, ymid)
         for m in ways_in:
-            svg.load_break_switch(m.x, Y_RMU_TOP + 12, ymid)
-            svg.line(m.x, Y_RMU_TOP, m.x, Y_RMU_TOP + 12)
-            svg.dot(m.x, ymid)
+            in_way(m.x, prot_for(rmu, m.id)[1])
         # ring-closure entries come in through the top the same way
-        for x_e in ring_entries.get(rmu.id, []):
-            svg.load_break_switch(x_e, Y_RMU_TOP + 12, ymid)
-            svg.line(x_e, Y_RMU_TOP, x_e, Y_RMU_TOP + 12)
-            svg.dot(x_e, ymid)
-        # outgoing ways: fuse-switches from the bus to the bottom edge
+        for x_e, other in ring_entries.get(rmu.id, []):
+            in_way(x_e, prot_for(rmu, other)[1]
+                   if other in rmu.parents else None)
+        # outgoing ways from the bus to the bottom edge (default
+        # fuse-switch, overridden by the fed item's Protection)
         for t in ways_out:
-            svg.fuse_switch(t.x, ymid + 4, Y_RMU_BOT - 8)
-            svg.line(t.x, ymid, t.x, ymid + 4)
-            svg.line(t.x, Y_RMU_BOT - 8, t.x, Y_RMU_BOT)
+            kind = prot_for(t, rmu.id)[1]
+            if kind and kind != "fuse-switch":
+                svg.drop(t.x, ymid, Y_RMU_BOT, kind)
+            else:
+                svg.fuse_switch(t.x, ymid + 4, Y_RMU_BOT - 8)
+                svg.line(t.x, ymid, t.x, ymid + 4)
+                svg.line(t.x, Y_RMU_BOT - 8, t.x, Y_RMU_BOT)
             svg.dot(t.x, ymid)
         lbl = [rmu.id, rmu.desc,
                " ".join(v for v in (rmu.rating, rmu.voltage) if v)]
@@ -537,11 +622,9 @@ def render(info, items, order, width):
         for k in kids:
             if k.type == RMU:
                 svg.line(m.x, Y_MV_TOP, m.x, Y_RMU_TOP)
-            elif k.type == MV_BUSBAR:  # incoming breaker onto the board
-                ybrk = (Y_MV_TOP + Y_MVBUS) / 2
-                svg.line(m.x, Y_MV_TOP, m.x, ybrk - 8)
-                svg.breaker(m.x, ybrk)
-                svg.line(m.x, ybrk + 8, m.x, Y_MVBUS)
+            elif k.type == MV_BUSBAR:  # incoming device onto the board
+                svg.drop(m.x, Y_MV_TOP, Y_MVBUS,
+                         prot_for(k, m.id)[1] or "cb")
                 svg.dot(m.x, Y_MVBUS)
             elif k.type == TRANSFORMER:  # direct feed, no RMU
                 svg.line(m.x, Y_MV_TOP, m.x, Y_TX_C1 - TX_R)
@@ -549,8 +632,12 @@ def render(info, items, order, width):
     # --- MV switchboards -------------------------------------------------
     for mvb in mvbs:
         svg.line(mvb.x_left, Y_MVBUS, mvb.x_right, Y_MVBUS, w=5.5)
+        raw, kind = prot_for(mvb)
+        zone = raw if raw and kind is None else ""  # e.g. 87B differential
         lbl = " ".join(v for v in (mvb.id, mvb.desc, mvb.rating, mvb.voltage)
                        if v)
+        if zone:
+            lbl += " · " + zone
         svg.text(mvb.x_left, Y_MVBUS - 12, lbl, size=11.5, anchor="start",
                  bold=True)
 
@@ -560,13 +647,15 @@ def render(info, items, order, width):
             continue
         for par in (items[q] for q in p.parents):
             if par.type == MV_BUSBAR:
-                ybrk = (Y_MVBUS + Y_PUMP - PUMP_R) / 2
-                svg.line(p.x, Y_MVBUS, p.x, ybrk - 8)
+                svg.drop(p.x, Y_MVBUS, Y_PUMP - PUMP_R,
+                         prot_for(p, par.id)[1] or "cb")
                 svg.dot(p.x, Y_MVBUS)
-                svg.breaker(p.x, ybrk)
-                svg.line(p.x, ybrk + 8, p.x, Y_PUMP - PUMP_R)
             elif par.type == RMU:
-                svg.line(p.x, Y_RMU_BOT, p.x, Y_PUMP - PUMP_R)
+                kind = prot_for(p, par.id)[1]
+                if kind:
+                    svg.drop(p.x, Y_RMU_BOT, Y_PUMP - PUMP_R, kind)
+                else:
+                    svg.line(p.x, Y_RMU_BOT, p.x, Y_PUMP - PUMP_R)
         svg.circle(p.x, Y_PUMP, PUMP_R, sw=2.2)
         svg.text(p.x, Y_PUMP + 5, "M", size=15, bold=True)
         lbl = " · ".join(v for v in (p.id, p.desc, p.rating) if v)
@@ -584,39 +673,37 @@ def render(info, items, order, width):
             par = items[p]
             if par.type == RMU:
                 svg.line(tx.x, Y_RMU_BOT, tx.x, Y_TX_C1 - TX_R)
-            elif par.type == MV_BUSBAR:  # feeder breaker off the board
-                ybrk = (Y_MVBUS + Y_TX_C1 - TX_R) / 2
-                svg.line(tx.x, Y_MVBUS, tx.x, ybrk - 8)
+            elif par.type == MV_BUSBAR:  # feeder device off the board
+                svg.drop(tx.x, Y_MVBUS, Y_TX_C1 - TX_R,
+                         prot_for(tx, par.id)[1] or "cb")
                 svg.dot(tx.x, Y_MVBUS)
-                svg.breaker(tx.x, ybrk)
-                svg.line(tx.x, ybrk + 8, tx.x, Y_TX_C1 - TX_R)
         fed = children_of(items, order, tx.id, {LV_BUSBAR})
         if len(fed) == 1 and abs(fed[0].x - tx.x) < 1:
-            # straight drop to the busbar through the LV incomer breaker
-            ybrk = (Y_TX_C2 + TX_R + Y_BUS) / 2
-            svg.line(tx.x, Y_TX_C2 + TX_R, tx.x, ybrk - 8)
-            svg.breaker(tx.x, ybrk)
-            svg.line(tx.x, ybrk + 8, tx.x, Y_BUS)
+            # straight drop to the busbar through the LV incomer device
+            svg.drop(tx.x, Y_TX_C2 + TX_R, Y_BUS,
+                     prot_for(fed[0], tx.id)[1] or "cb")
             svg.dot(tx.x, Y_BUS)
         elif fed:
             # one transformer feeding several panels: split, then one
-            # incomer breaker per panel
+            # incomer device per panel
             ysplit = Y_TX_C2 + TX_R + 32
             svg.line(tx.x, Y_TX_C2 + TX_R, tx.x, ysplit)
             xs = [bb.x for bb in fed] + [tx.x]
             svg.line(min(xs), ysplit, max(xs), ysplit)
             for bb in fed:
-                ybrk = (ysplit + Y_BUS) / 2
                 svg.dot(bb.x, ysplit)
-                svg.line(bb.x, ysplit, bb.x, ybrk - 8)
-                svg.breaker(bb.x, ybrk)
-                svg.line(bb.x, ybrk + 8, bb.x, Y_BUS)
+                svg.drop(bb.x, ysplit, Y_BUS,
+                         prot_for(bb, tx.id)[1] or "cb")
                 svg.dot(bb.x, Y_BUS)
 
     # --- busbars ---------------------------------------------------------
     for bb in busbars:
         svg.line(bb.x_left, Y_BUS, bb.x_right, Y_BUS, w=5.5)
+        raw, kind = prot_for(bb)
+        zone = raw if raw and kind is None else ""  # e.g. 87B differential
         lbl = " ".join(v for v in (bb.id, bb.desc, bb.rating, bb.voltage) if v)
+        if zone:
+            lbl += " · " + zone
         svg.text(bb.x_left, Y_BUS - 12, lbl, size=11.5, anchor="start",
                  bold=True)
 
@@ -634,7 +721,9 @@ def render(info, items, order, width):
         svg.line(a.x_right, y, xm - 8, y, w=2)
         svg.breaker(xm, y)
         svg.line(xm + 8, y, b.x_left, y, w=2)
-        lbl = " ".join(v for v in (bc.id, bc.rating) if v)
+        raw, kind = prot_for(bc)
+        extra = raw if raw and kind != "cb" else ""  # coupler device kind
+        lbl = " ".join(v for v in (bc.id, bc.rating, extra) if v)
         svg.text(xm, y + 24, lbl, size=11)
         svg.text(xm, y + 38, bc.notes, size=10)
 
@@ -642,15 +731,14 @@ def render(info, items, order, width):
     for f in feeders:
         if f.x is None:
             continue
-        svg.line(f.x, Y_BUS, f.x, Y_FEED_BRK - 7)
+        kind = prot_for(f, f.parents[0] if f.parents else None)[1] or "cb"
         svg.dot(f.x, Y_BUS)
-        svg.breaker(f.x, Y_FEED_BRK)
         if f.type == MCC:  # motor control centre: box instead of arrow
-            svg.line(f.x, Y_FEED_BRK + 7, f.x, Y_ARROW - 26)
+            svg.drop(f.x, Y_BUS, Y_ARROW - 26, kind, ydev=Y_FEED_BRK)
             svg.rect(f.x - 14, Y_ARROW - 26, 28, 26, sw=2)
             svg.text(f.x, Y_ARROW - 8, "MCC", size=8)
         else:
-            svg.line(f.x, Y_FEED_BRK + 7, f.x, Y_ARROW - 10)
+            svg.drop(f.x, Y_BUS, Y_ARROW - 10, kind, ydev=Y_FEED_BRK)
             svg.arrow_down(f.x, Y_ARROW)
         lbl = " · ".join(v for v in (f.id, f.desc, f.rating) if v)
         svg.text(f.x + 4, Y_FEED_LBL, lbl, size=11, anchor="start", rotate=90)

@@ -39,6 +39,7 @@ diagram's title block.
 | Description | Free text | `Oil-immersed, Dyn11` |
 | Rating | From the nameplate | `1000 kVA`, `630 A` |
 | Voltage | From the nameplate | `11/0.4 kV`, `400 V` |
+| Protection | Device on **this item's supply side**: CB, LBS, Fuse, Fuse-switch, Contactor. Blank = the usual default. Comma list matches Feeds From order. Free text on a busbar (e.g. `87B differential`) is printed as a label annotation | `CB` or `LBS, CB` |
 | Feeds From | ID of the item supplying this one; comma for two supplies | `RMU1` or `BB1, BB2` |
 | Notes | Anything else | `Normally open` |
 
@@ -70,6 +71,14 @@ a circle with an "M", MCCs are small labelled boxes, and the open squares are
 breakers (every way on an MV switchboard gets one). Feeders drop off a busbar
 and end in an arrow; a Bus Coupler between two busbars is drawn as a breaker in
 the gap, with its Notes text (e.g. "Normally open") underneath.
+
+The Protection column swaps the device drawn on an item's supply side: an open
+square is a circuit breaker, a blade with a contact bar is a load-break switch,
+a small rectangle on the line is a fuse (blade + rectangle = fuse-switch), and
+an arc is a contactor. Protection never changes the topology — only `Feeds
+From` does — it only changes which symbol sits on the connection. Protection
+on an MV Incomer is the utility's device and is not drawn (you get a warning);
+RMU-to-RMU interconnecting cables always draw as load-break switches.
 
 This is a *sketch* tool for survey records — not a protection study or a
 CAD-grade drawing.
