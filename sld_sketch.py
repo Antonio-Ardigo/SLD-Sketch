@@ -308,14 +308,20 @@ def layout(items, order):
                 k = siblings.index(tx)
                 spread = 90
                 tx.x = fed[0].x + (k - (len(siblings) - 1) / 2) * spread
-            else:
-                tx.x = fed[0].x
+            else:  # centred over its panel(s) - a TX may feed two boards
+                tx.x = sum(bb.x for bb in fed) / len(fed)
 
     # 3. RMUs centred over their transformer children
     for rmu in rmus:
         kids = children_of(items, order, rmu.id, {TRANSFORMER})
         if kids and all(k.x is not None for k in kids):
             rmu.x = sum(k.x for k in kids) / len(kids)
+    for rmu in rmus:  # cascaded RMU: centre over the RMUs it feeds
+        if rmu.x is None:
+            kids = children_of(items, order, rmu.id, {RMU})
+            placed = [k.x for k in kids if k.x is not None]
+            if placed:
+                rmu.x = sum(placed) / len(placed)
 
     # 4. MV incomers spread over the RMU (or over the transformer they feed)
     for rmu in rmus:
@@ -449,12 +455,13 @@ def render(info, items, order, width):
         ways_out = children_of(items, order, rmu.id, {TRANSFORMER})
         xs = [w.x for w in ways_in + ways_out if w.x is not None] or [rmu.x]
         left, right = min(xs) - 42, max(xs) + 42
-        rmu_box[rmu.id] = (left, right)
+        bus_l, bus_r = min(xs) - 18, max(xs) + 18
+        rmu_box[rmu.id] = (left, right, bus_l, bus_r)
         svg.rect(left, Y_RMU_TOP, right - left, Y_RMU_BOT - Y_RMU_TOP,
                  sw=1.6, dash="7 5")
         # internal bus
         ymid = (Y_RMU_TOP + Y_RMU_BOT) / 2
-        svg.line(min(xs) - 18, ymid, max(xs) + 18, ymid, w=3.4)
+        svg.line(bus_l, ymid, bus_r, ymid, w=3.4)
         # incoming ways: load-break switches from the top edge to the bus
         for m in ways_in:
             svg.load_break_switch(m.x, Y_RMU_TOP + 12, ymid)
@@ -472,6 +479,24 @@ def render(info, items, order, width):
         for i, s in enumerate(lbl):
             svg.text(right + 10, ty, s, anchor="start", bold=(i == 0))
             ty += 15
+
+    # --- RMU-to-RMU interconnecting cables -------------------------------
+    y_link = (Y_RMU_TOP + Y_RMU_BOT) / 2
+    for rmu in rmus:
+        for p in rmu.parents:
+            if items[p].type != RMU:
+                continue
+            if p not in rmu_box or rmu.id not in rmu_box:
+                continue
+            pl, pr, pbl, pbr = rmu_box[p]
+            cl, cr, cbl, cbr = rmu_box[rmu.id]
+            if items[p].x < rmu.x:      # parent box left of child box
+                x1, x2, edges = pbr, cbl, (pr, cl)
+            else:
+                x1, x2, edges = cbr, pbl, (cr, pl)
+            svg.line(min(x1, x2), y_link, max(x1, x2), y_link, w=2)
+            for xe in edges:  # switch blade where the cable enters each box
+                svg.line(xe - 6, y_link + 6, xe + 6, y_link - 6)
 
     # --- MV incomers -----------------------------------------------------
     for m in mvs:
@@ -539,13 +564,27 @@ def render(info, items, order, width):
                 svg.breaker(tx.x, ybrk)
                 svg.line(tx.x, ybrk + 8, tx.x, Y_TX_C1 - TX_R)
         fed = children_of(items, order, tx.id, {LV_BUSBAR})
-        for bb in fed:
-            # drop to the busbar through the LV incomer breaker
+        if len(fed) == 1 and abs(fed[0].x - tx.x) < 1:
+            # straight drop to the busbar through the LV incomer breaker
             ybrk = (Y_TX_C2 + TX_R + Y_BUS) / 2
             svg.line(tx.x, Y_TX_C2 + TX_R, tx.x, ybrk - 8)
             svg.breaker(tx.x, ybrk)
             svg.line(tx.x, ybrk + 8, tx.x, Y_BUS)
             svg.dot(tx.x, Y_BUS)
+        elif fed:
+            # one transformer feeding several panels: split, then one
+            # incomer breaker per panel
+            ysplit = Y_TX_C2 + TX_R + 32
+            svg.line(tx.x, Y_TX_C2 + TX_R, tx.x, ysplit)
+            xs = [bb.x for bb in fed] + [tx.x]
+            svg.line(min(xs), ysplit, max(xs), ysplit)
+            for bb in fed:
+                ybrk = (ysplit + Y_BUS) / 2
+                svg.dot(bb.x, ysplit)
+                svg.line(bb.x, ysplit, bb.x, ybrk - 8)
+                svg.breaker(bb.x, ybrk)
+                svg.line(bb.x, ybrk + 8, bb.x, Y_BUS)
+                svg.dot(bb.x, Y_BUS)
 
     # --- busbars ---------------------------------------------------------
     for bb in busbars:

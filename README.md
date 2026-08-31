@@ -49,6 +49,7 @@ from both ring incomers (`MV1, MV2`).
 | `examples/config2_twin_tx.xlsx` | MV incomer → RMU → 2× 1600 kVA transformers → two LV busbars + bus coupler, 6 feeders | `output/config2.svg` |
 | `examples/config3_ring_main.xlsx` | Ring main: 2 MV incomers → RMU → 800 kVA transformer → LV busbar, 3 feeders | `output/config3.svg` |
 | `examples/config4_dual_mv_boards.xlsx` | 2 utility incomers → 2 MV switchboards (6 riser feeders each, N.O. bus tie) → 3 transformers + 3 MV pumps per board; each transformer → LV board with 2–3 MCCs | `output/config4.svg` |
+| `examples/config5_cascaded_rmus.xlsx` | Utility incomer → RMU1, which feeds RMU2 and RMU3 by interconnecting cables; each of those feeds a 1000 kVA transformer, and each transformer feeds two LV panels | `output/config5.svg` |
 
 Regenerate the workbooks with `python make_examples.py`, and the sketches with
 `python sld_sketch.py <workbook> -o <out.svg>`.

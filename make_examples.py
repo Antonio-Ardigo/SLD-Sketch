@@ -226,6 +226,42 @@ CONFIG4 = dict(
         ("MCC14", "MCC", "Ventilation", "250 A", "400 V", "LVB6", ""),
     ])
 
+CONFIG5 = dict(
+    path="examples/config5_cascaded_rmus.xlsx",
+    info=[("Site", "Example Site E"),
+          ("Date", "2026-08-31"),
+          ("Surveyed by", "A. Ardigo"),
+          ("Notes", "Config 5 - three 3-way RMUs, RMU1 feeds RMU2 and RMU3")],
+    rows=[
+        ("MV1", "MV Incomer", "Utility supply", "", "11 kV", "", ""),
+        ("RMU1", "RMU", "3-way RMU, main", "630 A", "11 kV", "MV1",
+         "Feeds RMU2 and RMU3"),
+        ("RMU2", "RMU", "3-way RMU, substation 2", "630 A", "11 kV",
+         "RMU1", ""),
+        ("RMU3", "RMU", "3-way RMU, substation 3", "630 A", "11 kV",
+         "RMU1", ""),
+        ("TX1", "Transformer", "Oil-immersed, Dyn11", "1000 kVA",
+         "11/0.4 kV", "RMU2", ""),
+        ("TX2", "Transformer", "Oil-immersed, Dyn11", "1000 kVA",
+         "11/0.4 kV", "RMU3", ""),
+        ("LVP1", "LV Busbar", "LV panel 1", "800 A", "400 V", "TX1", ""),
+        ("LVP2", "LV Busbar", "LV panel 2", "800 A", "400 V", "TX1", ""),
+        ("LVP3", "LV Busbar", "LV panel 3", "800 A", "400 V", "TX2", ""),
+        ("LVP4", "LV Busbar", "LV panel 4", "800 A", "400 V", "TX2", ""),
+        ("F1", "Feeder", "Distribution board 1", "250 A", "400 V",
+         "LVP1", ""),
+        ("F2", "Feeder", "Spare", "160 A", "400 V", "LVP1", ""),
+        ("F3", "Feeder", "Distribution board 2", "250 A", "400 V",
+         "LVP2", ""),
+        ("F4", "Feeder", "Spare", "160 A", "400 V", "LVP2", ""),
+        ("F5", "Feeder", "Distribution board 3", "250 A", "400 V",
+         "LVP3", ""),
+        ("F6", "Feeder", "Spare", "160 A", "400 V", "LVP3", ""),
+        ("F7", "Feeder", "Distribution board 4", "250 A", "400 V",
+         "LVP4", ""),
+        ("F8", "Feeder", "Spare", "160 A", "400 V", "LVP4", ""),
+    ])
+
 TEMPLATE = dict(
     path="examples/template.xlsx",
     info=[("Site", ""), ("Date", ""), ("Surveyed by", ""), ("Notes", "")],
@@ -239,7 +275,7 @@ TEMPLATE = dict(
 
 def main():
     os.makedirs("examples", exist_ok=True)
-    for cfg in (CONFIG1, CONFIG2, CONFIG3, CONFIG4, TEMPLATE):
+    for cfg in (CONFIG1, CONFIG2, CONFIG3, CONFIG4, CONFIG5, TEMPLATE):
         build_workbook(**cfg)
 
 
