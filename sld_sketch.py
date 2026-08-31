@@ -238,6 +238,7 @@ Y_FEED_BRK = 516       # feeder breaker centre
 Y_ARROW = 574          # arrow tip
 Y_FEED_LBL = 592
 DIAG_H = 780
+LEGEND_H = 100         # symbol legend strip below the drawing
 
 
 def children_of(items, order, pid, types=None):
@@ -533,6 +534,52 @@ class SVG:
 
 # ---------------------------------------------------------------- rendering
 
+LEGEND_ITEMS = [
+    ("cb", "Circuit breaker"), ("lbs", "Load-break switch"),
+    ("fuse", "Fuse"), ("fuse-switch", "Fuse-switch"),
+    ("contactor", "Contactor"), ("tx", "Transformer"),
+    ("pump", "Pump/motor"), ("bus", "Busbar"), ("mcc", "MCC"),
+    ("feeder", "Feeder"), ("rmu", "RMU enclosure"),
+]
+
+
+def draw_legend(svg):
+    cell = 74
+    x0, y0 = 24, DIAG_H + 6
+    svg.rect(x0, y0, 16 + cell * len(LEGEND_ITEMS), 82, sw=1.2)
+    svg.text(x0 + 8, y0 + 14, "LEGEND", size=10, anchor="start", bold=True)
+    ytop, ybot = y0 + 22, y0 + 52
+    yc = (ytop + ybot) / 2
+    for i, (kind, label) in enumerate(LEGEND_ITEMS):
+        cx = x0 + 8 + cell * i + cell / 2
+        if kind in ("cb", "fuse", "contactor"):
+            svg.drop(cx, ytop, ybot, kind)
+        elif kind == "lbs":
+            svg.load_break_switch(cx, ytop, ybot)
+        elif kind == "fuse-switch":
+            svg.fuse_switch(cx, ytop, ybot)
+        elif kind == "tx":
+            svg.circle(cx, yc - 5, 8)
+            svg.circle(cx, yc + 5, 8)
+        elif kind == "pump":
+            svg.circle(cx, yc, 9)
+            svg.text(cx, yc + 3.5, "M", size=9, bold=True)
+        elif kind == "bus":
+            svg.line(cx - 14, yc, cx + 14, yc, w=5)
+        elif kind == "mcc":
+            svg.rect(cx - 11, yc - 8, 22, 16, sw=1.5)
+            svg.text(cx, yc + 3, "MCC", size=6.5)
+        elif kind == "feeder":
+            svg.line(cx, ytop + 2, cx, ybot - 11)
+            svg.arrow_down(cx, ybot)
+        elif kind == "rmu":
+            svg.rect(cx - 13, yc - 10, 26, 20, sw=1.2, dash="4 3")
+        ty = y0 + 64
+        for s in (label.split(" ", 1) if len(label) > 11 else [label]):
+            svg.text(cx, ty, s, size=9)
+            ty += 10
+
+
 def render(info, items, order, width):
     svg = SVG()
     busbars = [items[i] for i in order if items[i].type == LV_BUSBAR]
@@ -804,9 +851,12 @@ def render(info, items, order, width):
         svg.text(tb_x + 58, ty, v[:44], size=11, anchor="start")
         ty += 16
 
+    draw_legend(svg)
+
     body = "\n".join(svg.parts)
+    h = DIAG_H + LEGEND_H
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width:.0f}" '
-            f'height="{DIAG_H}" viewBox="0 0 {width:.0f} {DIAG_H}">\n'
+            f'height="{h}" viewBox="0 0 {width:.0f} {h}">\n'
             f'<rect width="100%" height="100%" fill="white"/>\n'
             f'{body}\n</svg>\n')
 

@@ -534,6 +534,36 @@ class SVG {
 }
 
 /* ------------------------------------------------ render */
+const LEGEND_H=100;
+const LEGEND_ITEMS=[
+  ["cb","Circuit breaker"],["lbs","Load-break switch"],["fuse","Fuse"],
+  ["fuse-switch","Fuse-switch"],["contactor","Contactor"],
+  ["tx","Transformer"],["pump","Pump/motor"],["bus","Busbar"],["mcc","MCC"],
+  ["feeder","Feeder"],["rmu","RMU enclosure"]
+];
+function drawLegend(svg){
+  const cell=74, x0=24, y0=DIAG_H+6;
+  svg.rect(x0,y0,16+cell*LEGEND_ITEMS.length,82,1.2);
+  svg.text(x0+8,y0+14,"LEGEND",{size:10,anchor:"start",bold:true});
+  const ytop=y0+22, ybot=y0+52, yc=(ytop+ybot)/2;
+  LEGEND_ITEMS.forEach(([kind,label],i)=>{
+    const cx=x0+8+cell*i+cell/2;
+    if(kind==="cb"||kind==="fuse"||kind==="contactor") svg.drop(cx,ytop,ybot,kind);
+    else if(kind==="lbs") svg.lbs(cx,ytop,ybot);
+    else if(kind==="fuse-switch") svg.fuseSwitch(cx,ytop,ybot);
+    else if(kind==="tx"){ svg.circle(cx,yc-5,8); svg.circle(cx,yc+5,8); }
+    else if(kind==="pump"){ svg.circle(cx,yc,9); svg.text(cx,yc+3.5,"M",{size:9,bold:true}); }
+    else if(kind==="bus") svg.line(cx-14,yc,cx+14,yc,5);
+    else if(kind==="mcc"){ svg.rect(cx-11,yc-8,22,16,1.5); svg.text(cx,yc+3,"MCC",{size:6.5}); }
+    else if(kind==="feeder"){ svg.line(cx,ytop+2,cx,ybot-11); svg.arrowDown(cx,ybot); }
+    else if(kind==="rmu") svg.rect(cx-13,yc-10,26,20,1.2,"4 3");
+    let ty=y0+64;
+    for(const s of (label.length>11?label.split(/ (.+)/).filter(Boolean):[label])){
+      svg.text(cx,ty,s,{size:9}); ty+=10;
+    }
+  });
+}
+
 function render(info, items, order, width, warnings){
   const svg=new SVG();
   const by=t=>order.map(i=>items[i]).filter(o=>t.includes(o.type));
@@ -756,7 +786,10 @@ function render(info, items, order, width, warnings){
     ty+=16;
   }
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width)}" height="${DIAG_H}" viewBox="0 0 ${Math.round(width)} ${DIAG_H}"><rect width="100%" height="100%" fill="white"/>${svg.parts.join("")}</svg>`;
+  drawLegend(svg);
+
+  const h=DIAG_H+LEGEND_H;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width)}" height="${h}" viewBox="0 0 ${Math.round(width)} ${h}"><rect width="100%" height="100%" fill="white"/>${svg.parts.join("")}</svg>`;
 }
 
 /* ------------------------------------------------ presets (mirror examples/) */
