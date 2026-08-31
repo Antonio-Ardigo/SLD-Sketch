@@ -26,9 +26,12 @@ from openpyxl import load_workbook
 
 MV_INCOMER = "mv incomer"
 RMU = "rmu"
+MV_BUSBAR = "mv busbar"
 TRANSFORMER = "transformer"
+PUMP = "pump"
 LV_BUSBAR = "lv busbar"
 FEEDER = "feeder"
+MCC = "mcc"
 BUS_COUPLER = "bus coupler"
 
 TYPE_ALIASES = {
@@ -37,6 +40,16 @@ TYPE_ALIASES = {
     "mv": MV_INCOMER,
     RMU: RMU,
     "ring main unit": RMU,
+    MV_BUSBAR: MV_BUSBAR,
+    "mv board": MV_BUSBAR,
+    "mv switchboard": MV_BUSBAR,
+    "mv distribution board": MV_BUSBAR,
+    PUMP: PUMP,
+    "motor": PUMP,
+    "load": PUMP,
+    MCC: MCC,
+    "motor control centre": MCC,
+    "motor control center": MCC,
     TRANSFORMER: TRANSFORMER,
     "trafo": TRANSFORMER,
     "tx": TRANSFORMER,
@@ -163,10 +176,16 @@ FEEDER_SPACING = 95
 BUS_GAP = 110          # horizontal gap between adjacent busbars
 MIN_BUS_WIDTH = 170
 
+SLOT_GAP = 30          # gap between slots on an MV switchboard
+PUMP_SLOT = 115        # slot width of a pump/motor way
+
 Y_LABEL = 34           # MV incomer labels
 Y_MV_TOP = 62          # top of the MV incomer stub
 Y_RMU_TOP = 150
 Y_RMU_BOT = 268
+Y_MVBUS = 208          # MV switchboard busbar (same tier as the RMU)
+Y_PUMP = 352           # pump/motor circle centre
+PUMP_R = 20
 Y_TX_C1 = 342          # centre of upper transformer circle
 TX_R = 19
 Y_TX_C2 = Y_TX_C1 + 27
@@ -186,8 +205,80 @@ def children_of(items, order, pid, types=None):
     return out
 
 
+def place_lv_board(items, order, bb, center_x):
+    """Place an LV busbar (and its feeders/MCCs) centred on center_x."""
+    kids = children_of(items, order, bb.id, {FEEDER, MCC})
+    width = max(MIN_BUS_WIDTH, len(kids) * FEEDER_SPACING)
+    bb.x_left, bb.x_right = center_x - width / 2, center_x + width / 2
+    bb.x = center_x
+    pad = (width - len(kids) * FEEDER_SPACING) / 2
+    for i, k in enumerate(kids):
+        k.x = bb.x_left + pad + FEEDER_SPACING * (i + 0.5)
+    return width
+
+
+def slot_width(items, order, item):
+    """Width needed under one way of an MV switchboard."""
+    if item.type == PUMP:
+        return PUMP_SLOT
+    if item.type == TRANSFORMER:
+        boards = children_of(items, order, item.id, {LV_BUSBAR})
+        w = 130
+        for bb in boards:
+            kids = children_of(items, order, bb.id, {FEEDER, MCC})
+            w = max(w, MIN_BUS_WIDTH, len(kids) * FEEDER_SPACING)
+        return w
+    return 130
+
+
+def layout_mv_boards(items, order):
+    """Layout when the site has MV switchboards (MV Busbar rows)."""
+    mvbs = [items[i] for i in order if items[i].type == MV_BUSBAR]
+    mvs = [items[i] for i in order if items[i].type == MV_INCOMER]
+
+    x = MARGIN
+    for mvb in mvbs:
+        kids = children_of(items, order, mvb.id, {TRANSFORMER, PUMP})
+        widths = [slot_width(items, order, k) for k in kids]
+        need = sum(widths) + SLOT_GAP * max(0, len(kids) - 1)
+        total = max(MIN_BUS_WIDTH, need)
+        mvb.x_left, mvb.x_right = x, x + total
+        mvb.x = x + total / 2
+        cursor = x + (total - need) / 2
+        for k, w in zip(kids, widths):
+            k.x = cursor + w / 2
+            cursor += w + SLOT_GAP
+            if k.type == TRANSFORMER:
+                for bb in children_of(items, order, k.id, {LV_BUSBAR}):
+                    place_lv_board(items, order, bb, k.x)
+        x = mvb.x_right + BUS_GAP
+
+    # incomers centred over the board(s) they feed
+    for m in mvs:
+        for mvb in mvbs:
+            feeds = [i for i in mvs if any(
+                mvb.id == k.id for k in children_of(items, order, i.id))]
+            if m in feeds:
+                n = len(feeds)
+                m.x = mvb.x + (feeds.index(m) - (n - 1) / 2) * 80
+                break
+
+    # anything left over (e.g. an RMU branch mixed in) goes after the boards
+    for oid in order:
+        it = items[oid]
+        if it.x is None:
+            it.x = x + 40
+            if it.type in (LV_BUSBAR, MV_BUSBAR):
+                it.x_left, it.x_right = it.x - 85, it.x + 85
+            x += 130
+
+    return max(x - BUS_GAP + MARGIN, 640) + 230
+
+
 def layout(items, order):
     """Assign x coordinates to every item. Returns total drawing width."""
+    if any(items[i].type == MV_BUSBAR for i in order):
+        return layout_mv_boards(items, order)
     busbars = [items[i] for i in order if items[i].type == LV_BUSBAR]
     rmus = [items[i] for i in order if items[i].type == RMU]
     txs = [items[i] for i in order if items[i].type == TRANSFORMER]
@@ -196,7 +287,7 @@ def layout(items, order):
     # 1. busbars left-to-right, width driven by feeder count
     x = MARGIN
     for bb in busbars:
-        feeders = children_of(items, order, bb.id, {FEEDER})
+        feeders = children_of(items, order, bb.id, {FEEDER, MCC})
         width = max(MIN_BUS_WIDTH, len(feeders) * FEEDER_SPACING)
         bb.x_left, bb.x_right = x, x + width
         bb.x = x + width / 2
@@ -337,11 +428,13 @@ class SVG:
 def render(info, items, order, width):
     svg = SVG()
     busbars = [items[i] for i in order if items[i].type == LV_BUSBAR]
+    mvbs = [items[i] for i in order if items[i].type == MV_BUSBAR]
     rmus = [items[i] for i in order if items[i].type == RMU]
     txs = [items[i] for i in order if items[i].type == TRANSFORMER]
+    pumps = [items[i] for i in order if items[i].type == PUMP]
     mvs = [items[i] for i in order if items[i].type == MV_INCOMER]
     couplers = [items[i] for i in order if items[i].type == BUS_COUPLER]
-    feeders = [items[i] for i in order if items[i].type == FEEDER]
+    feeders = [items[i] for i in order if items[i].type in (FEEDER, MCC)]
 
     site = info.get("site", "")
     title = f"{site} — Single Line Diagram (sketch)" if site \
@@ -392,8 +485,41 @@ def render(info, items, order, width):
         for k in kids:
             if k.type == RMU:
                 svg.line(m.x, Y_MV_TOP, m.x, Y_RMU_TOP)
+            elif k.type == MV_BUSBAR:  # incoming breaker onto the board
+                ybrk = (Y_MV_TOP + Y_MVBUS) / 2
+                svg.line(m.x, Y_MV_TOP, m.x, ybrk - 8)
+                svg.breaker(m.x, ybrk)
+                svg.line(m.x, ybrk + 8, m.x, Y_MVBUS)
+                svg.dot(m.x, Y_MVBUS)
             elif k.type == TRANSFORMER:  # direct feed, no RMU
                 svg.line(m.x, Y_MV_TOP, m.x, Y_TX_C1 - TX_R)
+
+    # --- MV switchboards -------------------------------------------------
+    for mvb in mvbs:
+        svg.line(mvb.x_left, Y_MVBUS, mvb.x_right, Y_MVBUS, w=5.5)
+        lbl = " ".join(v for v in (mvb.id, mvb.desc, mvb.rating, mvb.voltage)
+                       if v)
+        svg.text(mvb.x_left, Y_MVBUS - 12, lbl, size=11.5, anchor="start",
+                 bold=True)
+
+    # --- pumps / motor loads --------------------------------------------
+    for p in pumps:
+        if p.x is None:
+            continue
+        for par in (items[q] for q in p.parents):
+            if par.type == MV_BUSBAR:
+                ybrk = (Y_MVBUS + Y_PUMP - PUMP_R) / 2
+                svg.line(p.x, Y_MVBUS, p.x, ybrk - 8)
+                svg.dot(p.x, Y_MVBUS)
+                svg.breaker(p.x, ybrk)
+                svg.line(p.x, ybrk + 8, p.x, Y_PUMP - PUMP_R)
+            elif par.type == RMU:
+                svg.line(p.x, Y_RMU_BOT, p.x, Y_PUMP - PUMP_R)
+        svg.circle(p.x, Y_PUMP, PUMP_R, sw=2.2)
+        svg.text(p.x, Y_PUMP + 5, "M", size=15, bold=True)
+        lbl = " · ".join(v for v in (p.id, p.desc, p.rating) if v)
+        svg.text(p.x + 4, Y_PUMP + PUMP_R + 14, lbl, size=11,
+                 anchor="start", rotate=90)
 
     # --- transformers ----------------------------------------------------
     for tx in txs:
@@ -406,6 +532,12 @@ def render(info, items, order, width):
             par = items[p]
             if par.type == RMU:
                 svg.line(tx.x, Y_RMU_BOT, tx.x, Y_TX_C1 - TX_R)
+            elif par.type == MV_BUSBAR:  # feeder breaker off the board
+                ybrk = (Y_MVBUS + Y_TX_C1 - TX_R) / 2
+                svg.line(tx.x, Y_MVBUS, tx.x, ybrk - 8)
+                svg.dot(tx.x, Y_MVBUS)
+                svg.breaker(tx.x, ybrk)
+                svg.line(tx.x, ybrk + 8, tx.x, Y_TX_C1 - TX_R)
         fed = children_of(items, order, tx.id, {LV_BUSBAR})
         for bb in fed:
             # drop to the busbar through the LV incomer breaker
@@ -422,20 +554,23 @@ def render(info, items, order, width):
         svg.text(bb.x_left, Y_BUS - 12, lbl, size=11.5, anchor="start",
                  bold=True)
 
-    # --- bus couplers ----------------------------------------------------
+    # --- bus couplers / ties ---------------------------------------------
     for bc in couplers:
-        ends = [items[p] for p in bc.parents if items[p].type == LV_BUSBAR]
-        if len(ends) != 2:
+        ends = [items[p] for p in bc.parents
+                if items[p].type in (LV_BUSBAR, MV_BUSBAR)]
+        if len(ends) != 2 or ends[0].type != ends[1].type:
             print(f"warning: bus coupler '{bc.id}' should feed from exactly "
-                  f"two LV busbars - skipping", file=sys.stderr)
+                  f"two busbars of the same kind - skipping", file=sys.stderr)
             continue
+        y = Y_MVBUS if ends[0].type == MV_BUSBAR else Y_BUS
         a, b = sorted(ends, key=lambda e: e.x)
         xm = (a.x_right + b.x_left) / 2
-        svg.line(a.x_right, Y_BUS, xm - 8, Y_BUS, w=2)
-        svg.breaker(xm, Y_BUS)
-        svg.line(xm + 8, Y_BUS, b.x_left, Y_BUS, w=2)
+        svg.line(a.x_right, y, xm - 8, y, w=2)
+        svg.breaker(xm, y)
+        svg.line(xm + 8, y, b.x_left, y, w=2)
         lbl = " ".join(v for v in (bc.id, bc.rating) if v)
-        svg.text(xm, Y_BUS + 24, lbl, size=11)
+        svg.text(xm, y + 24, lbl, size=11)
+        svg.text(xm, y + 38, bc.notes, size=10)
 
     # --- feeders ---------------------------------------------------------
     for f in feeders:
@@ -444,8 +579,13 @@ def render(info, items, order, width):
         svg.line(f.x, Y_BUS, f.x, Y_FEED_BRK - 7)
         svg.dot(f.x, Y_BUS)
         svg.breaker(f.x, Y_FEED_BRK)
-        svg.line(f.x, Y_FEED_BRK + 7, f.x, Y_ARROW - 10)
-        svg.arrow_down(f.x, Y_ARROW)
+        if f.type == MCC:  # motor control centre: box instead of arrow
+            svg.line(f.x, Y_FEED_BRK + 7, f.x, Y_ARROW - 26)
+            svg.rect(f.x - 14, Y_ARROW - 26, 28, 26, sw=2)
+            svg.text(f.x, Y_ARROW - 8, "MCC", size=8)
+        else:
+            svg.line(f.x, Y_FEED_BRK + 7, f.x, Y_ARROW - 10)
+            svg.arrow_down(f.x, Y_ARROW)
         lbl = " · ".join(v for v in (f.id, f.desc, f.rating) if v)
         svg.text(f.x + 4, Y_FEED_LBL, lbl, size=11, anchor="start", rotate=90)
 

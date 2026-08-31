@@ -17,8 +17,8 @@ ARIAL = "Arial"
 HEADERS = ["ID", "Type", "Description", "Rating", "Voltage",
            "Feeds From", "Notes"]
 COL_WIDTHS = [10, 16, 26, 12, 12, 14, 30]
-TYPES = ["MV Incomer", "RMU", "Transformer", "LV Busbar", "Feeder",
-         "Bus Coupler"]
+TYPES = ["MV Incomer", "MV Busbar", "RMU", "Transformer", "Pump",
+         "LV Busbar", "Feeder", "MCC", "Bus Coupler"]
 
 HEADER_FILL = PatternFill("solid", fgColor="1F4E79")
 INPUT_FILL = PatternFill("solid", fgColor="FFF2CC")
@@ -79,8 +79,11 @@ def build_workbook(path, info, rows, legend_note=None):
         "1. Info sheet: site name, date, surveyor, free notes.",
         "2. Equipment sheet: one row per item, top of the network first.",
         "   - ID: short unique tag you invent (MV1, RMU1, TX1, BB1, F1...).",
-        "   - Type: pick from the dropdown (MV Incomer, RMU, Transformer,",
-        "     LV Busbar, Feeder, Bus Coupler).",
+        "   - Type: pick from the dropdown (MV Incomer, MV Busbar, RMU,",
+        "     Transformer, Pump, LV Busbar, Feeder, MCC, Bus Coupler).",
+        "     MV Busbar = an MV switchboard; Pump = an MV motor load;",
+        "     MCC = motor control centre on an LV board. A Bus Coupler",
+        "     between two MV Busbars is the bus tie.",
         "   - Rating / Voltage: as read from the nameplate (e.g. 1000 kVA,",
         "     11/0.4 kV, 630 A, 400 V).",
         "   - Feeds From: the ID of the item supplying this one. Use a comma",
@@ -166,6 +169,63 @@ CONFIG3 = dict(
         ("F3", "Feeder", "Spare", "160 A", "400 V", "BB1", ""),
     ])
 
+CONFIG4 = dict(
+    path="examples/config4_dual_mv_boards.xlsx",
+    info=[("Site", "Example Site D"),
+          ("Date", "2026-08-31"),
+          ("Surveyed by", "A. Ardigo"),
+          ("Notes", "Config 4 - dual MV boards, riser feeders, N.O. tie")],
+    rows=[
+        ("MV1", "MV Incomer", "Utility incomer A", "", "11 kV", "", ""),
+        ("MV2", "MV Incomer", "Utility incomer B", "", "11 kV", "", ""),
+        ("MVB1", "MV Busbar", "MV switchboard A", "630 A", "11 kV",
+         "MV1", "6 feeders to risers"),
+        ("MVB2", "MV Busbar", "MV switchboard B", "630 A", "11 kV",
+         "MV2", "6 feeders to risers"),
+        ("TIE1", "Bus Coupler", "MV bus tie", "630 A", "11 kV",
+         "MVB1, MVB2", "Normally open"),
+        # ---- board A ways (row order = left-to-right on the board) ----
+        ("TX1", "Transformer", "Riser R1, Dyn11", "1600 kVA",
+         "11/0.4 kV", "MVB1", ""),
+        ("TX2", "Transformer", "Riser R2, Dyn11", "1250 kVA",
+         "11/0.4 kV", "MVB1", ""),
+        ("TX3", "Transformer", "Riser R3, Dyn11", "1000 kVA",
+         "11/0.4 kV", "MVB1", ""),
+        ("P1", "Pump", "CHW pump 1", "315 kW", "11 kV", "MVB1", ""),
+        ("P2", "Pump", "CHW pump 2", "315 kW", "11 kV", "MVB1", ""),
+        ("P3", "Pump", "CW pump 1", "160 kW", "11 kV", "MVB1", ""),
+        ("LVB1", "LV Busbar", "LV board R1", "2500 A", "400 V", "TX1", ""),
+        ("MCC1", "MCC", "AHU plant", "400 A", "400 V", "LVB1", ""),
+        ("MCC2", "MCC", "Pump room", "400 A", "400 V", "LVB1", ""),
+        ("MCC3", "MCC", "Ventilation", "250 A", "400 V", "LVB1", ""),
+        ("LVB2", "LV Busbar", "LV board R2", "2000 A", "400 V", "TX2", ""),
+        ("MCC4", "MCC", "AHU plant", "400 A", "400 V", "LVB2", ""),
+        ("MCC5", "MCC", "Ventilation", "250 A", "400 V", "LVB2", ""),
+        ("LVB3", "LV Busbar", "LV board R3", "1600 A", "400 V", "TX3", ""),
+        ("MCC6", "MCC", "AHU plant", "400 A", "400 V", "LVB3", ""),
+        ("MCC7", "MCC", "Ventilation", "250 A", "400 V", "LVB3", ""),
+        # ---- board B ways ----
+        ("TX4", "Transformer", "Riser R4, Dyn11", "1600 kVA",
+         "11/0.4 kV", "MVB2", ""),
+        ("TX5", "Transformer", "Riser R5, Dyn11", "1250 kVA",
+         "11/0.4 kV", "MVB2", ""),
+        ("TX6", "Transformer", "Riser R6, Dyn11", "1000 kVA",
+         "11/0.4 kV", "MVB2", ""),
+        ("P4", "Pump", "CHW pump 3", "315 kW", "11 kV", "MVB2", ""),
+        ("P5", "Pump", "CHW pump 4", "315 kW", "11 kV", "MVB2", ""),
+        ("P6", "Pump", "CW pump 2", "160 kW", "11 kV", "MVB2", ""),
+        ("LVB4", "LV Busbar", "LV board R4", "2500 A", "400 V", "TX4", ""),
+        ("MCC8", "MCC", "AHU plant", "400 A", "400 V", "LVB4", ""),
+        ("MCC9", "MCC", "Pump room", "400 A", "400 V", "LVB4", ""),
+        ("MCC10", "MCC", "Ventilation", "250 A", "400 V", "LVB4", ""),
+        ("LVB5", "LV Busbar", "LV board R5", "2000 A", "400 V", "TX5", ""),
+        ("MCC11", "MCC", "AHU plant", "400 A", "400 V", "LVB5", ""),
+        ("MCC12", "MCC", "Ventilation", "250 A", "400 V", "LVB5", ""),
+        ("LVB6", "LV Busbar", "LV board R6", "1600 A", "400 V", "TX6", ""),
+        ("MCC13", "MCC", "AHU plant", "400 A", "400 V", "LVB6", ""),
+        ("MCC14", "MCC", "Ventilation", "250 A", "400 V", "LVB6", ""),
+    ])
+
 TEMPLATE = dict(
     path="examples/template.xlsx",
     info=[("Site", ""), ("Date", ""), ("Surveyed by", ""), ("Notes", "")],
@@ -179,7 +239,7 @@ TEMPLATE = dict(
 
 def main():
     os.makedirs("examples", exist_ok=True)
-    for cfg in (CONFIG1, CONFIG2, CONFIG3, TEMPLATE):
+    for cfg in (CONFIG1, CONFIG2, CONFIG3, CONFIG4, TEMPLATE):
         build_workbook(**cfg)
 
 
