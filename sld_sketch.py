@@ -480,29 +480,31 @@ class SVG:
             self.fuse_switch(x, y - 16, y + 16)
             return 16
         if kind == "contactor":
-            # IEC: blade closing onto the cup-shaped fixed contact
-            self.line(x, y - 13, x, y - 9)
-            self.line(x, y - 9, x + 7, y + 2)                    # blade
-            self.path(f"M {x-6:.1f},{y+5:.1f} A 6,6 0 0 0 "
-                      f"{x+6:.1f},{y+5:.1f}")                    # cup
-            self.line(x, y + 11, x, y + 13)
+            # IEC: switch with the arc function symbol at the hinge,
+            # open side facing the blade
+            self.line(x, y - 13, x, y - 11)
+            self.path(f"M {x-4:.1f},{y-7:.1f} A 4,4 0 0 1 "
+                      f"{x+4:.1f},{y-7:.1f}")                    # hinge arc
+            self.line(x + 2, y - 5, x + 8, y + 7)                # blade
+            self.line(x, y + 9, x, y + 13)
             return 13
         if kind == "fuse-contactor":
             # MV motor starter: back-up fuse in series with the contactor
             self.rect(x - 4, y - 16, 8, 12)                      # fuse
             self.line(x, y - 16, x, y - 4)
-            self.line(x, y - 4, x + 6, y + 5)                    # blade
-            self.path(f"M {x-5:.1f},{y+8:.1f} A 5,5 0 0 0 "
-                      f"{x+5:.1f},{y+8:.1f}")                    # cup
-            self.line(x, y + 13, x, y + 16)
+            self.path(f"M {x-4:.1f},{y:.1f} A 4,4 0 0 1 "
+                      f"{x+4:.1f},{y:.1f}")                      # hinge arc
+            self.line(x + 2, y + 2, x + 7, y + 11)               # blade
+            self.line(x, y + 12, x, y + 16)
             return 16
-        # 'cb' and anything unknown - IEC circuit breaker: a switch
-        # blade whose contact point carries an X
-        self.line(x, y - 13, x, y - 9)
-        self.line(x, y - 9, x + 7, y + 3)                        # blade
-        self.line(x - 4, y + 3, x + 4, y + 11)                   # X
-        self.line(x - 4, y + 11, x + 4, y + 3)
-        self.line(x, y + 11, x, y + 13)
+        # 'cb' and anything unknown - circuit breaker: the switch
+        # symbol with an X at its hinge edge (IEC 60617)
+        self.line(x, y - 13, x, y - 11)
+        self.line(x - 3.5, y - 11, x + 3.5, y - 4)               # X
+        self.line(x - 3.5, y - 4, x + 3.5, y - 11)
+        self.line(x + 2, y - 4.5, x + 9, y + 4)                  # blade
+        self.line(x - 6, y + 4, x + 6, y + 4)                    # contact bar
+        self.line(x, y + 4, x, y + 13)
         return 13
 
     def device_h(self, kind, x, y):
@@ -522,20 +524,20 @@ class SVG:
             self.line(x + 15, y, x + 16, y)
             return 16
         if kind == "contactor":
-            # IEC: blade closing onto the cup-shaped fixed contact
-            self.line(x - 13, y, x - 9, y)
-            self.line(x - 9, y, x + 2, y - 7)                    # blade
-            self.path(f"M {x+5:.1f},{y-6:.1f} A 6,6 0 0 1 "
-                      f"{x+5:.1f},{y+6:.1f}")                    # cup
-            self.line(x + 11, y, x + 13, y)
+            # IEC: switch with the arc function symbol at the hinge
+            self.line(x - 13, y, x - 11, y)
+            self.path(f"M {x-7:.1f},{y-4:.1f} A 4,4 0 0 0 "
+                      f"{x-7:.1f},{y+4:.1f}")                    # hinge arc
+            self.line(x - 5, y - 2, x + 7, y - 8)                # blade
+            self.line(x + 9, y, x + 13, y)
             return 13
         if kind == "fuse-contactor":
             self.rect(x - 16, y - 4, 12, 8)                      # fuse
             self.line(x - 16, y, x - 4, y)
-            self.line(x - 4, y, x + 5, y - 6)                    # blade
-            self.path(f"M {x+8:.1f},{y-5:.1f} A 5,5 0 0 1 "
-                      f"{x+8:.1f},{y+5:.1f}")                    # cup
-            self.line(x + 13, y, x + 16, y)
+            self.path(f"M {x:.1f},{y-4:.1f} A 4,4 0 0 0 "
+                      f"{x:.1f},{y+4:.1f}")                      # hinge arc
+            self.line(x + 2, y - 2, x + 11, y - 7)               # blade
+            self.line(x + 12, y, x + 16, y)
             return 16
         if kind == "lbs":
             self.line(x - 13, y, x - 10.5, y)
@@ -544,13 +546,14 @@ class SVG:
             self.line(x + 4, y - 6, x + 4, y + 6)   # contact bar
             self.line(x + 4, y, x + 13, y)
             return 13
-        # 'cb' and anything unknown - IEC circuit breaker: a switch
-        # blade whose contact point carries an X
-        self.line(x - 13, y, x - 9, y)
-        self.line(x - 9, y, x + 3, y - 7)                        # blade
-        self.line(x + 3, y - 4, x + 11, y + 4)                   # X
-        self.line(x + 3, y + 4, x + 11, y - 4)
-        self.line(x + 11, y, x + 13, y)
+        # 'cb' and anything unknown - circuit breaker: the switch
+        # symbol with an X at its hinge edge (IEC 60617)
+        self.line(x - 13, y, x - 11, y)
+        self.line(x - 11, y - 3.5, x - 4, y + 3.5)               # X
+        self.line(x - 11, y + 3.5, x - 4, y - 3.5)
+        self.line(x - 4.5, y - 2, x + 4, y - 9)                  # blade
+        self.line(x + 4, y - 6, x + 4, y + 6)                    # contact bar
+        self.line(x + 4, y, x + 13, y)
         return 13
 
     def drop(self, x, ytop, ybot, kind, ydev=None):

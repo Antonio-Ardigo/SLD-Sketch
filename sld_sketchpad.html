@@ -493,28 +493,29 @@ class SVG {
     if(kind==="lbs"){ this.lbs(x,y-13,y+13); return 13; }
     if(kind==="fuse-switch"){ this.fuseSwitch(x,y-16,y+16); return 16; }
     if(kind==="contactor"){
-      /* IEC: blade closing onto the cup-shaped fixed contact */
-      this.line(x,y-13,x,y-9);
-      this.line(x,y-9,x+7,y+2);
-      this.path(`M ${(x-6).toFixed(1)},${(y+5).toFixed(1)} A 6,6 0 0 0 ${(x+6).toFixed(1)},${(y+5).toFixed(1)}`);
-      this.line(x,y+11,x,y+13);
+      /* IEC: switch with the arc function symbol at the hinge */
+      this.line(x,y-13,x,y-11);
+      this.path(`M ${(x-4).toFixed(1)},${(y-7).toFixed(1)} A 4,4 0 0 1 ${(x+4).toFixed(1)},${(y-7).toFixed(1)}`);
+      this.line(x+2,y-5,x+8,y+7);
+      this.line(x,y+9,x,y+13);
       return 13;
     }
     if(kind==="fuse-contactor"){
       /* MV motor starter: back-up fuse in series with the contactor */
       this.rect(x-4,y-16,8,12);
       this.line(x,y-16,x,y-4);
-      this.line(x,y-4,x+6,y+5);
-      this.path(`M ${(x-5).toFixed(1)},${(y+8).toFixed(1)} A 5,5 0 0 0 ${(x+5).toFixed(1)},${(y+8).toFixed(1)}`);
-      this.line(x,y+13,x,y+16);
+      this.path(`M ${(x-4).toFixed(1)},${y.toFixed(1)} A 4,4 0 0 1 ${(x+4).toFixed(1)},${y.toFixed(1)}`);
+      this.line(x+2,y+2,x+7,y+11);
+      this.line(x,y+12,x,y+16);
       return 16;
     }
-    /* 'cb'/unknown - IEC breaker: switch blade, X at the contact point */
-    this.line(x,y-13,x,y-9);
-    this.line(x,y-9,x+7,y+3);
-    this.line(x-4,y+3,x+4,y+11);
-    this.line(x-4,y+11,x+4,y+3);
-    this.line(x,y+11,x,y+13);
+    /* 'cb'/unknown - breaker: the switch symbol with an X at its hinge */
+    this.line(x,y-13,x,y-11);
+    this.line(x-3.5,y-11,x+3.5,y-4);
+    this.line(x-3.5,y-4,x+3.5,y-11);
+    this.line(x+2,y-4.5,x+9,y+4);
+    this.line(x-6,y+4,x+6,y+4);
+    this.line(x,y+4,x,y+13);
     return 13;
   }
   /* protection device centred at x on a horizontal conductor */
@@ -531,19 +532,19 @@ class SVG {
       return 16;
     }
     if(kind==="contactor"){
-      /* IEC: blade closing onto the cup-shaped fixed contact */
-      this.line(x-13,y,x-9,y);
-      this.line(x-9,y,x+2,y-7);
-      this.path(`M ${(x+5).toFixed(1)},${(y-6).toFixed(1)} A 6,6 0 0 1 ${(x+5).toFixed(1)},${(y+6).toFixed(1)}`);
-      this.line(x+11,y,x+13,y);
+      /* IEC: switch with the arc function symbol at the hinge */
+      this.line(x-13,y,x-11,y);
+      this.path(`M ${(x-7).toFixed(1)},${(y-4).toFixed(1)} A 4,4 0 0 0 ${(x-7).toFixed(1)},${(y+4).toFixed(1)}`);
+      this.line(x-5,y-2,x+7,y-8);
+      this.line(x+9,y,x+13,y);
       return 13;
     }
     if(kind==="fuse-contactor"){
       this.rect(x-16,y-4,12,8);
       this.line(x-16,y,x-4,y);
-      this.line(x-4,y,x+5,y-6);
-      this.path(`M ${(x+8).toFixed(1)},${(y-5).toFixed(1)} A 5,5 0 0 1 ${(x+8).toFixed(1)},${(y+5).toFixed(1)}`);
-      this.line(x+13,y,x+16,y);
+      this.path(`M ${x.toFixed(1)},${(y-4).toFixed(1)} A 4,4 0 0 0 ${x.toFixed(1)},${(y+4).toFixed(1)}`);
+      this.line(x+2,y-2,x+11,y-7);
+      this.line(x+12,y,x+16,y);
       return 16;
     }
     if(kind==="lbs"){
@@ -554,12 +555,13 @@ class SVG {
       this.line(x+4,y,x+13,y);
       return 13;
     }
-    /* 'cb'/unknown - IEC breaker: switch blade, X at the contact point */
-    this.line(x-13,y,x-9,y);
-    this.line(x-9,y,x+3,y-7);
-    this.line(x+3,y-4,x+11,y+4);
-    this.line(x+3,y+4,x+11,y-4);
-    this.line(x+11,y,x+13,y);
+    /* 'cb'/unknown - breaker: the switch symbol with an X at its hinge */
+    this.line(x-13,y,x-11,y);
+    this.line(x-11,y-3.5,x-4,y+3.5);
+    this.line(x-11,y+3.5,x-4,y-3.5);
+    this.line(x-4.5,y-2,x+4,y-9);
+    this.line(x+4,y-6,x+4,y+6);
+    this.line(x+4,y,x+13,y);
     return 13;
   }
   drop(x,ytop,ybot,kind,ydev){
