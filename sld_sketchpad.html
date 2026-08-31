@@ -192,11 +192,12 @@
       <datalist id="protlist">
         <option>CB</option><option>LBS</option><option>Fuse</option>
         <option>Fuse-switch</option><option>Contactor</option>
+        <option>Fuse-contactor</option>
       </datalist>
     </div>
     <div class="tbl-foot">
       <button id="addrow" class="primary">+ Add row</button>
-      <span class="hint">Feeds from = the ID of the item supplying this one; comma for two supplies (bus tie: <code>BB1, BB2</code> — ring RMU: <code>RMU1, RMU2</code>). Protection = the device on this item's supply side (CB, LBS, Fuse, Fuse-switch, Contactor; blank = the usual default; comma list matches Feeds from). Row order sets left-to-right order.</span>
+      <span class="hint">Feeds from = the ID of the item supplying this one; comma for two supplies (bus tie: <code>BB1, BB2</code> — ring RMU: <code>RMU1, RMU2</code>). Protection = the device on this item's supply side (CB, LBS, Fuse, Fuse-switch, Contactor, Fuse-contactor; blank = the usual default; comma list matches Feeds from). Row order sets left-to-right order.</span>
     </div>
   </section>
 
@@ -253,7 +254,10 @@ const PROT_ALIASES = {
   "fuse-switch":"fuse-switch", "fuse switch":"fuse-switch",
   "switch-fuse":"fuse-switch", "switch fuse":"fuse-switch",
   "sfu":"fuse-switch",
-  "contactor":"contactor", "vacuum contactor":"contactor"
+  "contactor":"contactor", "vacuum contactor":"contactor",
+  "fuse-contactor":"fuse-contactor", "fuse contactor":"fuse-contactor",
+  "fused contactor":"fuse-contactor", "contactor-fuse":"fuse-contactor",
+  "motor starter":"fuse-contactor", "starter":"fuse-contactor"
 };
 /* Protection entry for item's supply from parentId: [raw, kind|null].
    One value covers every supply; a comma list matches Feeds From order. */
@@ -479,12 +483,6 @@ class SVG {
     this.line(x,mid+4,x,mid+6);
     this.line(x,yb-2,x,yb);
   }
-  /* circuit breaker, IEC style: an X-cross on the conductor */
-  breaker(x,y,size=13){
-    const h=size/2;
-    this.line(x-h,y-h,x+h,y+h);
-    this.line(x-h,y+h,x+h,y-h);
-  }
   path(d,sw=2){
     this.parts.push(`<path d="${d}" fill="none" stroke="#111" stroke-width="${sw}" stroke-linecap="round"/>`);
   }
@@ -502,7 +500,22 @@ class SVG {
       this.line(x,y+11,x,y+13);
       return 13;
     }
-    this.breaker(x,y); return 0;  /* 'cb'/unknown: conductor runs through */
+    if(kind==="fuse-contactor"){
+      /* MV motor starter: back-up fuse in series with the contactor */
+      this.rect(x-4,y-16,8,12);
+      this.line(x,y-16,x,y-4);
+      this.line(x,y-4,x+6,y+5);
+      this.path(`M ${(x-5).toFixed(1)},${(y+8).toFixed(1)} A 5,5 0 0 0 ${(x+5).toFixed(1)},${(y+8).toFixed(1)}`);
+      this.line(x,y+13,x,y+16);
+      return 16;
+    }
+    /* 'cb'/unknown - IEC breaker: switch blade, X at the contact point */
+    this.line(x,y-13,x,y-9);
+    this.line(x,y-9,x+7,y+3);
+    this.line(x-4,y+3,x+4,y+11);
+    this.line(x-4,y+11,x+4,y+3);
+    this.line(x,y+11,x,y+13);
+    return 13;
   }
   /* protection device centred at x on a horizontal conductor */
   deviceH(kind,x,y){
@@ -525,6 +538,14 @@ class SVG {
       this.line(x+11,y,x+13,y);
       return 13;
     }
+    if(kind==="fuse-contactor"){
+      this.rect(x-16,y-4,12,8);
+      this.line(x-16,y,x-4,y);
+      this.line(x-4,y,x+5,y-6);
+      this.path(`M ${(x+8).toFixed(1)},${(y-5).toFixed(1)} A 5,5 0 0 1 ${(x+8).toFixed(1)},${(y+5).toFixed(1)}`);
+      this.line(x+13,y,x+16,y);
+      return 16;
+    }
     if(kind==="lbs"){
       this.line(x-13,y,x-10.5,y);
       this.circle(x-8,y,2.5,1.5);      /* hinge = switch */
@@ -533,7 +554,13 @@ class SVG {
       this.line(x+4,y,x+13,y);
       return 13;
     }
-    this.breaker(x,y); return 0;  /* conductor runs through the X */
+    /* 'cb'/unknown - IEC breaker: switch blade, X at the contact point */
+    this.line(x-13,y,x-9,y);
+    this.line(x-9,y,x+3,y-7);
+    this.line(x+3,y-4,x+11,y+4);
+    this.line(x+3,y+4,x+11,y-4);
+    this.line(x+11,y,x+13,y);
+    return 13;
   }
   drop(x,ytop,ybot,kind,ydev){
     const y=(ydev!==undefined)?ydev:(ytop+ybot)/2;
@@ -554,17 +581,18 @@ const LEGEND_H=100;
 const LEGEND_ITEMS=[
   ["cb","Circuit breaker"],["lbs","Load-break switch"],["fuse","Fuse"],
   ["fuse-switch","Fuse-switch"],["contactor","Contactor"],
+  ["fuse-contactor","Fused contactor"],
   ["tx","Transformer"],["pump","Pump/motor"],["bus","Busbar"],["mcc","MCC"],
   ["feeder","Feeder"],["rmu","RMU enclosure"]
 ];
 function drawLegend(svg){
-  const cell=74, x0=24, y0=DIAG_H+6;
+  const cell=68, x0=24, y0=DIAG_H+6;
   svg.rect(x0,y0,16+cell*LEGEND_ITEMS.length,82,1.2);
   svg.text(x0+8,y0+14,"LEGEND",{size:10,anchor:"start",bold:true});
   const ytop=y0+22, ybot=y0+52, yc=(ytop+ybot)/2;
   LEGEND_ITEMS.forEach(([kind,label],i)=>{
     const cx=x0+8+cell*i+cell/2;
-    if(kind==="cb"||kind==="fuse"||kind==="contactor") svg.drop(cx,ytop,ybot,kind);
+    if(["cb","fuse","contactor","fuse-contactor"].includes(kind)) svg.drop(cx,ytop,ybot,kind);
     else if(kind==="lbs") svg.lbs(cx,ytop,ybot);
     else if(kind==="fuse-switch") svg.fuseSwitch(cx,ytop,ybot);
     else if(kind==="tx"){ svg.circle(cx,yc-5,8); svg.circle(cx,yc+5,8); }
@@ -767,9 +795,11 @@ function render(info, items, order, width, warnings){
     const y=ends[0].type===MV_BUSBAR?Y_MVBUS:Y_BUS;
     const [a,b]=ends.slice().sort((u,v)=>u.x-v.x);
     const xm=(a.xRight+b.xLeft)/2;
-    svg.line(a.xRight,y,b.xLeft,y,2); svg.breaker(xm,y);
     const [craw,ckind]=protFor(bc);
-    const extra=(craw && ckind!=="cb")?craw:"";  /* coupler device kind */
+    const cgap=svg.deviceH(ckind||"cb",xm,y);
+    svg.line(a.xRight,y,xm-cgap,y,2);
+    svg.line(xm+cgap,y,b.xLeft,y,2);
+    const extra=(craw && !ckind)?craw:"";
     svg.text(xm,y+24,[bc.id,bc.rating,extra].filter(Boolean).join(" "),{size:11});
     svg.text(xm,y+38,bc.notes,{size:10});
   }
@@ -910,7 +940,7 @@ PRESETS["6"].rows[3].from="RMU1, RMU2";
 PRESETS["6"].rows[3].notes="Ring closed via RMU2";
 /* fill Protection per type (the survey data the examples would carry) */
 const PRESET_PROTS={"RMU":"LBS","Transformer":"Fuse-switch","LV Busbar":"CB",
-  "Feeder":"CB","MCC":"CB","Pump":"Contactor","MV Busbar":"CB",
+  "Feeder":"CB","MCC":"CB","Pump":"Fuse-contactor","MV Busbar":"CB",
   "Bus Coupler":"CB"};
 for(const key of Object.keys(PRESETS)){
   const rows=PRESETS[key].rows;

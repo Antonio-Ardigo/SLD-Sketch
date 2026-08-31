@@ -18,7 +18,8 @@ HEADERS = ["ID", "Type", "Description", "Rating", "Voltage", "Protection",
 COL_WIDTHS = [10, 16, 26, 12, 12, 13, 14, 30]
 TYPES = ["MV Incomer", "MV Busbar", "RMU", "Transformer", "Pump",
          "LV Busbar", "Feeder", "MCC", "Bus Coupler"]
-PROTECTIONS = ["CB", "LBS", "Fuse", "Fuse-switch", "Contactor"]
+PROTECTIONS = ["CB", "LBS", "Fuse", "Fuse-switch", "Contactor",
+               "Fuse-contactor"]
 
 HEADER_FILL = PatternFill("solid", fgColor="1F4E79")
 INPUT_FILL = PatternFill("solid", fgColor="FFF2CC")
@@ -94,7 +95,8 @@ def build_workbook(path, info, rows, legend_note=None):
         "   - Rating / Voltage: as read from the nameplate (e.g. 1000 kVA,",
         "     11/0.4 kV, 630 A, 400 V).",
         "   - Protection: the device on THIS item's supply side - pick",
-        "     CB, LBS, Fuse, Fuse-switch or Contactor, or leave blank for",
+        "     CB, LBS, Fuse, Fuse-switch, Contactor or Fuse-contactor (an",
+        "     MV motor starter = fuse + contactor), or leave blank for",
         "     the usual default. Two supplies: comma list in the same",
         "     order as Feeds From (e.g. LBS, CB). Free text on a busbar",
         "     (e.g. 87B differential) is printed next to its label.",
@@ -197,7 +199,8 @@ def _c4_board(mvb, txs, pumps, lvbs):
         rows.append((tid, "Transformer", f"Riser {riser}, Dyn11", kva,
                      "11/0.4 kV", "CB", mvb, ""))
     for pid, desc, kw in pumps:
-        rows.append((pid, "Pump", desc, kw, "11 kV", "Contactor", mvb, ""))
+        rows.append((pid, "Pump", desc, kw, "11 kV", "Fuse-contactor", mvb,
+                     ""))
     for bid, riser, amps, tid, mccs in lvbs:
         rows.append((bid, "LV Busbar", f"LV board {riser}", amps, "400 V",
                      "CB", tid, ""))

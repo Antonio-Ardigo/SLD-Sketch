@@ -67,16 +67,19 @@ IEC-style sketch symbols: MV incomers come in from the top (source tick),
 the RMU is a dashed enclosure with load-break switches on the incoming ways and
 a fuse-switch on each transformer tee-off, MV and LV busbars are the thick
 horizontal bars, transformers are the two overlapping circles, pumps/motors are
-a circle with an "M", MCCs are small labelled boxes, and an × on a line is a
-circuit breaker (every way on an MV switchboard gets one). Feeders drop off a busbar
+a circle with an "M 3~", MCCs are small labelled boxes, and a switch blade
+with an × at its contact point is a circuit breaker (every way on an MV
+switchboard gets one). Feeders drop off a busbar
 and end in an arrow; a Bus Coupler between two busbars is drawn as a breaker in
 the gap, with its Notes text (e.g. "Normally open") underneath.
 
-The Protection column swaps the device drawn on an item's supply side: an ×
-on the line is a circuit breaker (IEC 60617 style), a hinge circle with a
-blade onto a contact bar is a load-break switch (switch-disconnector),
-a small rectangle on the line is a fuse (blade + rectangle = fuse-switch), and
-a blade closing onto a cup-shaped contact is a contactor. Protection never changes the topology — only `Feeds
+The Protection column swaps the device drawn on an item's supply side, using
+IEC 60617 notation: a circuit breaker is a switch blade with an × at its
+contact point, a load-break switch (switch-disconnector) is a blade with a
+hinge circle closing onto a contact bar, a fuse is a small rectangle with the
+conductor through it (switch + rectangle = fuse-switch), a contactor is a
+blade closing onto a cup-shaped contact, and a Fuse-contactor (an MV motor
+starter) is the fuse in series with the contactor. Protection never changes the topology — only `Feeds
 From` does — it only changes which symbol sits on the connection. Protection
 on an MV Incomer is the utility's device and is not drawn (you get a warning).
 RMU-to-RMU interconnecting cables draw a load-break switch inside each

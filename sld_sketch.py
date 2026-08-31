@@ -75,6 +75,9 @@ PROT_ALIASES = {
     "switch-fuse": "fuse-switch", "switch fuse": "fuse-switch",
     "sfu": "fuse-switch",
     "contactor": "contactor", "vacuum contactor": "contactor",
+    "fuse-contactor": "fuse-contactor", "fuse contactor": "fuse-contactor",
+    "fused contactor": "fuse-contactor", "contactor-fuse": "fuse-contactor",
+    "motor starter": "fuse-contactor", "starter": "fuse-contactor",
 }
 
 
@@ -463,12 +466,6 @@ class SVG:
         self.line(x, mid + 4, x, mid + 6)
         self.line(x, ybot - 2, x, ybot)
 
-    def breaker(self, x, y, size=13):
-        """Circuit breaker, IEC style: an X-cross on the conductor."""
-        h = size / 2
-        self.line(x - h, y - h, x + h, y + h)
-        self.line(x - h, y + h, x + h, y - h)
-
     def device(self, kind, x, y):
         """Protection device centred at y on a vertical conductor.
         Returns the half-height the conductor must leave clear."""
@@ -490,8 +487,23 @@ class SVG:
                       f"{x+6:.1f},{y+5:.1f}")                    # cup
             self.line(x, y + 11, x, y + 13)
             return 13
-        self.breaker(x, y)  # 'cb' and anything unknown
-        return 0            # the conductor runs through the X
+        if kind == "fuse-contactor":
+            # MV motor starter: back-up fuse in series with the contactor
+            self.rect(x - 4, y - 16, 8, 12)                      # fuse
+            self.line(x, y - 16, x, y - 4)
+            self.line(x, y - 4, x + 6, y + 5)                    # blade
+            self.path(f"M {x-5:.1f},{y+8:.1f} A 5,5 0 0 0 "
+                      f"{x+5:.1f},{y+8:.1f}")                    # cup
+            self.line(x, y + 13, x, y + 16)
+            return 16
+        # 'cb' and anything unknown - IEC circuit breaker: a switch
+        # blade whose contact point carries an X
+        self.line(x, y - 13, x, y - 9)
+        self.line(x, y - 9, x + 7, y + 3)                        # blade
+        self.line(x - 4, y + 3, x + 4, y + 11)                   # X
+        self.line(x - 4, y + 11, x + 4, y + 3)
+        self.line(x, y + 11, x, y + 13)
+        return 13
 
     def device_h(self, kind, x, y):
         """Protection device centred at x on a horizontal conductor.
@@ -517,6 +529,14 @@ class SVG:
                       f"{x+5:.1f},{y+6:.1f}")                    # cup
             self.line(x + 11, y, x + 13, y)
             return 13
+        if kind == "fuse-contactor":
+            self.rect(x - 16, y - 4, 12, 8)                      # fuse
+            self.line(x - 16, y, x - 4, y)
+            self.line(x - 4, y, x + 5, y - 6)                    # blade
+            self.path(f"M {x+8:.1f},{y-5:.1f} A 5,5 0 0 1 "
+                      f"{x+8:.1f},{y+5:.1f}")                    # cup
+            self.line(x + 13, y, x + 16, y)
+            return 16
         if kind == "lbs":
             self.line(x - 13, y, x - 10.5, y)
             self.circle(x - 8, y, 2.5, sw=1.5)      # hinge = switch
@@ -524,8 +544,14 @@ class SVG:
             self.line(x + 4, y - 6, x + 4, y + 6)   # contact bar
             self.line(x + 4, y, x + 13, y)
             return 13
-        self.breaker(x, y)
-        return 0            # the conductor runs through the X
+        # 'cb' and anything unknown - IEC circuit breaker: a switch
+        # blade whose contact point carries an X
+        self.line(x - 13, y, x - 9, y)
+        self.line(x - 9, y, x + 3, y - 7)                        # blade
+        self.line(x + 3, y - 4, x + 11, y + 4)                   # X
+        self.line(x + 3, y + 4, x + 11, y - 4)
+        self.line(x + 11, y, x + 13, y)
+        return 13
 
     def drop(self, x, ytop, ybot, kind, ydev=None):
         """Vertical conductor with a protection device on it."""
@@ -551,14 +577,14 @@ class SVG:
 LEGEND_ITEMS = [
     ("cb", "Circuit breaker"), ("lbs", "Load-break switch"),
     ("fuse", "Fuse"), ("fuse-switch", "Fuse-switch"),
-    ("contactor", "Contactor"), ("tx", "Transformer"),
-    ("pump", "Pump/motor"), ("bus", "Busbar"), ("mcc", "MCC"),
-    ("feeder", "Feeder"), ("rmu", "RMU enclosure"),
+    ("contactor", "Contactor"), ("fuse-contactor", "Fused contactor"),
+    ("tx", "Transformer"), ("pump", "Pump/motor"), ("bus", "Busbar"),
+    ("mcc", "MCC"), ("feeder", "Feeder"), ("rmu", "RMU enclosure"),
 ]
 
 
 def draw_legend(svg):
-    cell = 74
+    cell = 68
     x0, y0 = 24, DIAG_H + 6
     svg.rect(x0, y0, 16 + cell * len(LEGEND_ITEMS), 82, sw=1.2)
     svg.text(x0 + 8, y0 + 14, "LEGEND", size=10, anchor="start", bold=True)
@@ -566,7 +592,7 @@ def draw_legend(svg):
     yc = (ytop + ybot) / 2
     for i, (kind, label) in enumerate(LEGEND_ITEMS):
         cx = x0 + 8 + cell * i + cell / 2
-        if kind in ("cb", "fuse", "contactor"):
+        if kind in ("cb", "fuse", "contactor", "fuse-contactor"):
             svg.drop(cx, ytop, ybot, kind)
         elif kind == "lbs":
             svg.load_break_switch(cx, ytop, ybot)
@@ -824,10 +850,11 @@ def render(info, items, order, width):
         y = Y_MVBUS if ends[0].type == MV_BUSBAR else Y_BUS
         a, b = sorted(ends, key=lambda e: e.x)
         xm = (a.x_right + b.x_left) / 2
-        svg.line(a.x_right, y, b.x_left, y, w=2)
-        svg.breaker(xm, y)
         raw, kind = prot_for(bc)
-        extra = raw if raw and kind != "cb" else ""  # coupler device kind
+        gap = svg.device_h(kind or "cb", xm, y)
+        svg.line(a.x_right, y, xm - gap, y, w=2)
+        svg.line(xm + gap, y, b.x_left, y, w=2)
+        extra = raw if raw and kind is None else ""
         lbl = " ".join(v for v in (bc.id, bc.rating, extra) if v)
         svg.text(xm, y + 24, lbl, size=11)
         svg.text(xm, y + 38, bc.notes, size=10)
