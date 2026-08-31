@@ -73,10 +73,10 @@ and end in an arrow; a Bus Coupler between two busbars is drawn as a breaker in
 the gap, with its Notes text (e.g. "Normally open") underneath.
 
 The Protection column swaps the device drawn on an item's supply side: an ×
-on the line is a circuit breaker (IEC 60617 style), a blade with a contact bar
-is a load-break switch,
+on the line is a circuit breaker (IEC 60617 style), a hinge circle with a
+blade onto a contact bar is a load-break switch (switch-disconnector),
 a small rectangle on the line is a fuse (blade + rectangle = fuse-switch), and
-an arc is a contactor. Protection never changes the topology — only `Feeds
+a blade closing onto a cup-shaped contact is a contactor. Protection never changes the topology — only `Feeds
 From` does — it only changes which symbol sits on the connection. Protection
 on an MV Incomer is the utility's device and is not drawn (you get a warning).
 RMU-to-RMU interconnecting cables draw a load-break switch inside each

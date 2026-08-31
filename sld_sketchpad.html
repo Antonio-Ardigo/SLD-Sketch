@@ -465,10 +465,11 @@ class SVG {
     const xy=rotate!==null?'x="0" y="0"':`x="${x.toFixed(1)}" y="${y.toFixed(1)}"`;
     this.parts.push(`<text ${xy}${tr} font-family="Arial, Helvetica, sans-serif" font-size="${size}" fill="#111" text-anchor="${anchor}"${bold?' font-weight="bold"':""}>${esc(s)}</text>`);
   }
-  lbs(x,yt,yb){                       /* load-break switch */
-    this.line(x,yt,x,yt+5);
-    this.line(x,yt+5,x+9,yb-9);
-    this.line(x-6,yb-9,x+6,yb-9);
+  lbs(x,yt,yb){        /* IEC switch-disconnector: hinge circle + blade + bar */
+    this.line(x,yt,x,yt+3);
+    this.circle(x,yt+5.5,2.5,1.5);   /* hinge = switch */
+    this.line(x+2,yt+8,x+9,yb-9);    /* blade */
+    this.line(x-6,yb-9,x+6,yb-9);    /* contact bar */
     this.line(x,yb-9,x,yb);
   }
   fuseSwitch(x,yt,yb){
@@ -494,8 +495,12 @@ class SVG {
     if(kind==="lbs"){ this.lbs(x,y-13,y+13); return 13; }
     if(kind==="fuse-switch"){ this.fuseSwitch(x,y-16,y+16); return 16; }
     if(kind==="contactor"){
-      this.path(`M ${x.toFixed(1)},${(y+7).toFixed(1)} A 7,7 0 0 1 ${x.toFixed(1)},${(y-7).toFixed(1)}`);
-      return 7;
+      /* IEC: blade closing onto the cup-shaped fixed contact */
+      this.line(x,y-13,x,y-9);
+      this.line(x,y-9,x+7,y+2);
+      this.path(`M ${(x-6).toFixed(1)},${(y+5).toFixed(1)} A 6,6 0 0 0 ${(x+6).toFixed(1)},${(y+5).toFixed(1)}`);
+      this.line(x,y+11,x,y+13);
+      return 13;
     }
     this.breaker(x,y); return 0;  /* 'cb'/unknown: conductor runs through */
   }
@@ -503,8 +508,9 @@ class SVG {
   deviceH(kind,x,y){
     if(kind==="fuse"){ this.rect(x-11,y-4,22,8); this.line(x-11,y,x+11,y); return 11; }
     if(kind==="fuse-switch"){
-      this.line(x-16,y,x-12,y);
-      this.line(x-12,y,x+1,y-9);
+      this.line(x-16,y,x-14.5,y);
+      this.circle(x-12,y,2.5,1.5);     /* hinge = switch */
+      this.line(x-10,y-1.5,x+1,y-9);   /* blade */
       this.line(x+1,y-6,x+1,y+6);
       this.rect(x+3,y-4,12,8);
       this.line(x+1,y,x+3,y);
@@ -512,12 +518,17 @@ class SVG {
       return 16;
     }
     if(kind==="contactor"){
-      this.path(`M ${(x-7).toFixed(1)},${y.toFixed(1)} A 7,7 0 0 1 ${(x+7).toFixed(1)},${y.toFixed(1)}`);
-      return 7;
+      /* IEC: blade closing onto the cup-shaped fixed contact */
+      this.line(x-13,y,x-9,y);
+      this.line(x-9,y,x+2,y-7);
+      this.path(`M ${(x+5).toFixed(1)},${(y-6).toFixed(1)} A 6,6 0 0 1 ${(x+5).toFixed(1)},${(y+6).toFixed(1)}`);
+      this.line(x+11,y,x+13,y);
+      return 13;
     }
     if(kind==="lbs"){
-      this.line(x-13,y,x-8,y);
-      this.line(x-8,y,x+4,y-9);
+      this.line(x-13,y,x-10.5,y);
+      this.circle(x-8,y,2.5,1.5);      /* hinge = switch */
+      this.line(x-6,y-1.5,x+4,y-9);    /* blade */
       this.line(x+4,y-6,x+4,y+6);
       this.line(x+4,y,x+13,y);
       return 13;
@@ -701,7 +712,8 @@ function render(info, items, order, width, warnings){
       }
     }
     svg.circle(p.x,Y_PUMP,PUMP_R,2.2);
-    svg.text(p.x,Y_PUMP+5,"M",{size:15,bold:true});
+    svg.text(p.x,Y_PUMP+1,"M",{size:13,bold:true});
+    svg.text(p.x,Y_PUMP+13,"3~",{size:8.5});
     svg.text(p.x+4,Y_PUMP+PUMP_R+14,[p.id,p.desc,p.rating].filter(Boolean).join(" · "),
              {size:11,anchor:"start",rotate:90});
   }

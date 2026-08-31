@@ -448,9 +448,10 @@ class SVG:
     # -- composite symbols ------------------------------------------------
 
     def load_break_switch(self, x, ytop, ybot):
-        """IEC-style switch: short stub, diagonal blade, contact tick."""
-        self.line(x, ytop, x, ytop + 5)
-        self.line(x, ytop + 5, x + 9, ybot - 9)          # blade
+        """IEC switch-disconnector: hinge circle, blade, contact bar."""
+        self.line(x, ytop, x, ytop + 3)
+        self.circle(x, ytop + 5.5, 2.5, sw=1.5)          # hinge = switch
+        self.line(x + 2, ytop + 8, x + 9, ybot - 9)      # blade
         self.line(x - 6, ybot - 9, x + 6, ybot - 9)      # contact bar
         self.line(x, ybot - 9, x, ybot)
 
@@ -482,8 +483,13 @@ class SVG:
             self.fuse_switch(x, y - 16, y + 16)
             return 16
         if kind == "contactor":
-            self.path(f"M {x:.1f},{y+7:.1f} A 7,7 0 0 1 {x:.1f},{y-7:.1f}")
-            return 7
+            # IEC: blade closing onto the cup-shaped fixed contact
+            self.line(x, y - 13, x, y - 9)
+            self.line(x, y - 9, x + 7, y + 2)                    # blade
+            self.path(f"M {x-6:.1f},{y+5:.1f} A 6,6 0 0 0 "
+                      f"{x+6:.1f},{y+5:.1f}")                    # cup
+            self.line(x, y + 11, x, y + 13)
+            return 13
         self.breaker(x, y)  # 'cb' and anything unknown
         return 0            # the conductor runs through the X
 
@@ -495,19 +501,26 @@ class SVG:
             self.line(x - 11, y, x + 11, y)
             return 11
         if kind == "fuse-switch":
-            self.line(x - 16, y, x - 12, y)
-            self.line(x - 12, y, x + 1, y - 9)      # blade
+            self.line(x - 16, y, x - 14.5, y)
+            self.circle(x - 12, y, 2.5, sw=1.5)     # hinge = switch
+            self.line(x - 10, y - 1.5, x + 1, y - 9)  # blade
             self.line(x + 1, y - 6, x + 1, y + 6)   # contact bar
             self.rect(x + 3, y - 4, 12, 8)          # fuse
             self.line(x + 1, y, x + 3, y)
             self.line(x + 15, y, x + 16, y)
             return 16
         if kind == "contactor":
-            self.path(f"M {x-7:.1f},{y:.1f} A 7,7 0 0 1 {x+7:.1f},{y:.1f}")
-            return 7
+            # IEC: blade closing onto the cup-shaped fixed contact
+            self.line(x - 13, y, x - 9, y)
+            self.line(x - 9, y, x + 2, y - 7)                    # blade
+            self.path(f"M {x+5:.1f},{y-6:.1f} A 6,6 0 0 1 "
+                      f"{x+5:.1f},{y+6:.1f}")                    # cup
+            self.line(x + 11, y, x + 13, y)
+            return 13
         if kind == "lbs":
-            self.line(x - 13, y, x - 8, y)
-            self.line(x - 8, y, x + 4, y - 9)       # blade
+            self.line(x - 13, y, x - 10.5, y)
+            self.circle(x - 8, y, 2.5, sw=1.5)      # hinge = switch
+            self.line(x - 6, y - 1.5, x + 4, y - 9)  # blade
             self.line(x + 4, y - 6, x + 4, y + 6)   # contact bar
             self.line(x + 4, y, x + 13, y)
             return 13
@@ -749,7 +762,8 @@ def render(info, items, order, width):
                 else:
                     svg.line(p.x, Y_RMU_BOT, p.x, Y_PUMP - PUMP_R)
         svg.circle(p.x, Y_PUMP, PUMP_R, sw=2.2)
-        svg.text(p.x, Y_PUMP + 5, "M", size=15, bold=True)
+        svg.text(p.x, Y_PUMP + 1, "M", size=13, bold=True)
+        svg.text(p.x, Y_PUMP + 13, "3~", size=8.5)
         lbl = " · ".join(v for v in (p.id, p.desc, p.rating) if v)
         svg.text(p.x + 4, Y_PUMP + PUMP_R + 14, lbl, size=11,
                  anchor="start", rotate=90)
