@@ -447,6 +447,29 @@ def render(info, items, order, width):
         else "Single Line Diagram (sketch)"
     svg.text(24, DIAG_H - 26, title, size=16, anchor="start", bold=True)
 
+    # --- RMU-to-RMU link topology ----------------------------------------
+    # straight cable between neighbouring boxes; when another RMU sits in
+    # between (a ring closure), the cable loops over the top instead and
+    # enters each box through an extra load-break-switch way
+    side_links, ring_links = [], []
+    ring_entries = {}  # rmu id -> extra top-entry x positions
+    for rmu in rmus:
+        for p in rmu.parents:
+            if items[p].type != RMU:
+                continue
+            if items[p].x is None or rmu.x is None:
+                continue
+            a, b = sorted((items[p], rmu), key=lambda r: r.x)
+            between = any(r is not a and r is not b and a.x < r.x < b.x
+                          for r in rmus)
+            if between:
+                xa, xb = a.x - 28, b.x + 28
+                ring_entries.setdefault(a.id, []).append(xa)
+                ring_entries.setdefault(b.id, []).append(xb)
+                ring_links.append((xa, xb))
+            else:
+                side_links.append((a, b))
+
     # --- RMU enclosures --------------------------------------------------
     rmu_box = {}
     for rmu in rmus:
@@ -454,6 +477,7 @@ def render(info, items, order, width):
             rmu.id == k.id for k in children_of(items, order, m.id))]
         ways_out = children_of(items, order, rmu.id, {TRANSFORMER})
         xs = [w.x for w in ways_in + ways_out if w.x is not None] or [rmu.x]
+        xs = xs + ring_entries.get(rmu.id, [])
         left, right = min(xs) - 42, max(xs) + 42
         bus_l, bus_r = min(xs) - 18, max(xs) + 18
         rmu_box[rmu.id] = (left, right, bus_l, bus_r)
@@ -467,6 +491,11 @@ def render(info, items, order, width):
             svg.load_break_switch(m.x, Y_RMU_TOP + 12, ymid)
             svg.line(m.x, Y_RMU_TOP, m.x, Y_RMU_TOP + 12)
             svg.dot(m.x, ymid)
+        # ring-closure entries come in through the top the same way
+        for x_e in ring_entries.get(rmu.id, []):
+            svg.load_break_switch(x_e, Y_RMU_TOP + 12, ymid)
+            svg.line(x_e, Y_RMU_TOP, x_e, Y_RMU_TOP + 12)
+            svg.dot(x_e, ymid)
         # outgoing ways: fuse-switches from the bus to the bottom edge
         for t in ways_out:
             svg.fuse_switch(t.x, ymid + 4, Y_RMU_BOT - 8)
@@ -482,21 +511,19 @@ def render(info, items, order, width):
 
     # --- RMU-to-RMU interconnecting cables -------------------------------
     y_link = (Y_RMU_TOP + Y_RMU_BOT) / 2
-    for rmu in rmus:
-        for p in rmu.parents:
-            if items[p].type != RMU:
-                continue
-            if p not in rmu_box or rmu.id not in rmu_box:
-                continue
-            pl, pr, pbl, pbr = rmu_box[p]
-            cl, cr, cbl, cbr = rmu_box[rmu.id]
-            if items[p].x < rmu.x:      # parent box left of child box
-                x1, x2, edges = pbr, cbl, (pr, cl)
-            else:
-                x1, x2, edges = cbr, pbl, (cr, pl)
-            svg.line(min(x1, x2), y_link, max(x1, x2), y_link, w=2)
-            for xe in edges:  # switch blade where the cable enters each box
-                svg.line(xe - 6, y_link + 6, xe + 6, y_link - 6)
+    for a, b in side_links:  # a is the left box
+        if a.id not in rmu_box or b.id not in rmu_box:
+            continue
+        _, a_right, _, a_bus_r = rmu_box[a.id]
+        b_left, _, b_bus_l, _ = rmu_box[b.id]
+        svg.line(a_bus_r, y_link, b_bus_l, y_link, w=2)
+        for xe in (a_right, b_left):  # blade where the cable enters a box
+            svg.line(xe - 6, y_link + 6, xe + 6, y_link - 6)
+    y_ring = Y_RMU_TOP - 26
+    for xa, xb in ring_links:  # loop over the top of the boxes in between
+        svg.line(xa, Y_RMU_TOP, xa, y_ring)
+        svg.line(xa, y_ring, xb, y_ring)
+        svg.line(xb, y_ring, xb, Y_RMU_TOP)
 
     # --- MV incomers -----------------------------------------------------
     for m in mvs:
