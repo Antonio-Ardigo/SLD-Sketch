@@ -296,10 +296,18 @@ def layout_mv_boards(items, order):
         for k, w in zip(kids, widths):
             k.x = cursor + w / 2
             cursor += w + SLOT_GAP
-            if k.type == TRANSFORMER:
-                for bb in children_of(items, order, k.id, {LV_BUSBAR}):
-                    place_lv_board(items, order, bb, k.x)
         x = mvb.x_right + BUS_GAP
+
+    # LV boards centred under their supply transformer(s) - the mean of
+    # the supplies when a board has two incomers
+    for oid in order:
+        bb = items[oid]
+        if bb.type != LV_BUSBAR or bb.x is not None:
+            continue
+        pxs = [items[p].x for p in bb.parents
+               if items[p].type == TRANSFORMER and items[p].x is not None]
+        if pxs:
+            place_lv_board(items, order, bb, sum(pxs) / len(pxs))
 
     # incomers centred over the board(s) they feed
     for m in mvs:
@@ -563,12 +571,15 @@ class SVG:
         self.line(x, ytop, x, y - gap)
         self.line(x, y + gap, x, ybot)
 
-    def transformer(self, x, label_lines):
+    def transformer(self, x, label_lines, side="right"):
         self.circle(x, Y_TX_C1, TX_R, sw=2.2)
         self.circle(x, Y_TX_C2, TX_R, sw=2.2)
         ty = Y_TX_C1 - 6
         for s in label_lines:
-            self.text(x + TX_R + 10, ty, s, anchor="start")
+            if side == "left":
+                self.text(x - TX_R - 10, ty, s, anchor="end")
+            else:
+                self.text(x + TX_R + 10, ty, s, anchor="start")
             ty += 15
 
     def arrow_down(self, x, ytip):
@@ -801,9 +812,13 @@ def render(info, items, order, width):
     for tx in txs:
         if tx.x is None:
             continue
+        fed = children_of(items, order, tx.id, {LV_BUSBAR})
         lbl = [tx.id, tx.desc,
                " ".join(v for v in (tx.rating, tx.voltage) if v)]
-        svg.transformer(tx.x, [s for s in lbl if s])
+        # transformers sharing a board label away from each other
+        side = ("left" if any(len(bb.parents) > 1 and tx.x < bb.x
+                              for bb in fed) else "right")
+        svg.transformer(tx.x, [s for s in lbl if s], side)
         for p in tx.parents:
             par = items[p]
             if par.type == RMU:
@@ -812,20 +827,35 @@ def render(info, items, order, width):
                 svg.drop(tx.x, Y_MVBUS, Y_TX_C1 - TX_R,
                          prot_for(tx, par.id)[1] or "cb")
                 svg.dot(tx.x, Y_MVBUS)
-        fed = children_of(items, order, tx.id, {LV_BUSBAR})
-        if len(fed) == 1 and abs(fed[0].x - tx.x) < 1:
+        ytop = Y_TX_C2 + TX_R
+        dual = [bb for bb in fed if len(bb.parents) > 1]
+        rest = [bb for bb in fed if len(bb.parents) == 1]
+        for bb in dual:
+            # a board with two incomers: each supply gets its own drop
+            # at its own position, never at the shared board centre
+            kind = prot_for(bb, tx.id)[1] or "cb"
+            xc = min(max(tx.x, bb.x_left + 25), bb.x_right - 25)
+            if abs(xc - tx.x) < 1:
+                svg.drop(tx.x, ytop, Y_BUS, kind)
+            else:  # supply sits outside the board span: elbow over
+                ysplit = ytop + 32
+                svg.line(tx.x, ytop, tx.x, ysplit)
+                svg.line(tx.x, ysplit, xc, ysplit)
+                svg.drop(xc, ysplit, Y_BUS, kind)
+            svg.dot(xc, Y_BUS)
+        if len(rest) == 1 and abs(rest[0].x - tx.x) < 1:
             # straight drop to the busbar through the LV incomer device
-            svg.drop(tx.x, Y_TX_C2 + TX_R, Y_BUS,
-                     prot_for(fed[0], tx.id)[1] or "cb")
+            svg.drop(tx.x, ytop, Y_BUS,
+                     prot_for(rest[0], tx.id)[1] or "cb")
             svg.dot(tx.x, Y_BUS)
-        elif fed:
+        elif rest:
             # one transformer feeding several panels: split, then one
             # incomer device per panel
-            ysplit = Y_TX_C2 + TX_R + 32
-            svg.line(tx.x, Y_TX_C2 + TX_R, tx.x, ysplit)
-            xs = [bb.x for bb in fed] + [tx.x]
+            ysplit = ytop + 32
+            svg.line(tx.x, ytop, tx.x, ysplit)
+            xs = [bb.x for bb in rest] + [tx.x]
             svg.line(min(xs), ysplit, max(xs), ysplit)
-            for bb in fed:
+            for bb in rest:
                 svg.dot(bb.x, ysplit)
                 svg.drop(bb.x, ysplit, Y_BUS,
                          prot_for(bb, tx.id)[1] or "cb")

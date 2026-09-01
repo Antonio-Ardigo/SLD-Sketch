@@ -359,11 +359,17 @@ function layoutMvBoards(items, order){
     let cursor=x+(total-need)/2;
     kids.forEach((k,i)=>{
       k.x=cursor+widths[i]/2; cursor+=widths[i]+SLOT_GAP;
-      if(k.type===TRANSFORMER)
-        for(const bb of childrenOf(items,order,k.id,[LV_BUSBAR]))
-          placeLvBoard(items,order,bb,k.x);
     });
     x=mvb.xRight+BUS_GAP;
+  }
+  /* LV boards centred under their supply transformer(s) - the mean of
+     the supplies when a board has two incomers */
+  for(const oid of order){
+    const bb=items[oid];
+    if(bb.type!==LV_BUSBAR || bb.x!==null) continue;
+    const pxs=bb.parents.map(p=>items[p])
+      .filter(p=>p.type===TRANSFORMER && p.x!==null).map(p=>p.x);
+    if(pxs.length) placeLvBoard(items,order,bb,pxs.reduce((a,b)=>a+b,0)/pxs.length);
   }
   for(const m of mvs){
     for(const mvb of mvbs){
@@ -570,10 +576,14 @@ class SVG {
     this.line(x,ytop,x,y-gap);
     this.line(x,y+gap,x,ybot);
   }
-  transformer(x,lines){
+  transformer(x,lines,side){
     this.circle(x,Y_TX_C1,TX_R,2.2); this.circle(x,Y_TX_C2,TX_R,2.2);
     let ty=Y_TX_C1-6;
-    for(const s of lines){ this.text(x+TX_R+10,ty,s,{anchor:"start"}); ty+=15; }
+    for(const s of lines){
+      if(side==="left") this.text(x-TX_R-10,ty,s,{anchor:"end"});
+      else this.text(x+TX_R+10,ty,s,{anchor:"start"});
+      ty+=15;
+    }
   }
   arrowDown(x,ytip){ this.poly([[x-6,ytip-11],[x+6,ytip-11],[x,ytip]]); }
 }
@@ -751,7 +761,10 @@ function render(info, items, order, width, warnings){
   /* transformers */
   for(const tx of txs){
     if(tx.x===null) continue;
-    svg.transformer(tx.x,[tx.id,tx.desc,[tx.rating,tx.voltage].filter(Boolean).join(" ")].filter(Boolean));
+    const fed=childrenOf(items,order,tx.id,[LV_BUSBAR]);
+    /* transformers sharing a board label away from each other */
+    const side=fed.some(bb=>bb.parents.length>1 && tx.x<bb.x)?"left":"right";
+    svg.transformer(tx.x,[tx.id,tx.desc,[tx.rating,tx.voltage].filter(Boolean).join(" ")].filter(Boolean),side);
     for(const q of tx.parents){
       const par=items[q];
       if(par.type===RMU) svg.line(tx.x,Y_RMU_BOT,tx.x,Y_TX_C1-TX_R);
@@ -760,16 +773,33 @@ function render(info, items, order, width, warnings){
         svg.dot(tx.x,Y_MVBUS);
       }
     }
-    const fed=childrenOf(items,order,tx.id,[LV_BUSBAR]);
-    if(fed.length===1 && Math.abs(fed[0].x-tx.x)<1){
-      svg.drop(tx.x,Y_TX_C2+TX_R,Y_BUS,protFor(fed[0],tx.id)[1]||"cb");
+    const ytop=Y_TX_C2+TX_R;
+    const dualFed=fed.filter(bb=>bb.parents.length>1);
+    const rest=fed.filter(bb=>bb.parents.length===1);
+    for(const bb of dualFed){
+      /* a board with two incomers: each supply gets its own drop at
+         its own position, never at the shared board centre */
+      const kind=protFor(bb,tx.id)[1]||"cb";
+      const xc=Math.min(Math.max(tx.x,bb.xLeft+25),bb.xRight-25);
+      if(Math.abs(xc-tx.x)<1){
+        svg.drop(tx.x,ytop,Y_BUS,kind);
+      } else {  /* supply sits outside the board span: elbow over */
+        const ysplit=ytop+32;
+        svg.line(tx.x,ytop,tx.x,ysplit);
+        svg.line(tx.x,ysplit,xc,ysplit);
+        svg.drop(xc,ysplit,Y_BUS,kind);
+      }
+      svg.dot(xc,Y_BUS);
+    }
+    if(rest.length===1 && Math.abs(rest[0].x-tx.x)<1){
+      svg.drop(tx.x,ytop,Y_BUS,protFor(rest[0],tx.id)[1]||"cb");
       svg.dot(tx.x,Y_BUS);
-    } else if(fed.length){
-      const ysplit=Y_TX_C2+TX_R+32;
-      svg.line(tx.x,Y_TX_C2+TX_R,tx.x,ysplit);
-      const xs=fed.map(b=>b.x).concat([tx.x]);
+    } else if(rest.length){
+      const ysplit=ytop+32;
+      svg.line(tx.x,ytop,tx.x,ysplit);
+      const xs=rest.map(b=>b.x).concat([tx.x]);
       svg.line(Math.min(...xs),ysplit,Math.max(...xs),ysplit);
-      for(const bb of fed){
+      for(const bb of rest){
         svg.dot(bb.x,ysplit);
         svg.drop(bb.x,ysplit,Y_BUS,protFor(bb,tx.id)[1]||"cb");
         svg.dot(bb.x,Y_BUS);
