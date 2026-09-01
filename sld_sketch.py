@@ -237,6 +237,14 @@ def read_workbook(path):
             if up and dn:
                 print(f"warning: '{it.id}' feeds both an MV and an LV board "
                       f"- drawn as a step-up", file=sys.stderr)
+        if it.type == SU_TRANSFORMER:
+            up = [c for c in items.values()
+                  if it.id in c.parents and c.type in (MV_BUSBAR, RMU)]
+            dn = [p for p in it.parents
+                  if p in items and items[p].type in (MV_BUSBAR, RMU)]
+            if not up and not dn:
+                print(f"warning: SU transformer '{it.id}' is not connected "
+                      f"to an MV board or RMU", file=sys.stderr)
         if it.type == GENERATOR and not any(it.id in c.parents
                                             for c in items.values()) \
                 and not any(items[p].type == SU_TRANSFORMER
@@ -308,7 +316,7 @@ def step_ups(items, order):
     out = {}
     for oid in order:
         tx = items[oid]
-        if tx.type != TRANSFORMER:
+        if tx.type not in (TRANSFORMER, SU_TRANSFORMER):
             continue
         if not children_of(items, order, tx.id, {MV_BUSBAR, RMU}):
             continue
@@ -495,11 +503,15 @@ def place_su_sources(items, order):
         tx = items[oid]
         if tx.type != SU_TRANSFORMER or tx.x is None:
             continue
+        if not any(items[p].type in (MV_BUSBAR, RMU) for p in tx.parents):
+            continue                  # wired the other way: drawn above
         for src in children_of(items, order,
                                tx.id, {GENERATOR, LV_BUSBAR, MV_INCOMER}):
             src.x = tx.x
-            if src.type == LV_BUSBAR:
-                src.x_left, src.x_right = tx.x - 85, tx.x + 85
+            if src.type == LV_BUSBAR:   # size the bar from its feeders
+                place_lv_board(items, order, src, tx.x)
+            else:
+                src.x = tx.x
 
 
 def layout_mv_boards(items, order):
@@ -936,7 +948,11 @@ def render(info, items, order, width):
     for rmu in rmus:
         ways_in = [m for m in mvs if any(
             rmu.id == k.id for k in children_of(items, order, m.id))]
-        ways_out = children_of(items, order, rmu.id, {TRANSFORMER, PUMP})
+        ways_in += [items[t] for t in sus            # step-up columns
+                    if any(rmu.id == k.id
+                           for k in children_of(items, order, t))]
+        ways_out = children_of(items, order, rmu.id,
+                               {TRANSFORMER, SU_TRANSFORMER, PUMP})
         xs = [w.x for w in ways_in + ways_out if w.x is not None] or [rmu.x]
         xs = xs + [e[0] for e in ring_entries.get(rmu.id, [])]
         left = min(xs) - pad_l[rmu.id]
@@ -1194,7 +1210,9 @@ def render(info, items, order, width):
                 svg.dot(tx.x, y_to)
 
     # --- reversed step-ups (SU Transformer): board on top, source below --
-    su_below = [items[i] for i in order if items[i].type == SU_TRANSFORMER]
+    su_below = [items[i] for i in order if items[i].type == SU_TRANSFORMER
+                and any(items[p].type in (MV_BUSBAR, RMU)
+                        for p in items[i].parents)]
     for tx in su_below:
         if tx.x is None:
             continue

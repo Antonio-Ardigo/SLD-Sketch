@@ -49,11 +49,18 @@ Busbar or RMU is a **step-up**: its source (a Generator, an LV Busbar acting as
 a generation board, or an MV Incomer row) is drawn at the top, the transformer
 below it, then down into the MV board beside any utility incomers.
 
-Use type **`SU Transformer`** for the same step-up drawn the other way up
-(rotated 180°): it hangs *under* its MV board like any other way — its
-`Feeds From` is that board, and its generator's `Feeds From` is the SU
-Transformer, so the column reads board → transformer → generator downwards
-while the power flows up.
+Use type **`SU Transformer`** to mark a step-up explicitly. It works in either
+rotation, chosen by how you wire it:
+
+- **Below the board** (rotated 180°) — the SU's `Feeds From` is the MV board,
+  so it hangs under it like any other way, with its generator or generation
+  board below it (their `Feeds From` is the SU Transformer).
+- **Above the board** — the board's `Feeds From` names the SU, and the SU's
+  `Feeds From` is its generator, giving the source-on-top column.
+
+Either type can also hang off an **RMU**: it takes a proper way inside the
+enclosure, with its device on the tee-off. A generation **LV board** under an
+SU is sized from its own feeders like any other board.
 
 An MV Busbar or RMU can itself feed from another MV Busbar: the fed board or
 RMU is then drawn on its own tier below its source, with the feed through its

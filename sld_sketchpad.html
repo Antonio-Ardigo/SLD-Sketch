@@ -305,7 +305,7 @@ function stepUps(items, order){
   const out={};
   for(const oid of order){
     const tx=items[oid];
-    if(tx.type!==TRANSFORMER) continue;
+    if(tx.type!==TRANSFORMER && tx.type!==SU_TRANSFORMER) continue;
     if(!childrenOf(items,order,tx.id,[MV_BUSBAR,RMU]).length) continue;
     out[tx.id]=tx.parents.length?items[tx.parents[0]]:null;
   }
@@ -395,6 +395,13 @@ function buildModel(rows){
                                             && c.type===LV_BUSBAR);
       if(up.length && dn.length)
         warnings.push(`"${id}" feeds both an MV and an LV board — drawn as a step-up.`);
+    }
+    if(it.type===SU_TRANSFORMER){
+      const up=order.map(q=>items[q]).filter(c=>c.parents.includes(it.id)
+                                            && [MV_BUSBAR,RMU].includes(c.type));
+      const dn=it.parents.filter(p=>items[p] && [MV_BUSBAR,RMU].includes(items[p].type));
+      if(!up.length && !dn.length)
+        warnings.push(`SU transformer "${id}" is not connected to an MV board or RMU.`);
     }
     if(it.type===GENERATOR && !order.some(q=>items[q].parents.includes(it.id))
        && !it.parents.some(p=>items[p] && items[p].type===SU_TRANSFORMER))
@@ -828,8 +835,11 @@ function render(info, items, order, width, warnings){
   /* RMU enclosures */
   const rmuBox={};
   for(const rmu of rmus){
-    const waysIn=mvs.filter(m=>childrenOf(items,order,m.id).some(k=>k.id===rmu.id));
-    const waysOut=childrenOf(items,order,rmu.id,[TRANSFORMER,PUMP]);
+    const waysIn=mvs.filter(m=>childrenOf(items,order,m.id).some(k=>k.id===rmu.id))
+      .concat(Object.keys(sus).map(t=>items[t])
+        .filter(t=>childrenOf(items,order,t.id).some(k=>k.id===rmu.id)));
+    const waysOut=childrenOf(items,order,rmu.id,
+                             [TRANSFORMER,SU_TRANSFORMER,PUMP]);
     let xs=waysIn.concat(waysOut).map(w=>w.x).filter(v=>v!==null);
     if(!xs.length) xs=[rmu.x];
     xs=xs.concat((ringEntries[rmu.id]||[]).map(e=>e[0]));
@@ -1056,7 +1066,8 @@ function render(info, items, order, width, warnings){
   }
 
   /* reversed step-ups (SU Transformer): board on top, source below */
-  for(const tx of order.map(i=>items[i]).filter(o=>o.type===SU_TRANSFORMER)){
+  for(const tx of order.map(i=>items[i]).filter(o=>o.type===SU_TRANSFORMER
+        && o.parents.some(p=>[MV_BUSBAR,RMU].includes(items[p].type)))){
     if(tx.x===null) continue;
     for(const f of tx.parents.map(p=>items[p])
                      .filter(p=>[MV_BUSBAR,RMU].includes(p.type))){
