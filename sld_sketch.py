@@ -1135,6 +1135,8 @@ def render(info, items, order, width):
         ways_in += [items[t] for t in sus            # step-up columns
                     if any(rmu.id == k.id
                            for k in children_of(items, order, t))]
+        boards_in = [items[p] for p in rmu.parents
+                     if items[p].type == MV_BUSBAR]   # board-fed RMU
         ways_out = children_of(items, order, rmu.id,
                                {TRANSFORMER, PUMP})
         ways_out += [items[t] for t, (_, up) in su_mid(items, order).items()
@@ -1160,6 +1162,8 @@ def render(info, items, order, width):
             svg.dot(x, ymid)
         for m in ways_in:
             in_way(m.x, prot_for(rmu, m.id)[1])
+        for b in boards_in:          # the board's drop lands at rmu.x
+            in_way(rmu.x, prot_for(rmu, b.id)[1])
         # ring-closure entries come in through the top the same way
         for x_e, other in ring_entries.get(rmu.id, []):
             in_way(x_e, prot_for(rmu, other)[1]
@@ -1268,7 +1272,8 @@ def render(info, items, order, width):
             par = items[p]
             if par.type != MV_BUSBAR:
                 continue
-            kind = prot_for(it, par.id)[1] or "cb"
+            kind = ("cb" if it.type == RMU
+                    else prot_for(it, par.id)[1] or "cb")
             y_from = y_bus(par)
             y_to = y_bus(it) if it.type == MV_BUSBAR else y_rmu(it)[0]
             x_from = min(max(it.x, par.x_left), par.x_right)

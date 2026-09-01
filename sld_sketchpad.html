@@ -1010,6 +1010,8 @@ function render(info, items, order, width, warnings){
     const waysIn=mvs.filter(m=>childrenOf(items,order,m.id).some(k=>k.id===rmu.id))
       .concat(Object.keys(sus).map(t=>items[t])
         .filter(t=>childrenOf(items,order,t.id).some(k=>k.id===rmu.id)));
+    const boardsIn=rmu.parents.map(p=>items[p])
+      .filter(p=>p.type===MV_BUSBAR);          /* board-fed RMU */
     const midAll=suMid(items,order);
     const waysOut=childrenOf(items,order,rmu.id,
                              [TRANSFORMER,PUMP])
@@ -1031,6 +1033,7 @@ function render(info, items, order, width, warnings){
       svg.dot(x,ymid);
     };
     for(const m of waysIn) inWay(m.x, protFor(rmu,m.id)[1]);
+    for(const b of boardsIn) inWay(rmu.x, protFor(rmu,b.id)[1]);
     for(const [xe,other] of ringEntries[rmu.id]||[])
       inWay(xe, rmu.parents.includes(other)?protFor(rmu,other)[1]:null);
     for(const t of waysOut){  /* default fuse-switch, per fed item's row */
@@ -1122,7 +1125,7 @@ function render(info, items, order, width, warnings){
     for(const p of it.parents){
       const par=items[p];
       if(par.type!==MV_BUSBAR) continue;
-      const kind=protFor(it,par.id)[1]||"cb";
+      const kind=(it.type===RMU)?"cb":(protFor(it,par.id)[1]||"cb");
       const yFrom=yBus(par);
       const yTo=(it.type===MV_BUSBAR)?yBus(it):yRmu(it)[0];
       const xFrom=Math.min(Math.max(it.x,par.xLeft),par.xRight);
