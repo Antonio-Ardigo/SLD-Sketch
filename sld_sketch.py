@@ -249,7 +249,9 @@ def read_workbook(path):
                   if it.id in c.parents and c.type in (MV_BUSBAR, RMU)]
             dn = [p for p in it.parents
                   if p in items and items[p].type in (MV_BUSBAR, RMU)]
-            if not up and not dn:
+            lv_out = [c for c in items.values()
+                      if it.id in c.parents and c.type == LV_BUSBAR]
+            if not up and not dn and not lv_out:
                 lv = [p for p in it.parents
                       if p in items and items[p].type == LV_BUSBAR
                       and items[p].parents]
@@ -342,9 +344,29 @@ def su_mid(items, order):
             continue
         if up:
             out[tx.id] = (src[0], up[0])
-        elif tx.type == SU_TRANSFORMER and not any(
-                items[p].type in (MV_BUSBAR, RMU) for p in tx.parents):
+        elif (tx.type == SU_TRANSFORMER
+              and not any(items[p].type in (MV_BUSBAR, RMU)
+                          for p in tx.parents)
+              and not children_of(items, order, tx.id, {LV_BUSBAR})):
             out[tx.id] = (src[0], None)   # outgoing board not entered yet
+    return out
+
+
+def lv_subs(items, order):
+    """A transformer (or SU Transformer) taking supply from one LV board
+    and feeding another: drawn in the transformer row between the two
+    bars, the fed board standing beside its parent with its own feeders."""
+    mid = su_mid(items, order)
+    out = {}
+    for oid in order:
+        tx = items[oid]
+        if tx.type not in (TRANSFORMER, SU_TRANSFORMER) or tx.id in mid:
+            continue
+        src = [items[p] for p in tx.parents
+               if items[p].type == LV_BUSBAR and items[p].parents]
+        fed = children_of(items, order, tx.id, {LV_BUSBAR})
+        if src and fed:
+            out[tx.id] = (src[0], fed)
     return out
 
 
@@ -408,6 +430,31 @@ def place_lv_board(items, order, bb, center_x):
     for i, k in enumerate(kids):
         k.x = bb.x_left + pad + FEEDER_SPACING * (i + 0.5)
     return width
+
+
+def place_lv_subs(items, order, x):
+    """Place LV/LV transformers and the boards they feed, left to right."""
+    for tx_id, (src, fed) in lv_subs(items, order).items():
+        todo = [b for b in fed if b.x is None]
+        if not todo:
+            if items[tx_id].x is None:
+                xs = [b.x for b in fed if b.x is not None]
+                items[tx_id].x = sum(xs) / len(xs)
+            continue
+        x = max([x] + [b.x_right for b in items.values()
+                       if b.type in (LV_BUSBAR, MV_BUSBAR)
+                       and b.x_right is not None])
+        left = x + BUS_GAP
+        cur = left
+        for bb in todo:
+            kids = children_of(items, order, bb.id, {FEEDER, MCC, PUMP})
+            w = max(MIN_BUS_WIDTH, len(kids) * FEEDER_SPACING)
+            place_lv_board(items, order, bb, cur + w / 2)
+            cur += w + BUS_GAP
+        if items[tx_id].x is None:
+            items[tx_id].x = (left + cur - BUS_GAP) / 2
+        x = cur
+    return x
 
 
 def slot_width(items, order, item):
@@ -611,9 +658,12 @@ def layout_mv_boards(items, order):
         if bb.type != LV_BUSBAR or bb.x is not None:
             continue
         pxs = [items[p].x for p in bb.parents
-               if items[p].type == TRANSFORMER and items[p].x is not None]
+               if items[p].type in (TRANSFORMER, SU_TRANSFORMER)
+               and items[p].x is not None]
         if pxs:
             place_lv_board(items, order, bb, sum(pxs) / len(pxs))
+
+    x = place_lv_subs(items, order, x)
 
     # step-up chains take an incomer position over the board they feed
     place_step_ups(items, order)
@@ -728,6 +778,7 @@ def layout(items, order):
                 m.x = sum(placed) / len(placed)
 
     x = place_su_mid(items, order, x)
+    x = place_lv_subs(items, order, x)
 
     # 5. anything still unplaced goes in a row after the busbars
     for oid in order:
@@ -990,7 +1041,9 @@ def render(info, items, order, width):
     busbars = [items[i] for i in order if items[i].type == LV_BUSBAR]
     mvbs = [items[i] for i in order if items[i].type == MV_BUSBAR]
     rmus = [items[i] for i in order if items[i].type == RMU]
-    txs = [items[i] for i in order if items[i].type == TRANSFORMER]
+    lvsub = lv_subs(items, order)
+    txs = [items[i] for i in order
+           if items[i].type == TRANSFORMER or i in lvsub]
     pumps = [items[i] for i in order if items[i].type == PUMP]
     mvs = [items[i] for i in order if items[i].type == MV_INCOMER]
     couplers = [items[i] for i in order if items[i].type == BUS_COUPLER]
@@ -1442,6 +1495,16 @@ def render(info, items, order, width):
                 svg.drop(tx.x, y_bus(par), Y_TX_C1 - TX_R,
                          prot_for(tx, par.id)[1] or "cb")
                 svg.dot(tx.x, y_bus(par))
+            elif par.type == LV_BUSBAR and par.x_left is not None:
+                # supply comes back up from an LV board on the same row
+                kind = prot_for(tx, par.id)[1] or "cb"
+                y_lane = Y_TX_C1 - TX_R - 22
+                x_land = (par.x_right - 25 if tx.x > par.x
+                          else par.x_left + 25)
+                svg.drop(x_land, y_lane, Y_BUS, kind)
+                svg.line(x_land, y_lane, tx.x, y_lane)
+                svg.line(tx.x, y_lane, tx.x, Y_TX_C1 - TX_R)
+                svg.dot(x_land, Y_BUS)
         ytop = ytop_tx
         dual = [bb for bb in fed if (tx.id, bb.id) in routes]
         rest = [bb for bb in fed if (tx.id, bb.id) not in routes]

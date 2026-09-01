@@ -67,6 +67,12 @@ the SU named on the fed board's row. Until you do that the SU still draws —
 hanging off its LV board with an **open outgoing terminal** marked "outgoing
 not defined" — and a warning tells you which row to add it to.
 
+An SU (or an ordinary `Transformer`) can also feed an **LV Busbar**: a 400/690 V
+unit for drives, say. Fed from one LV board and feeding another, it is drawn in
+the transformer row between the two, its supply taken from the parent board's
+bar and its output dropped into the fed board, which stands beside its parent
+with its own feeders. These chain, and one unit can feed several boards.
+
 **Motors.** A `Pump` on an MV Busbar or RMU is an MV motor drawn in the
 transformer row. A `Pump` on an **LV Busbar** is an LV motor drawn in the
 feeder band below the board, and a `Pump` fed straight from a **Transformer**
