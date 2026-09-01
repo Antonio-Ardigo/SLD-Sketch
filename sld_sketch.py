@@ -250,8 +250,17 @@ def read_workbook(path):
             dn = [p for p in it.parents
                   if p in items and items[p].type in (MV_BUSBAR, RMU)]
             if not up and not dn:
-                print(f"warning: SU transformer '{it.id}' is not connected "
-                      f"to an MV board or RMU", file=sys.stderr)
+                lv = [p for p in it.parents
+                      if p in items and items[p].type == LV_BUSBAR
+                      and items[p].parents]
+                if lv:
+                    print(f"warning: SU transformer '{it.id}' has no MV "
+                          f"board or RMU on its output - drawn with an open "
+                          f"outgoing; put '{it.id}' in that board's "
+                          f"Feeds From to connect it", file=sys.stderr)
+                else:
+                    print(f"warning: SU transformer '{it.id}' is not "
+                          f"connected to an MV board or RMU", file=sys.stderr)
         if it.type == GENERATOR and not any(it.id in c.parents
                                             for c in items.values()) \
                 and not any(items[p].type == SU_TRANSFORMER
@@ -329,8 +338,13 @@ def su_mid(items, order):
         up = children_of(items, order, tx.id, {MV_BUSBAR, RMU})
         src = [items[p] for p in tx.parents
                if items[p].type == LV_BUSBAR and items[p].parents]
-        if up and src:
+        if not src:
+            continue
+        if up:
             out[tx.id] = (src[0], up[0])
+        elif tx.type == SU_TRANSFORMER and not any(
+                items[p].type in (MV_BUSBAR, RMU) for p in tx.parents):
+            out[tx.id] = (src[0], None)   # outgoing board not entered yet
     return out
 
 
@@ -441,7 +455,7 @@ def mv_children(items, order, node):
              if node.type == MV_BUSBAR else {TRANSFORMER, SU_TRANSFORMER, PUMP})
     kids = children_of(items, order, node.id, types)
     kids += [items[t] for t, (_, up) in su_mid(items, order).items()
-             if up.id == node.id and items[t] not in kids]
+             if up is not None and up.id == node.id and items[t] not in kids]
     return kids
 
 
@@ -522,6 +536,10 @@ def place_su_mid(items, order, x):
     for tx_id, (src, up) in su_mid(items, order).items():
         tx = items[tx_id]
         if tx.x is not None:
+            continue
+        if up is None:                # no outgoing board: a slot of its own
+            tx.x = x + 60
+            x += 200
             continue
         if up.x is not None:          # the gear already has its slot
             tx.x = up.x
@@ -1025,7 +1043,8 @@ def render(info, items, order, width):
         ways_out = children_of(items, order, rmu.id,
                                {TRANSFORMER, SU_TRANSFORMER, PUMP})
         ways_out += [items[t] for t, (_, up) in su_mid(items, order).items()
-                     if up.id == rmu.id and items[t].x is not None]
+                     if up is not None and up.id == rmu.id
+                     and items[t].x is not None]
         xs = [w.x for w in ways_in + ways_out if w.x is not None] or [rmu.x]
         xs = xs + [e[0] for e in ring_entries.get(rmu.id, [])]
         left = min(xs) - pad_l[rmu.id]
@@ -1340,7 +1359,12 @@ def render(info, items, order, width):
             svg.line(x_land, y_lane, x_land, Y_BUS)
         svg.dot(x_land, Y_BUS)
         # up to the MV board / RMU it feeds
-        if up.type == MV_BUSBAR:
+        if up is None:                # outgoing board not entered yet
+            y_open = Y_TX_C1 - TX_R - 36
+            svg.line(tx.x, Y_TX_C1 - TX_R, tx.x, y_open)
+            svg.line(tx.x - 12, y_open, tx.x + 12, y_open)
+            svg.text(tx.x, y_open - 8, "outgoing not defined", size=9)
+        elif up.type == MV_BUSBAR:
             svg.drop(tx.x, y_bus(up), Y_TX_C1 - TX_R,
                      prot_for(up, tx.id)[1] or "cb")
             svg.dot(tx.x, y_bus(up))

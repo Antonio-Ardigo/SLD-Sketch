@@ -311,7 +311,11 @@ function suMid(items, order){
     const up=childrenOf(items,order,tx.id,[MV_BUSBAR,RMU]);
     const src=tx.parents.map(p=>items[p])
       .filter(o=>o.type===LV_BUSBAR && o.parents.length);
-    if(up.length && src.length) out[tx.id]=[src[0],up[0]];
+    if(!src.length) continue;
+    if(up.length) out[tx.id]=[src[0],up[0]];
+    else if(tx.type===SU_TRANSFORMER
+            && !tx.parents.some(p=>[MV_BUSBAR,RMU].includes(items[p].type)))
+      out[tx.id]=[src[0],null];   /* outgoing board not entered yet */
   }
   return out;
 }
@@ -320,6 +324,7 @@ function placeSuMid(items, order, x){
   for(const txId of Object.keys(mid)){
     const tx=items[txId], up=mid[txId][1];
     if(tx.x!==null) continue;
+    if(up===null){ tx.x=x+60; x+=200; continue; }  /* no outgoing board */
     if(up.x!==null){ tx.x=up.x; continue; }   /* gear already has its slot */
     tx.x=x+60; up.x=tx.x;
     if(up.type===MV_BUSBAR){ up.xLeft=tx.x-85; up.xRight=tx.x+85; }
@@ -439,8 +444,13 @@ function buildModel(rows){
       const up=order.map(q=>items[q]).filter(c=>c.parents.includes(it.id)
                                             && [MV_BUSBAR,RMU].includes(c.type));
       const dn=it.parents.filter(p=>items[p] && [MV_BUSBAR,RMU].includes(items[p].type));
-      if(!up.length && !dn.length)
-        warnings.push(`SU transformer "${id}" is not connected to an MV board or RMU.`);
+      if(!up.length && !dn.length){
+        const lv=it.parents.filter(p=>items[p] && items[p].type===LV_BUSBAR
+                                      && items[p].parents.length);
+        warnings.push(lv.length
+          ? `SU transformer "${id}" has no MV board or RMU on its output — drawn with an open outgoing; put "${id}" in that board's Feeds From to connect it.`
+          : `SU transformer "${id}" is not connected to an MV board or RMU.`);
+      }
     }
     if(it.type===GENERATOR && !order.some(q=>items[q].parents.includes(it.id))
        && !it.parents.some(p=>items[p] && items[p].type===SU_TRANSFORMER))
@@ -508,7 +518,8 @@ function mvChildren(items, order, node){
   const kids=childrenOf(items,order,node.id,types);
   const mid=suMid(items,order);
   for(const t of Object.keys(mid))
-    if(mid[t][1].id===node.id && !kids.includes(items[t])) kids.push(items[t]);
+    if(mid[t][1] && mid[t][1].id===node.id && !kids.includes(items[t]))
+      kids.push(items[t]);
   return kids;
 }
 function mvOwnWidth(items, order, node, depth){
@@ -893,7 +904,8 @@ function render(info, items, order, width, warnings){
     const midAll=suMid(items,order);
     const waysOut=childrenOf(items,order,rmu.id,
                              [TRANSFORMER,SU_TRANSFORMER,PUMP])
-      .concat(Object.keys(midAll).filter(t=>midAll[t][1].id===rmu.id
+      .concat(Object.keys(midAll).filter(t=>midAll[t][1]
+                                            && midAll[t][1].id===rmu.id
                                             && items[t].x!==null)
                                  .map(t=>items[t]));
     let xs=waysIn.concat(waysOut).map(w=>w.x).filter(v=>v!==null);
@@ -1169,7 +1181,12 @@ function render(info, items, order, width, warnings){
       svg.line(xLand,yLane,xLand,Y_BUS);
     }
     svg.dot(xLand,Y_BUS);
-    if(up.type===MV_BUSBAR){
+    if(up===null){                 /* outgoing board not entered yet */
+      const yOpen=Y_TX_C1-TX_R-36;
+      svg.line(tx.x,Y_TX_C1-TX_R,tx.x,yOpen);
+      svg.line(tx.x-12,yOpen,tx.x+12,yOpen);
+      svg.text(tx.x,yOpen-8,"outgoing not defined",{size:9});
+    } else if(up.type===MV_BUSBAR){
       svg.drop(tx.x,yBus(up),Y_TX_C1-TX_R,protFor(up,tx.id)[1]||"cb");
       svg.dot(tx.x,yBus(up));
     } else {

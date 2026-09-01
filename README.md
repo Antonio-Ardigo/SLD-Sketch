@@ -57,6 +57,15 @@ rotation, chosen by how you wire it:
   board below it (their `Feeds From` is the SU Transformer).
 - **Above the board** — the board's `Feeds From` names the SU, and the SU's
   `Feeds From` is its generator, giving the source-on-top column.
+- **From a live LV board** — the SU's `Feeds From` is that LV board, and the
+  MV board or RMU it supplies names the SU in its own `Feeds From`. The SU is
+  drawn in the transformer row, taking supply from the LV bar below and
+  feeding the MV gear above.
+
+Because `Feeds From` only ever points *upstream*, the last arrangement needs
+the SU named on the fed board's row. Until you do that the SU still draws —
+hanging off its LV board with an **open outgoing terminal** marked "outgoing
+not defined" — and a warning tells you which row to add it to.
 
 **Motors.** A `Pump` on an MV Busbar or RMU is an MV motor drawn in the
 transformer row. A `Pump` on an **LV Busbar** is an LV motor drawn in the
