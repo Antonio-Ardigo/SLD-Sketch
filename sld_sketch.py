@@ -435,10 +435,14 @@ def ring_group(items, order, head, depth):
 
 
 def mv_children(items, order, node):
-    """The ways of an MV board / RMU that occupy a slot beneath it."""
+    """The ways of an MV board / RMU that occupy a slot beneath it.
+    An LV-fed step-up is a parent in the graph but a way in the drawing."""
     types = ({TRANSFORMER, SU_TRANSFORMER, PUMP, MV_BUSBAR, RMU}
              if node.type == MV_BUSBAR else {TRANSFORMER, SU_TRANSFORMER, PUMP})
-    return children_of(items, order, node.id, types)
+    kids = children_of(items, order, node.id, types)
+    kids += [items[t] for t, (_, up) in su_mid(items, order).items()
+             if up.id == node.id and items[t] not in kids]
+    return kids
 
 
 def mv_own_width(items, order, node, depth=None):
@@ -518,6 +522,9 @@ def place_su_mid(items, order, x):
     for tx_id, (src, up) in su_mid(items, order).items():
         tx = items[tx_id]
         if tx.x is not None:
+            continue
+        if up.x is not None:          # the gear already has its slot
+            tx.x = up.x
             continue
         tx.x = x + 60
         up.x = tx.x

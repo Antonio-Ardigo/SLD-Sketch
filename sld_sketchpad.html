@@ -320,6 +320,7 @@ function placeSuMid(items, order, x){
   for(const txId of Object.keys(mid)){
     const tx=items[txId], up=mid[txId][1];
     if(tx.x!==null) continue;
+    if(up.x!==null){ tx.x=up.x; continue; }   /* gear already has its slot */
     tx.x=x+60; up.x=tx.x;
     if(up.type===MV_BUSBAR){ up.xLeft=tx.x-85; up.xRight=tx.x+85; }
     x+=200;
@@ -500,10 +501,15 @@ function ringGroup(items, order, head, depth){
 }
 
 function mvChildren(items, order, node){
+  /* an LV-fed step-up is a parent in the graph but a way in the drawing */
   const types=(node.type===MV_BUSBAR)
     ? [TRANSFORMER,SU_TRANSFORMER,PUMP,MV_BUSBAR,RMU]
     : [TRANSFORMER,SU_TRANSFORMER,PUMP];
-  return childrenOf(items,order,node.id,types);
+  const kids=childrenOf(items,order,node.id,types);
+  const mid=suMid(items,order);
+  for(const t of Object.keys(mid))
+    if(mid[t][1].id===node.id && !kids.includes(items[t])) kids.push(items[t]);
+  return kids;
 }
 function mvOwnWidth(items, order, node, depth){
   if(node.type===TRANSFORMER||node.type===SU_TRANSFORMER||node.type===PUMP)
