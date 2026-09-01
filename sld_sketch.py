@@ -320,6 +320,30 @@ def slot_width(items, order, item):
     return 130
 
 
+def ring_group(items, order, head, depth):
+    """RMUs linked to `head` through RMU-to-RMU cables on the same tier,
+    in chain order, with the head centred when it has two neighbours."""
+    def links(r):
+        out = [items[p] for p in r.parents
+               if items[p].type == RMU and depth.get(p) == depth.get(r.id)]
+        out += [k for k in children_of(items, order, r.id, {RMU})
+                if depth.get(k.id) == depth.get(r.id)]
+        return out
+
+    seen, chain = {head.id}, []
+    for k in links(head):               # walk each branch away from the head
+        branch, node = [], k
+        while node is not None and node.id not in seen:
+            seen.add(node.id)
+            branch.append(node)
+            node = next((n for n in links(node) if n.id not in seen), None)
+        chain.append(branch)
+    if len(chain) >= 2:                 # head sits between its two branches
+        return list(reversed(chain[0])) + [head] + [n for b in chain[1:]
+                                                    for n in b]
+    return [head] + [n for b in chain for n in b]
+
+
 def mv_children(items, order, node):
     """The ways of an MV board / RMU that occupy a slot beneath it."""
     types = ({TRANSFORMER, PUMP, MV_BUSBAR, RMU} if node.type == MV_BUSBAR
@@ -327,30 +351,57 @@ def mv_children(items, order, node):
     return children_of(items, order, node.id, types)
 
 
-def mv_width(items, order, node):
-    """Width the whole subtree under an MV board / RMU needs."""
+def mv_own_width(items, order, node, depth=None):
+    """Width one board / RMU needs for its own ways (no ring members)."""
     if node.type in (TRANSFORMER, PUMP):
         return slot_width(items, order, node)
     kids = mv_children(items, order, node)
     if not kids:
         return MIN_BUS_WIDTH
-    need = (sum(mv_width(items, order, k) for k in kids)
+    need = (sum(mv_width(items, order, k, depth) for k in kids)
             + SLOT_GAP * (len(kids) - 1))
     return max(MIN_BUS_WIDTH, need)
 
 
-def place_mv_node(items, order, node, left, width):
-    """Place an MV board / RMU across [left, left+width] and its ways."""
+def mv_width(items, order, node, depth=None):
+    """Width the whole subtree under an MV board / RMU needs, including
+    the ring an RMU belongs to."""
+    if node.type == RMU and depth is not None:
+        group = ring_group(items, order, node, depth)
+        if len(group) > 1:
+            return (sum(mv_own_width(items, order, m, depth) for m in group)
+                    + SLOT_GAP * (len(group) - 1))
+    return mv_own_width(items, order, node, depth)
+
+
+def place_mv_node(items, order, node, left, width, depth=None):
+    """Place an MV board / RMU across [left, left+width] and its ways.
+    A ring head lays its whole ring out side by side in that band."""
+    if node.type == RMU and depth is not None:
+        group = ring_group(items, order, node, depth)
+        if len(group) > 1:
+            widths = [mv_own_width(items, order, m, depth) for m in group]
+            need = sum(widths) + SLOT_GAP * (len(group) - 1)
+            cursor = left + (width - need) / 2
+            for m, w in zip(group, widths):
+                place_own(items, order, m, cursor, w, depth)
+                cursor += w + SLOT_GAP
+            return
+    place_own(items, order, node, left, width, depth)
+
+
+def place_own(items, order, node, left, width, depth=None):
+    """Place one board / RMU and the ways directly beneath it."""
     node.x = left + width / 2
     if node.type == MV_BUSBAR:
         node.x_left, node.x_right = left, left + width
     kids = mv_children(items, order, node)
-    widths = [mv_width(items, order, k) for k in kids]
+    widths = [mv_width(items, order, k, depth) for k in kids]
     need = sum(widths) + SLOT_GAP * max(0, len(kids) - 1)
     cursor = left + (width - need) / 2
     for k, w in zip(kids, widths):
         if k.type in (MV_BUSBAR, RMU):
-            place_mv_node(items, order, k, cursor, w)
+            place_mv_node(items, order, k, cursor, w, depth)
         else:
             k.x = cursor + w / 2
         cursor += w + SLOT_GAP
@@ -362,25 +413,14 @@ def layout_mv_boards(items, order):
     mvs = [items[i] for i in order if items[i].type == MV_INCOMER]
 
     # roots are the boards not fed from another MV board
+    depth = mv_depth(items, order)
     roots = [b for b in mvbs
              if not any(items[p].type == MV_BUSBAR for p in b.parents)]
     x = MARGIN
     for mvb in roots:
-        w = mv_width(items, order, mvb)
-        place_mv_node(items, order, mvb, x, w)
+        w = mv_width(items, order, mvb, depth)
+        place_mv_node(items, order, mvb, x, w, depth)
         x = mvb.x_right + BUS_GAP
-
-    # ring-linked RMUs under an MV board sit beside the RMU that feeds them
-    for oid in order:
-        r = items[oid]
-        if r.type != RMU or r.x is not None:
-            continue
-        par = next((items[p] for p in r.parents
-                    if items[p].type == RMU and items[p].x is not None), None)
-        if par:
-            w = mv_width(items, order, r)
-            place_mv_node(items, order, r, x, w)
-            x += w + BUS_GAP
 
     # LV boards centred under their supply transformer(s) - the mean of
     # the supplies when a board has two incomers
@@ -759,8 +799,9 @@ def render(info, items, order, width):
             if items[p].x is None or rmu.x is None:
                 continue
             a, b = sorted((items[p], rmu), key=lambda r: r.x)
+            tier = depth.get(a.id)
             between = any(r is not a and r is not b and a.x < r.x < b.x
-                          for r in rmus)
+                          and depth.get(r.id) == tier for r in rmus)
             if between:
                 xa, xb = a.x - 28, b.x + 28
                 ring_entries.setdefault(a.id, []).append((xa, b.id))
@@ -820,9 +861,29 @@ def render(info, items, order, width):
             svg.dot(t.x, ymid)
         lbl = [rmu.id, rmu.desc,
                " ".join(v for v in (rmu.rating, rmu.voltage) if v)]
-        ty = rt + 16
-        for i, s in enumerate(lbl):
-            svg.text(right + 10, ty, s, anchor="start", bold=(i == 0))
+        # keep the label block clear of the next item on the same tier
+        tier = depth.get(rmu.id)
+        edges_r = [o.x_left if o.type == MV_BUSBAR else o.x - 60
+                   for o in (items[q] for q in order)
+                   if o.type in (RMU, MV_BUSBAR) and o is not rmu
+                   and o.x is not None and depth.get(o.id) == tier
+                   and o.x > rmu.x]
+        edges_l = [o.x_right if o.type == MV_BUSBAR else o.x + 60
+                   for o in (items[q] for q in order)
+                   if o.type in (RMU, MV_BUSBAR) and o is not rmu
+                   and o.x is not None and depth.get(o.id) == tier
+                   and o.x < rmu.x]
+        room_r = (min(edges_r) - right) if edges_r else 1e9
+        room_l = (left - max(edges_l)) if edges_l else 1e9
+        if room_r >= 130:
+            lx, anc, ty = right + 10, "start", rt + 16
+        elif room_l >= 130:
+            lx, anc, ty = left - 10, "end", rt + 16
+        else:                       # crowded tier: stack it above the box,
+            # clear of the ring-closure lane at rt - 26
+            lx, anc, ty = rmu.x, "middle", rt - 34 - 15 * (len(lbl) - 1)
+        for i, t in enumerate(lbl):
+            svg.text(lx, ty, t, anchor=anc, bold=(i == 0))
             ty += 15
 
     # --- RMU-to-RMU interconnecting cables -------------------------------

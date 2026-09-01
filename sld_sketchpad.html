@@ -373,30 +373,79 @@ function slotWidth(items, order, item){
   }
   return 130;
 }
+/* RMUs linked to `head` through RMU-to-RMU cables on the same tier, in
+   chain order, with the head centred when it has two neighbours */
+function ringGroup(items, order, head, depth){
+  const links=r=>{
+    const out=r.parents.map(p=>items[p])
+      .filter(p=>p.type===RMU && depth[p.id]===depth[r.id]);
+    return out.concat(childrenOf(items,order,r.id,[RMU])
+      .filter(k=>depth[k.id]===depth[r.id]));
+  };
+  const seen=new Set([head.id]), chain=[];
+  for(const k of links(head)){
+    const branch=[]; let node=k;
+    while(node && !seen.has(node.id)){
+      seen.add(node.id); branch.push(node);
+      node=links(node).find(n=>!seen.has(n.id))||null;
+    }
+    chain.push(branch);
+  }
+  if(chain.length>=2)
+    return chain[0].slice().reverse().concat([head], ...chain.slice(1));
+  return [head].concat(...chain);
+}
+
 function mvChildren(items, order, node){
   const types=(node.type===MV_BUSBAR)
     ? [TRANSFORMER,PUMP,MV_BUSBAR,RMU] : [TRANSFORMER,PUMP];
   return childrenOf(items,order,node.id,types);
 }
-function mvWidth(items, order, node){
+function mvOwnWidth(items, order, node, depth){
   if(node.type===TRANSFORMER||node.type===PUMP)
     return slotWidth(items,order,node);
   const kids=mvChildren(items,order,node);
   if(!kids.length) return MIN_BUS_WIDTH;
-  const need=kids.reduce((a,k)=>a+mvWidth(items,order,k),0)
+  const need=kids.reduce((a,k)=>a+mvWidth(items,order,k,depth),0)
              +SLOT_GAP*(kids.length-1);
   return Math.max(MIN_BUS_WIDTH,need);
 }
-function placeMvNode(items, order, node, left, width){
+function mvWidth(items, order, node, depth){
+  if(node.type===RMU && depth){
+    const g=ringGroup(items,order,node,depth);
+    if(g.length>1)
+      return g.reduce((a,m)=>a+mvOwnWidth(items,order,m,depth),0)
+             +SLOT_GAP*(g.length-1);
+  }
+  return mvOwnWidth(items,order,node,depth);
+}
+function placeMvNode(items, order, node, left, width, depth){
+  /* a ring head lays its whole ring out side by side in that band */
+  if(node.type===RMU && depth){
+    const g=ringGroup(items,order,node,depth);
+    if(g.length>1){
+      const widths=g.map(m=>mvOwnWidth(items,order,m,depth));
+      const need=widths.reduce((a,b)=>a+b,0)+SLOT_GAP*(g.length-1);
+      let cursor=left+(width-need)/2;
+      g.forEach((m,i)=>{
+        placeOwn(items,order,m,cursor,widths[i],depth);
+        cursor+=widths[i]+SLOT_GAP;
+      });
+      return;
+    }
+  }
+  placeOwn(items,order,node,left,width,depth);
+}
+function placeOwn(items, order, node, left, width, depth){
   node.x=left+width/2;
   if(node.type===MV_BUSBAR){ node.xLeft=left; node.xRight=left+width; }
   const kids=mvChildren(items,order,node);
-  const widths=kids.map(k=>mvWidth(items,order,k));
+  const widths=kids.map(k=>mvWidth(items,order,k,depth));
   const need=widths.reduce((a,b)=>a+b,0)+SLOT_GAP*Math.max(0,kids.length-1);
   let cursor=left+(width-need)/2;
   kids.forEach((k,i)=>{
     if(k.type===MV_BUSBAR||k.type===RMU)
-      placeMvNode(items,order,k,cursor,widths[i]);
+      placeMvNode(items,order,k,cursor,widths[i],depth);
     else k.x=cursor+widths[i]/2;
     cursor+=widths[i]+SLOT_GAP;
   });
@@ -404,21 +453,12 @@ function placeMvNode(items, order, node, left, width){
 function layoutMvBoards(items, order){
   const mvbs=order.map(i=>items[i]).filter(t=>t.type===MV_BUSBAR);
   const mvs=order.map(i=>items[i]).filter(t=>t.type===MV_INCOMER);
+  const depth=mvDepth(items,order);
   let x=MARGIN;
   /* roots are the boards not fed from another MV board */
   for(const mvb of mvbs.filter(b=>!b.parents.some(p=>items[p].type===MV_BUSBAR))){
-    placeMvNode(items,order,mvb,x,mvWidth(items,order,mvb));
+    placeMvNode(items,order,mvb,x,mvWidth(items,order,mvb,depth),depth);
     x=mvb.xRight+BUS_GAP;
-  }
-  /* ring-linked RMUs under an MV board sit beside the RMU that feeds them */
-  for(const oid of order){
-    const r=items[oid];
-    if(r.type!==RMU || r.x!==null) continue;
-    if(r.parents.some(p=>items[p].type===RMU && items[p].x!==null)){
-      const w=mvWidth(items,order,r);
-      placeMvNode(items,order,r,x,w);
-      x+=w+BUS_GAP;
-    }
   }
   /* LV boards centred under their supply transformer(s) - the mean of
      the supplies when a board has two incomers */
@@ -701,7 +741,9 @@ function render(info, items, order, width, warnings){
       if(items[p].type!==RMU) continue;
       if(items[p].x===null||rmu.x===null) continue;
       const [a,b]=[items[p],rmu].sort((u,v)=>u.x-v.x);
-      const between=rmus.some(r=>r!==a&&r!==b&&a.x<r.x&&r.x<b.x);
+      const tier=depth[a.id];
+      const between=rmus.some(r=>r!==a&&r!==b&&a.x<r.x&&r.x<b.x
+                                 &&depth[r.id]===tier);
       if(between){
         const xa=a.x-28, xb=b.x+28;
         (ringEntries[a.id]=ringEntries[a.id]||[]).push([xa,b.id]);
@@ -747,8 +789,23 @@ function render(info, items, order, width, warnings){
       svg.dot(t.x,ymid);
     }
     const lbl=[rmu.id,rmu.desc,[rmu.rating,rmu.voltage].filter(Boolean).join(" ")];
-    let ty=rt+16;
-    lbl.forEach((s,i)=>{ svg.text(right+10,ty,s,{anchor:"start",bold:i===0}); ty+=15; });
+    /* keep the label block clear of the next item on the same tier */
+    const tier=depth[rmu.id];
+    const sameTier=order.map(q=>items[q]).filter(o=>
+      [RMU,MV_BUSBAR].includes(o.type)&&o!==rmu&&o.x!==null&&depth[o.id]===tier);
+    const edgesR=sameTier.filter(o=>o.x>rmu.x)
+      .map(o=>o.type===MV_BUSBAR?o.xLeft:o.x-60);
+    const edgesL=sameTier.filter(o=>o.x<rmu.x)
+      .map(o=>o.type===MV_BUSBAR?o.xRight:o.x+60);
+    const roomR=edgesR.length?Math.min(...edgesR)-right:1e9;
+    const roomL=edgesL.length?left-Math.max(...edgesL):1e9;
+    let lx,anc,ty;
+    if(roomR>=130){ lx=right+10; anc="start"; ty=rt+16; }
+    else if(roomL>=130){ lx=left-10; anc="end"; ty=rt+16; }
+    else { /* crowded tier: stack above the box, clear of the ring lane */
+      lx=rmu.x; anc="middle"; ty=rt-34-15*(lbl.length-1);
+    }
+    lbl.forEach((s,i)=>{ svg.text(lx,ty,s,{anchor:anc,bold:i===0}); ty+=15; });
   }
 
   /* RMU-to-RMU cables */
