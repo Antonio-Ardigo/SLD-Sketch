@@ -231,17 +231,58 @@ Y_MV_TOP = 62          # top of the MV incomer stub
 Y_RMU_TOP = 150
 Y_RMU_BOT = 268
 Y_MVBUS = 208          # MV switchboard busbar (same tier as the RMU)
-Y_PUMP = 352           # pump/motor circle centre
 PUMP_R = 20
-Y_TX_C1 = 342          # centre of upper transformer circle
 TX_R = 19
+LEGEND_H = 100         # symbol legend strip below the drawing
+TIER_H = 150           # vertical pitch of a cascaded MV level
+
+# rows below the MV distribution - re-based by set_tiers() when MV boards
+# or RMUs are fed from another MV board
+Y_PUMP = 352           # pump/motor circle centre
+Y_TX_C1 = 342          # centre of upper transformer circle
 Y_TX_C2 = Y_TX_C1 + 27
 Y_BUS = 486
 Y_FEED_BRK = 516       # feeder breaker centre
 Y_ARROW = 574          # arrow tip
 Y_FEED_LBL = 592
 DIAG_H = 780
-LEGEND_H = 100         # symbol legend strip below the drawing
+
+
+def set_tiers(extra):
+    """Push the transformer/LV rows down by `extra` px."""
+    global Y_PUMP, Y_TX_C1, Y_TX_C2, Y_BUS, Y_FEED_BRK, Y_ARROW
+    global Y_FEED_LBL, DIAG_H
+    Y_PUMP = 352 + extra
+    Y_TX_C1 = 342 + extra
+    Y_TX_C2 = Y_TX_C1 + 27
+    Y_BUS = 486 + extra
+    Y_FEED_BRK = 516 + extra
+    Y_ARROW = 574 + extra
+    Y_FEED_LBL = 592 + extra
+    DIAG_H = 780 + extra
+
+
+def mv_depth(items, order):
+    """MV distribution level of each busbar/RMU.
+
+    A board or RMU fed from an MV busbar sits one level below it; RMUs
+    linked to each other (a ring) stay on their parent's level.
+    """
+    depth = {i: 0 for i in order if items[i].type in (MV_BUSBAR, RMU)}
+    for _ in range(len(depth) + 1):          # relax along the chains
+        changed = False
+        for oid in depth:
+            for p in items[oid].parents:
+                par = items[p]
+                if par.id not in depth:
+                    continue
+                d = depth[par.id] + (1 if par.type == MV_BUSBAR else 0)
+                if d > depth[oid]:
+                    depth[oid] = d
+                    changed = True
+        if not changed:
+            break
+    return depth
 
 
 def children_of(items, order, pid, types=None):
@@ -279,24 +320,67 @@ def slot_width(items, order, item):
     return 130
 
 
+def mv_children(items, order, node):
+    """The ways of an MV board / RMU that occupy a slot beneath it."""
+    types = ({TRANSFORMER, PUMP, MV_BUSBAR, RMU} if node.type == MV_BUSBAR
+             else {TRANSFORMER, PUMP})
+    return children_of(items, order, node.id, types)
+
+
+def mv_width(items, order, node):
+    """Width the whole subtree under an MV board / RMU needs."""
+    if node.type in (TRANSFORMER, PUMP):
+        return slot_width(items, order, node)
+    kids = mv_children(items, order, node)
+    if not kids:
+        return MIN_BUS_WIDTH
+    need = (sum(mv_width(items, order, k) for k in kids)
+            + SLOT_GAP * (len(kids) - 1))
+    return max(MIN_BUS_WIDTH, need)
+
+
+def place_mv_node(items, order, node, left, width):
+    """Place an MV board / RMU across [left, left+width] and its ways."""
+    node.x = left + width / 2
+    if node.type == MV_BUSBAR:
+        node.x_left, node.x_right = left, left + width
+    kids = mv_children(items, order, node)
+    widths = [mv_width(items, order, k) for k in kids]
+    need = sum(widths) + SLOT_GAP * max(0, len(kids) - 1)
+    cursor = left + (width - need) / 2
+    for k, w in zip(kids, widths):
+        if k.type in (MV_BUSBAR, RMU):
+            place_mv_node(items, order, k, cursor, w)
+        else:
+            k.x = cursor + w / 2
+        cursor += w + SLOT_GAP
+
+
 def layout_mv_boards(items, order):
     """Layout when the site has MV switchboards (MV Busbar rows)."""
     mvbs = [items[i] for i in order if items[i].type == MV_BUSBAR]
     mvs = [items[i] for i in order if items[i].type == MV_INCOMER]
 
+    # roots are the boards not fed from another MV board
+    roots = [b for b in mvbs
+             if not any(items[p].type == MV_BUSBAR for p in b.parents)]
     x = MARGIN
-    for mvb in mvbs:
-        kids = children_of(items, order, mvb.id, {TRANSFORMER, PUMP})
-        widths = [slot_width(items, order, k) for k in kids]
-        need = sum(widths) + SLOT_GAP * max(0, len(kids) - 1)
-        total = max(MIN_BUS_WIDTH, need)
-        mvb.x_left, mvb.x_right = x, x + total
-        mvb.x = x + total / 2
-        cursor = x + (total - need) / 2
-        for k, w in zip(kids, widths):
-            k.x = cursor + w / 2
-            cursor += w + SLOT_GAP
+    for mvb in roots:
+        w = mv_width(items, order, mvb)
+        place_mv_node(items, order, mvb, x, w)
         x = mvb.x_right + BUS_GAP
+
+    # ring-linked RMUs under an MV board sit beside the RMU that feeds them
+    for oid in order:
+        r = items[oid]
+        if r.type != RMU or r.x is not None:
+            continue
+        par = next((items[p] for p in r.parents
+                    if items[p].type == RMU and items[p].x is not None), None)
+        if par:
+            w = mv_width(items, order, r)
+            place_mv_node(items, order, r, x, w)
+            x += w + BUS_GAP
 
     # LV boards centred under their supply transformer(s) - the mean of
     # the supplies when a board has two incomers
@@ -636,6 +720,18 @@ def draw_legend(svg):
 
 def render(info, items, order, width):
     svg = SVG()
+    depth = mv_depth(items, order)
+    set_tiers(max(depth.values(), default=0) * TIER_H)
+
+    def dy(it):                       # vertical offset of an MV level
+        return depth.get(it.id, 0) * TIER_H
+
+    def y_rmu(r):                     # (top, bottom, bus) of an RMU box
+        o = dy(r)
+        return Y_RMU_TOP + o, Y_RMU_BOT + o, (Y_RMU_TOP + Y_RMU_BOT) / 2 + o
+
+    def y_bus(b):                     # busbar level of an MV board
+        return Y_MVBUS + dy(b)
     busbars = [items[i] for i in order if items[i].type == LV_BUSBAR]
     mvbs = [items[i] for i in order if items[i].type == MV_BUSBAR]
     rmus = [items[i] for i in order if items[i].type == RMU]
@@ -669,7 +765,7 @@ def render(info, items, order, width):
                 xa, xb = a.x - 28, b.x + 28
                 ring_entries.setdefault(a.id, []).append((xa, b.id))
                 ring_entries.setdefault(b.id, []).append((xb, a.id))
-                ring_links.append((xa, xb))
+                ring_links.append((xa, xb, Y_RMU_TOP + dy(a)))
             else:
                 side_links.append((a, b))
 
@@ -692,19 +788,18 @@ def render(info, items, order, width):
         right = max(xs) + pad_r[rmu.id]
         bus_l, bus_r = min(xs) - 18, max(xs) + 18
         rmu_box[rmu.id] = (left, right, bus_l, bus_r)
-        svg.rect(left, Y_RMU_TOP, right - left, Y_RMU_BOT - Y_RMU_TOP,
-                 sw=1.6, dash="7 5")
+        rt, rb, ymid = y_rmu(rmu)
+        svg.rect(left, rt, right - left, rb - rt, sw=1.6, dash="7 5")
         # internal bus
-        ymid = (Y_RMU_TOP + Y_RMU_BOT) / 2
         svg.line(bus_l, ymid, bus_r, ymid, w=3.4)
         # incoming ways from the top edge to the bus (default LBS,
         # overridden by the RMU row's Protection entry for that supply)
         def in_way(x, kind):
             if kind and kind != "lbs":
-                svg.drop(x, Y_RMU_TOP, ymid, kind)
+                svg.drop(x, rt, ymid, kind)
             else:
-                svg.load_break_switch(x, Y_RMU_TOP + 12, ymid)
-                svg.line(x, Y_RMU_TOP, x, Y_RMU_TOP + 12)
+                svg.load_break_switch(x, rt + 12, ymid)
+                svg.line(x, rt, x, rt + 12)
             svg.dot(x, ymid)
         for m in ways_in:
             in_way(m.x, prot_for(rmu, m.id)[1])
@@ -717,24 +812,24 @@ def render(info, items, order, width):
         for t in ways_out:
             kind = prot_for(t, rmu.id)[1]
             if kind and kind != "fuse-switch":
-                svg.drop(t.x, ymid, Y_RMU_BOT, kind)
+                svg.drop(t.x, ymid, rb, kind)
             else:
-                svg.fuse_switch(t.x, ymid + 4, Y_RMU_BOT - 8)
+                svg.fuse_switch(t.x, ymid + 4, rb - 8)
                 svg.line(t.x, ymid, t.x, ymid + 4)
-                svg.line(t.x, Y_RMU_BOT - 8, t.x, Y_RMU_BOT)
+                svg.line(t.x, rb - 8, t.x, rb)
             svg.dot(t.x, ymid)
         lbl = [rmu.id, rmu.desc,
                " ".join(v for v in (rmu.rating, rmu.voltage) if v)]
-        ty = Y_RMU_TOP + 16
+        ty = rt + 16
         for i, s in enumerate(lbl):
             svg.text(right + 10, ty, s, anchor="start", bold=(i == 0))
             ty += 15
 
     # --- RMU-to-RMU interconnecting cables -------------------------------
-    y_link = (Y_RMU_TOP + Y_RMU_BOT) / 2
     for a, b in side_links:  # a is the left box
         if a.id not in rmu_box or b.id not in rmu_box:
             continue
+        y_link = y_rmu(a)[2]
         _, a_right, _, a_bus_r = rmu_box[a.id]
         b_left, _, b_bus_l, _ = rmu_box[b.id]
         svg.line(a_right, y_link, b_left, y_link, w=2)  # cable between boxes
@@ -749,11 +844,11 @@ def render(info, items, order, width):
             lo, hi = min(xe, xc), max(xe, xc)
             svg.line(lo, y_link, xm - gap, y_link, w=2)
             svg.line(xm + gap, y_link, hi, y_link, w=2)
-    y_ring = Y_RMU_TOP - 26
-    for xa, xb in ring_links:  # loop over the top of the boxes in between
-        svg.line(xa, Y_RMU_TOP, xa, y_ring)
+    for xa, xb, r_top in ring_links:  # loop over the boxes in between
+        y_ring = r_top - 26
+        svg.line(xa, r_top, xa, y_ring)
         svg.line(xa, y_ring, xb, y_ring)
-        svg.line(xb, y_ring, xb, Y_RMU_TOP)
+        svg.line(xb, y_ring, xb, r_top)
 
     # --- MV incomers -----------------------------------------------------
     for m in mvs:
@@ -766,25 +861,48 @@ def render(info, items, order, width):
             ty += 14
         for k in kids:
             if k.type == RMU:
-                svg.line(m.x, Y_MV_TOP, m.x, Y_RMU_TOP)
+                svg.line(m.x, Y_MV_TOP, m.x, y_rmu(k)[0])
             elif k.type == MV_BUSBAR:  # incoming device onto the board
-                svg.drop(m.x, Y_MV_TOP, Y_MVBUS,
+                svg.drop(m.x, Y_MV_TOP, y_bus(k),
                          prot_for(k, m.id)[1] or "cb")
-                svg.dot(m.x, Y_MVBUS)
+                svg.dot(m.x, y_bus(k))
             elif k.type == TRANSFORMER:  # direct feed, no RMU
                 svg.line(m.x, Y_MV_TOP, m.x, Y_TX_C1 - TX_R)
 
     # --- MV switchboards -------------------------------------------------
     for mvb in mvbs:
-        svg.line(mvb.x_left, Y_MVBUS, mvb.x_right, Y_MVBUS, w=5.5)
+        yb = y_bus(mvb)
+        svg.line(mvb.x_left, yb, mvb.x_right, yb, w=5.5)
         raw, kind = prot_for(mvb)
         zone = raw if raw and kind is None else ""  # e.g. 87B differential
         lbl = " ".join(v for v in (mvb.id, mvb.desc, mvb.rating, mvb.voltage)
                        if v)
         if zone:
             lbl += " · " + zone
-        svg.text(mvb.x_left, Y_MVBUS - 12, lbl, size=11.5, anchor="start",
+        svg.text(mvb.x_left, yb - 12, lbl, size=11.5, anchor="start",
                  bold=True)
+
+    # --- feeds from an MV board down to a sub-board or an RMU -----------
+    for oid in order:
+        it = items[oid]
+        if it.type not in (MV_BUSBAR, RMU) or it.x is None:
+            continue
+        for p in it.parents:
+            par = items[p]
+            if par.type != MV_BUSBAR:
+                continue
+            kind = prot_for(it, par.id)[1] or "cb"
+            y_from = y_bus(par)
+            y_to = y_bus(it) if it.type == MV_BUSBAR else y_rmu(it)[0]
+            x_from = min(max(it.x, par.x_left), par.x_right)
+            svg.dot(x_from, y_from)
+            if abs(x_from - it.x) < 1:
+                svg.drop(it.x, y_from, y_to, kind)
+            else:                       # sub-board offset from the way
+                y_mid = (y_from + y_to) / 2
+                svg.drop(x_from, y_from, y_mid, kind)
+                svg.line(x_from, y_mid, it.x, y_mid)
+                svg.line(it.x, y_mid, it.x, y_to)
 
     # --- pumps / motor loads --------------------------------------------
     for p in pumps:
@@ -792,15 +910,15 @@ def render(info, items, order, width):
             continue
         for par in (items[q] for q in p.parents):
             if par.type == MV_BUSBAR:
-                svg.drop(p.x, Y_MVBUS, Y_PUMP - PUMP_R,
+                svg.drop(p.x, y_bus(par), Y_PUMP - PUMP_R,
                          prot_for(p, par.id)[1] or "cb")
-                svg.dot(p.x, Y_MVBUS)
+                svg.dot(p.x, y_bus(par))
             elif par.type == RMU:
                 kind = prot_for(p, par.id)[1]
                 if kind:
-                    svg.drop(p.x, Y_RMU_BOT, Y_PUMP - PUMP_R, kind)
+                    svg.drop(p.x, y_rmu(par)[1], Y_PUMP - PUMP_R, kind)
                 else:
-                    svg.line(p.x, Y_RMU_BOT, p.x, Y_PUMP - PUMP_R)
+                    svg.line(p.x, y_rmu(par)[1], p.x, Y_PUMP - PUMP_R)
         svg.circle(p.x, Y_PUMP, PUMP_R, sw=2.2)
         svg.text(p.x, Y_PUMP + 1, "M", size=13, bold=True)
         svg.text(p.x, Y_PUMP + 13, "3~", size=8.5)
@@ -851,11 +969,11 @@ def render(info, items, order, width):
         for p in tx.parents:
             par = items[p]
             if par.type == RMU:
-                svg.line(tx.x, Y_RMU_BOT, tx.x, Y_TX_C1 - TX_R)
+                svg.line(tx.x, y_rmu(par)[1], tx.x, Y_TX_C1 - TX_R)
             elif par.type == MV_BUSBAR:  # feeder device off the board
-                svg.drop(tx.x, Y_MVBUS, Y_TX_C1 - TX_R,
+                svg.drop(tx.x, y_bus(par), Y_TX_C1 - TX_R,
                          prot_for(tx, par.id)[1] or "cb")
-                svg.dot(tx.x, Y_MVBUS)
+                svg.dot(tx.x, y_bus(par))
         ytop = ytop_tx
         dual = [bb for bb in fed if (tx.id, bb.id) in routes]
         rest = [bb for bb in fed if (tx.id, bb.id) not in routes]
@@ -908,7 +1026,7 @@ def render(info, items, order, width):
             print(f"warning: bus coupler '{bc.id}' should feed from exactly "
                   f"two busbars of the same kind - skipping", file=sys.stderr)
             continue
-        y = Y_MVBUS if ends[0].type == MV_BUSBAR else Y_BUS
+        y = y_bus(ends[0]) if ends[0].type == MV_BUSBAR else Y_BUS
         a, b = sorted(ends, key=lambda e: e.x)
         xm = (a.x_right + b.x_left) / 2
         raw, kind = prot_for(bc)

@@ -43,6 +43,11 @@ diagram's title block.
 | Feeds From | ID of the item supplying this one; comma for two supplies | `RMU1` or `BB1, BB2` |
 | Notes | Anything else | `Normally open` |
 
+An MV Busbar or RMU can itself feed from another MV Busbar: the fed board or
+RMU is then drawn on its own tier below its source, with the feed through its
+Protection device. Cascades can be any depth (main MV board -> sub-board ->
+sub-sub-board), and the transformer and LV rows move down to suit.
+
 That's all the connectivity the tool needs: everything hangs off `Feeds From`.
 A bus coupler feeds from its two busbars (`BB1, BB2`); an RMU on a ring feeds
 from both ring incomers (`MV1, MV2`).
