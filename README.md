@@ -75,7 +75,11 @@ sub-sub-board), and the transformer and LV rows move down to suit.
 
 That's all the connectivity the tool needs: everything hangs off `Feeds From`.
 A bus coupler feeds from its two busbars (`BB1, BB2`); an RMU on a ring feeds
-from both ring incomers (`MV1, MV2`).
+from both ring incomers (`MV1, MV2`). A coupler between boards on **different
+levels** is routed clear of both bars, and one that reaches **past an
+intervening board** runs on its own lane above the bar row. Couplers must join
+two busbars of the same kind — anything else (an RMU, one board, three boards)
+warns instead of drawing, and a duplicate coupler on a pair warns too.
 
 ## Example configurations
 

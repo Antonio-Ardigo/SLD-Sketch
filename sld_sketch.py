@@ -1362,24 +1362,72 @@ def render(info, items, order, width):
                  bold=True)
 
     # --- bus couplers / ties ---------------------------------------------
+    seen_pairs = {}
     for bc in couplers:
         ends = [items[p] for p in bc.parents
                 if items[p].type in (LV_BUSBAR, MV_BUSBAR)]
         if len(ends) != 2 or ends[0].type != ends[1].type:
+            hint = (" (RMUs are tied with interconnecting cables - put the "
+                    "other RMU in Feeds From instead)"
+                    if any(items[p].type == RMU for p in bc.parents) else "")
             print(f"warning: bus coupler '{bc.id}' should feed from exactly "
-                  f"two busbars of the same kind - skipping", file=sys.stderr)
+                  f"two busbars of the same kind - skipping{hint}",
+                  file=sys.stderr)
             continue
-        y = y_bus(ends[0]) if ends[0].type == MV_BUSBAR else Y_BUS
         a, b = sorted(ends, key=lambda e: e.x)
-        xm = (a.x_right + b.x_left) / 2
+        if a.x_left is None or b.x_left is None:
+            continue
+        pair = tuple(sorted((a.id, b.id)))
+        seen_pairs[pair] = seen_pairs.get(pair, 0) + 1
+        if seen_pairs[pair] > 1:
+            print(f"warning: bus coupler '{bc.id}' duplicates an earlier "
+                  f"coupler between '{a.id}' and '{b.id}'", file=sys.stderr)
+        ya = y_bus(a) if a.type == MV_BUSBAR else Y_BUS
+        yb = y_bus(b) if b.type == MV_BUSBAR else Y_BUS
         raw, kind = prot_for(bc)
-        gap = svg.device_h(kind or "cb", xm, y)
-        svg.line(a.x_right, y, xm - gap, y, w=2)
-        svg.line(xm + gap, y, b.x_left, y, w=2)
+        dev = kind or "cb"
         extra = raw if raw and kind is None else ""
         lbl = " ".join(v for v in (bc.id, bc.rating, extra) if v)
-        svg.text(xm, y + 24, lbl, size=11)
-        svg.text(xm, y + 38, bc.notes, size=10)
+
+        if abs(ya - yb) > 1:
+            # the two boards sit on different levels: route clear of both
+            x_link = max(a.x_right, b.x_right) + 34
+            svg.dot(a.x_right, ya)
+            svg.line(a.x_right, ya, x_link, ya, w=2)
+            svg.drop(x_link, min(ya, yb), max(ya, yb), dev)
+            svg.line(x_link, yb, b.x_right, yb, w=2)
+            svg.dot(b.x_right, yb)
+            ym = (ya + yb) / 2
+            svg.text(x_link + 10, ym, lbl, size=11, anchor="start")
+            svg.text(x_link + 10, ym + 14, bc.notes, size=10, anchor="start")
+            continue
+
+        blocking = [o for o in busbars + mvbs
+                    if o is not a and o is not b and o.x_left is not None
+                    and a.x_right < o.x < b.x_left
+                    and abs((y_bus(o) if o.type == MV_BUSBAR else Y_BUS)
+                            - ya) < 1]
+        if blocking:
+            # another board lies between: run the tie above the bar row
+            y_lane = ya - 30
+            xm = (a.x_right + b.x_left) / 2
+            svg.dot(a.x_right, ya)
+            svg.line(a.x_right, ya, a.x_right, y_lane, w=2)
+            gap = svg.device_h(dev, xm, y_lane)
+            svg.line(a.x_right, y_lane, xm - gap, y_lane, w=2)
+            svg.line(xm + gap, y_lane, b.x_left, y_lane, w=2)
+            svg.line(b.x_left, y_lane, b.x_left, yb, w=2)
+            svg.dot(b.x_left, yb)
+            svg.text(xm, y_lane - 10, lbl, size=11)
+            svg.text(xm, y_lane - 24, bc.notes, size=10)
+            continue
+
+        xm = (a.x_right + b.x_left) / 2
+        gap = svg.device_h(dev, xm, ya)
+        svg.line(a.x_right, ya, xm - gap, ya, w=2)
+        svg.line(xm + gap, ya, b.x_left, ya, w=2)
+        svg.text(xm, ya + 24, lbl, size=11)
+        svg.text(xm, ya + 38, bc.notes, size=10)
 
     # --- feeders ---------------------------------------------------------
     for f in feeders:

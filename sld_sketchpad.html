@@ -1193,22 +1193,62 @@ function render(info, items, order, width, warnings){
   }
 
   /* bus couplers / ties */
+  const seenPairs={};
   for(const bc of couplers){
     const ends=bc.parents.map(p=>items[p]).filter(e=>e.type===LV_BUSBAR||e.type===MV_BUSBAR);
     if(ends.length!==2 || ends[0].type!==ends[1].type){
-      warnings.push(`Bus coupler "${bc.id}" should feed from exactly two busbars of the same kind — skipped.`);
+      const hint=bc.parents.some(p=>items[p] && items[p].type===RMU)
+        ? " (RMUs are tied with interconnecting cables — put the other RMU in Feeds from instead)" : "";
+      warnings.push(`Bus coupler "${bc.id}" should feed from exactly two busbars of the same kind — skipped.${hint}`);
       continue;
     }
-    const y=ends[0].type===MV_BUSBAR?yBus(ends[0]):Y_BUS;
     const [a,b]=ends.slice().sort((u,v)=>u.x-v.x);
-    const xm=(a.xRight+b.xLeft)/2;
+    if(a.xLeft===null || b.xLeft===null) continue;
+    const pair=[a.id,b.id].sort().join("|");
+    seenPairs[pair]=(seenPairs[pair]||0)+1;
+    if(seenPairs[pair]>1)
+      warnings.push(`Bus coupler "${bc.id}" duplicates an earlier coupler between "${a.id}" and "${b.id}".`);
+    const ya=a.type===MV_BUSBAR?yBus(a):Y_BUS;
+    const yb=b.type===MV_BUSBAR?yBus(b):Y_BUS;
     const [craw,ckind]=protFor(bc);
-    const cgap=svg.deviceH(ckind||"cb",xm,y);
-    svg.line(a.xRight,y,xm-cgap,y,2);
-    svg.line(xm+cgap,y,b.xLeft,y,2);
+    const dev=ckind||"cb";
     const extra=(craw && !ckind)?craw:"";
-    svg.text(xm,y+24,[bc.id,bc.rating,extra].filter(Boolean).join(" "),{size:11});
-    svg.text(xm,y+38,bc.notes,{size:10});
+    const lbl=[bc.id,bc.rating,extra].filter(Boolean).join(" ");
+
+    if(Math.abs(ya-yb)>1){                 /* boards on different levels */
+      const xLink=Math.max(a.xRight,b.xRight)+34;
+      svg.dot(a.xRight,ya);
+      svg.line(a.xRight,ya,xLink,ya,2);
+      svg.drop(xLink,Math.min(ya,yb),Math.max(ya,yb),dev);
+      svg.line(xLink,yb,b.xRight,yb,2);
+      svg.dot(b.xRight,yb);
+      const ym=(ya+yb)/2;
+      svg.text(xLink+10,ym,lbl,{size:11,anchor:"start"});
+      svg.text(xLink+10,ym+14,bc.notes,{size:10,anchor:"start"});
+      continue;
+    }
+    const blocking=busbars.concat(mvbs).filter(o=>o!==a&&o!==b&&o.xLeft!==null
+      && a.xRight<o.x && o.x<b.xLeft
+      && Math.abs((o.type===MV_BUSBAR?yBus(o):Y_BUS)-ya)<1);
+    const xm=(a.xRight+b.xLeft)/2;
+    if(blocking.length){                   /* another board lies between */
+      const yLane=ya-30;
+      svg.dot(a.xRight,ya);
+      svg.line(a.xRight,ya,a.xRight,yLane,2);
+      const g=svg.deviceH(dev,xm,yLane);
+      svg.line(a.xRight,yLane,xm-g,yLane,2);
+      svg.line(xm+g,yLane,b.xLeft,yLane,2);
+      svg.line(b.xLeft,yLane,b.xLeft,yb,2);
+      svg.dot(b.xLeft,yb);
+      svg.text(xm,yLane-10,lbl,{size:11});
+      svg.text(xm,yLane-24,bc.notes,{size:10});
+      continue;
+    }
+    const cgap=svg.deviceH(dev,xm,ya);
+    svg.line(a.xRight,ya,xm-cgap,ya,2);
+    svg.line(xm+cgap,ya,b.xLeft,ya,2);
+    svg.text(xm,ya+24,lbl,{size:11});
+    svg.text(xm,ya+38,bc.notes,{size:10});
   }
 
   /* feeders and MCCs */
