@@ -17,7 +17,8 @@ HEADERS = ["ID", "Type", "Description", "Rating", "Voltage", "Protection",
            "Feeds From", "Notes"]
 COL_WIDTHS = [10, 16, 26, 12, 12, 13, 14, 30]
 TYPES = ["MV Incomer", "Generator", "MV Busbar", "RMU", "Transformer",
-         "Pump", "LV Busbar", "Feeder", "MCC", "Bus Coupler"]
+         "SU Transformer", "Pump", "LV Busbar", "Feeder", "MCC",
+         "Bus Coupler"]
 PROTECTIONS = ["CB", "LBS", "Fuse", "Fuse-switch", "Contactor",
                "Fuse-contactor"]
 
@@ -88,8 +89,12 @@ def build_workbook(path, info, rows, legend_note=None):
         "2. Equipment sheet: one row per item, top of the network first.",
         "   - ID: short unique tag you invent (MV1, RMU1, TX1, BB1, F1...).",
         "   - Type: pick from the dropdown (MV Incomer, Generator, MV",
-        "     Busbar, RMU, Transformer, Pump, LV Busbar, Feeder, MCC,",
-        "     Bus Coupler).",
+        "     Busbar, RMU, Transformer, SU Transformer, Pump, LV Busbar,",
+        "     Feeder, MCC, Bus Coupler).",
+        "     SU Transformer = a step-up drawn hanging UNDER its MV board",
+        "     (Feeds From = that board), with its generator below it",
+        "     (the generator's Feeds From = the SU Transformer). A plain",
+        "     Transformer that feeds an MV board is drawn above it.",
         "     MV Busbar = an MV switchboard; Pump = an MV motor load;",
         "     MCC = motor control centre on an LV board. A Bus Coupler",
         "     between two MV Busbars is the bus tie.",

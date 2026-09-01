@@ -30,6 +30,7 @@ MV_BUSBAR = "mv busbar"
 TRANSFORMER = "transformer"
 PUMP = "pump"
 GENERATOR = "generator"
+SU_TRANSFORMER = "su transformer"
 LV_BUSBAR = "lv busbar"
 FEEDER = "feeder"
 MCC = "mcc"
@@ -60,6 +61,13 @@ TYPE_ALIASES = {
     TRANSFORMER: TRANSFORMER,
     "trafo": TRANSFORMER,
     "tx": TRANSFORMER,
+    SU_TRANSFORMER: SU_TRANSFORMER,
+    "su tx": SU_TRANSFORMER,
+    "su trafo": SU_TRANSFORMER,
+    "step-up transformer": SU_TRANSFORMER,
+    "step up transformer": SU_TRANSFORMER,
+    "step-up": SU_TRANSFORMER,
+    "step up": SU_TRANSFORMER,
     LV_BUSBAR: LV_BUSBAR,
     "busbar": LV_BUSBAR,
     "lv board": LV_BUSBAR,
@@ -230,7 +238,9 @@ def read_workbook(path):
                 print(f"warning: '{it.id}' feeds both an MV and an LV board "
                       f"- drawn as a step-up", file=sys.stderr)
         if it.type == GENERATOR and not any(it.id in c.parents
-                                            for c in items.values()):
+                                            for c in items.values()) \
+                and not any(items[p].type == SU_TRANSFORMER
+                            for p in it.parents if p in items):
             print(f"warning: generator '{it.id}' feeds nothing",
                   file=sys.stderr)
 
@@ -355,7 +365,7 @@ def slot_width(items, order, item):
     """Width needed under one way of an MV switchboard."""
     if item.type == PUMP:
         return PUMP_SLOT
-    if item.type in (TRANSFORMER, GENERATOR):
+    if item.type in (TRANSFORMER, GENERATOR, SU_TRANSFORMER):
         boards = children_of(items, order, item.id, {LV_BUSBAR})
         w = 130
         for bb in boards:
@@ -391,14 +401,14 @@ def ring_group(items, order, head, depth):
 
 def mv_children(items, order, node):
     """The ways of an MV board / RMU that occupy a slot beneath it."""
-    types = ({TRANSFORMER, PUMP, MV_BUSBAR, RMU} if node.type == MV_BUSBAR
-             else {TRANSFORMER, PUMP})
+    types = ({TRANSFORMER, SU_TRANSFORMER, PUMP, MV_BUSBAR, RMU}
+             if node.type == MV_BUSBAR else {TRANSFORMER, SU_TRANSFORMER, PUMP})
     return children_of(items, order, node.id, types)
 
 
 def mv_own_width(items, order, node, depth=None):
     """Width one board / RMU needs for its own ways (no ring members)."""
-    if node.type in (TRANSFORMER, PUMP):
+    if node.type in (TRANSFORMER, SU_TRANSFORMER, PUMP):
         return slot_width(items, order, node)
     kids = mv_children(items, order, node)
     if not kids:
@@ -479,6 +489,19 @@ def place_step_ups(items, order):
                 src.x_left, src.x_right = tx.x - 85, tx.x + 85
 
 
+def place_su_sources(items, order):
+    """The generation source drawn under a reversed step-up follows it."""
+    for oid in order:
+        tx = items[oid]
+        if tx.type != SU_TRANSFORMER or tx.x is None:
+            continue
+        for src in children_of(items, order,
+                               tx.id, {GENERATOR, LV_BUSBAR, MV_INCOMER}):
+            src.x = tx.x
+            if src.type == LV_BUSBAR:
+                src.x_left, src.x_right = tx.x - 85, tx.x + 85
+
+
 def layout_mv_boards(items, order):
     """Layout when the site has MV switchboards (MV Busbar rows)."""
     mvbs = [items[i] for i in order if items[i].type == MV_BUSBAR]
@@ -507,6 +530,7 @@ def layout_mv_boards(items, order):
 
     # step-up chains take an incomer position over the board they feed
     place_step_ups(items, order)
+    place_su_sources(items, order)
 
     # incomers share the supply spread with any step-up columns
     sus = step_ups(items, order)
@@ -1104,8 +1128,11 @@ def render(info, items, order, width):
 
     # --- generation sources feeding an LV board directly -----------------
     for g in (items[i] for i in order if items[i].type == GENERATOR):
-        if g.x is None or g.id in [s.id for s in sus.values() if s]:
-            continue                  # step-up sources are drawn below
+        su_src = [k.id for i in order if items[i].type == SU_TRANSFORMER
+                  for k in children_of(items, order, i, {GENERATOR})]
+        if g.x is None or g.id in [s.id for s in sus.values() if s] \
+                or g.id in su_src:
+            continue                  # step-up sources are drawn in-column
         svg.circle(g.x, Y_TX_C1 + 13, 20, sw=2.2)
         svg.text(g.x, Y_TX_C1 + 17, "G", size=13, bold=True)
         lbl = [g.id, g.desc, " ".join(v for v in (g.rating, g.voltage) if v)]
@@ -1165,6 +1192,56 @@ def render(info, items, order, width):
                      prot_for(fed, tx_id)[1] or "cb")
             if fed.type == MV_BUSBAR:
                 svg.dot(tx.x, y_to)
+
+    # --- reversed step-ups (SU Transformer): board on top, source below --
+    su_below = [items[i] for i in order if items[i].type == SU_TRANSFORMER]
+    for tx in su_below:
+        if tx.x is None:
+            continue
+        fed = [items[p] for p in tx.parents
+               if items[p].type in (MV_BUSBAR, RMU)]
+        for f in fed:
+            y_from = y_bus(f) if f.type == MV_BUSBAR else y_rmu(f)[1]
+            svg.drop(tx.x, y_from, Y_TX_C1 - TX_R,
+                     prot_for(tx, f.id)[1] or "cb")
+            if f.type == MV_BUSBAR:
+                svg.dot(tx.x, y_from)
+        svg.circle(tx.x, Y_TX_C1, TX_R, sw=2.2)
+        svg.circle(tx.x, Y_TX_C2, TX_R, sw=2.2)
+        lbl = [tx.id, tx.desc,
+               " ".join(v for v in (tx.rating, tx.voltage) if v)]
+        ty = Y_TX_C1 - 6
+        for t in [t for t in lbl if t]:
+            svg.text(tx.x + TX_R + 10, ty, t, anchor="start")
+            ty += 15
+        # the generation source hangs below the transformer
+        kids = children_of(items, order, tx.id,
+                           {GENERATOR, LV_BUSBAR, MV_INCOMER})
+        src = kids[0] if kids else None
+        y_src = Y_BUS
+        if src is None:
+            continue
+        if src.type == GENERATOR:
+            svg.line(tx.x, Y_TX_C2 + TX_R, tx.x, y_src - 20)
+            svg.circle(tx.x, y_src, 20, sw=2.2)
+            svg.text(tx.x, y_src + 4, "G", size=13, bold=True)
+            lbl = [src.id, src.desc,
+                   " ".join(v for v in (src.rating, src.voltage) if v)]
+            ty = y_src - 6
+            for t in [t for t in lbl if t]:
+                svg.text(tx.x + 30, ty, t, size=11, anchor="start")
+                ty += 14
+        elif src.type == LV_BUSBAR:
+            svg.line(tx.x, Y_TX_C2 + TX_R, tx.x, y_src)
+            svg.dot(tx.x, y_src)     # the board itself is drawn with the
+        else:                        # other LV busbars, on its own row
+            svg.line(tx.x, Y_TX_C2 + TX_R, tx.x, y_src)
+            svg.line(tx.x - 11, y_src, tx.x + 11, y_src, w=3)
+            lbl = [src.id, src.desc, src.voltage]
+            ty = y_src + 18
+            for i, t in enumerate([t for t in lbl if t]):
+                svg.text(tx.x, ty, t, size=11.5, bold=(i == 0))
+                ty += 14
 
     # --- transformers ----------------------------------------------------
     for tx in txs:

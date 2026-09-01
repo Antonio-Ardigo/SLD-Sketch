@@ -224,13 +224,15 @@
 
 /* ------------------------------------------------ types */
 const MV_INCOMER="mv incomer", RMU="rmu", MV_BUSBAR="mv busbar",
-      TRANSFORMER="transformer", PUMP="pump", GENERATOR="generator",
+      TRANSFORMER="transformer", SU_TRANSFORMER="su transformer",
+      PUMP="pump", GENERATOR="generator",
       LV_BUSBAR="lv busbar",
       FEEDER="feeder", MCC="mcc", BUS_COUPLER="bus coupler";
 
 const TYPE_LABELS = [
   ["MV Incomer", MV_INCOMER], ["MV Busbar", MV_BUSBAR], ["RMU", RMU],
-  ["Generator", GENERATOR], ["Transformer", TRANSFORMER], ["Pump", PUMP],
+  ["Generator", GENERATOR], ["Transformer", TRANSFORMER],
+  ["SU Transformer", SU_TRANSFORMER], ["Pump", PUMP],
   ["LV Busbar", LV_BUSBAR],
   ["Feeder", FEEDER], ["MCC", MCC], ["Bus Coupler", BUS_COUPLER]
 ];
@@ -240,6 +242,10 @@ const ALIASES = {
   "mv busbar":MV_BUSBAR, "mv board":MV_BUSBAR, "mv switchboard":MV_BUSBAR,
   "mv distribution board":MV_BUSBAR,
   "transformer":TRANSFORMER, "trafo":TRANSFORMER, "tx":TRANSFORMER,
+  "su transformer":SU_TRANSFORMER, "su tx":SU_TRANSFORMER,
+  "su trafo":SU_TRANSFORMER, "step-up transformer":SU_TRANSFORMER,
+  "step up transformer":SU_TRANSFORMER, "step-up":SU_TRANSFORMER,
+  "step up":SU_TRANSFORMER,
   "pump":PUMP, "motor":PUMP, "load":PUMP,
   "generator":GENERATOR, "gen":GENERATOR, "genset":GENERATOR,
   "gen set":GENERATOR, "dg":GENERATOR, "alternator":GENERATOR,
@@ -390,7 +396,8 @@ function buildModel(rows){
       if(up.length && dn.length)
         warnings.push(`"${id}" feeds both an MV and an LV board — drawn as a step-up.`);
     }
-    if(it.type===GENERATOR && !order.some(q=>items[q].parents.includes(it.id)))
+    if(it.type===GENERATOR && !order.some(q=>items[q].parents.includes(it.id))
+       && !it.parents.some(p=>items[p] && items[p].type===SU_TRANSFORMER))
       warnings.push(`Generator "${id}" feeds nothing.`);
     if(it.prots.length && it.type===MV_INCOMER)
       warnings.push(`"${id}": protection on an MV incomer is on the utility side — not drawn.`);
@@ -413,7 +420,8 @@ function placeLvBoard(items, order, bb, cx){
 }
 function slotWidth(items, order, item){
   if(item.type===PUMP) return PUMP_SLOT;
-  if(item.type===TRANSFORMER||item.type===GENERATOR){
+  if(item.type===TRANSFORMER||item.type===GENERATOR
+     ||item.type===SU_TRANSFORMER){
     let w=130;
     for(const bb of childrenOf(items,order,item.id,[LV_BUSBAR])){
       const kids=childrenOf(items,order,bb.id,[FEEDER,MCC]);
@@ -448,11 +456,12 @@ function ringGroup(items, order, head, depth){
 
 function mvChildren(items, order, node){
   const types=(node.type===MV_BUSBAR)
-    ? [TRANSFORMER,PUMP,MV_BUSBAR,RMU] : [TRANSFORMER,PUMP];
+    ? [TRANSFORMER,SU_TRANSFORMER,PUMP,MV_BUSBAR,RMU]
+    : [TRANSFORMER,SU_TRANSFORMER,PUMP];
   return childrenOf(items,order,node.id,types);
 }
 function mvOwnWidth(items, order, node, depth){
-  if(node.type===TRANSFORMER||node.type===PUMP)
+  if(node.type===TRANSFORMER||node.type===SU_TRANSFORMER||node.type===PUMP)
     return slotWidth(items,order,node);
   const kids=mvChildren(items,order,node);
   if(!kids.length) return MIN_BUS_WIDTH;
@@ -992,7 +1001,9 @@ function render(info, items, order, width, warnings){
   /* generation sources feeding an LV board directly */
   const suSrcIds=Object.values(sus).filter(Boolean).map(o=>o.id);
   for(const g of order.map(i=>items[i]).filter(o=>o.type===GENERATOR)){
-    if(g.x===null || suSrcIds.includes(g.id)) continue;
+    const suKids=order.filter(i=>items[i].type===SU_TRANSFORMER)
+      .flatMap(i=>childrenOf(items,order,i,[GENERATOR]).map(k=>k.id));
+    if(g.x===null || suSrcIds.includes(g.id) || suKids.includes(g.id)) continue;
     svg.circle(g.x,Y_TX_C1+13,20,2.2);
     svg.text(g.x,Y_TX_C1+17,"G",{size:13,bold:true});
     let ty=Y_TX_C1-6;
@@ -1041,6 +1052,45 @@ function render(info, items, order, width, warnings){
       const yTo=fed.type===MV_BUSBAR?yBus(fed):yRmu(fed)[0];
       svg.drop(tx.x,Y_SU_C2+TX_R,yTo,protFor(fed,txId)[1]||"cb");
       if(fed.type===MV_BUSBAR) svg.dot(tx.x,yTo);
+    }
+  }
+
+  /* reversed step-ups (SU Transformer): board on top, source below */
+  for(const tx of order.map(i=>items[i]).filter(o=>o.type===SU_TRANSFORMER)){
+    if(tx.x===null) continue;
+    for(const f of tx.parents.map(p=>items[p])
+                     .filter(p=>[MV_BUSBAR,RMU].includes(p.type))){
+      const yFrom=f.type===MV_BUSBAR?yBus(f):yRmu(f)[1];
+      svg.drop(tx.x,yFrom,Y_TX_C1-TX_R,protFor(tx,f.id)[1]||"cb");
+      if(f.type===MV_BUSBAR) svg.dot(tx.x,yFrom);
+    }
+    svg.circle(tx.x,Y_TX_C1,TX_R,2.2);
+    svg.circle(tx.x,Y_TX_C2,TX_R,2.2);
+    let ty=Y_TX_C1-6;
+    for(const t of [tx.id,tx.desc,[tx.rating,tx.voltage].filter(Boolean).join(" ")].filter(Boolean)){
+      svg.text(tx.x+TX_R+10,ty,t,{anchor:"start"}); ty+=15;
+    }
+    const kids=childrenOf(items,order,tx.id,[GENERATOR,LV_BUSBAR,MV_INCOMER]);
+    const src=kids.length?kids[0]:null;
+    if(!src) continue;
+    const ySrc=Y_BUS;
+    if(src.type===GENERATOR){
+      svg.line(tx.x,Y_TX_C2+TX_R,tx.x,ySrc-20);
+      svg.circle(tx.x,ySrc,20,2.2);
+      svg.text(tx.x,ySrc+4,"G",{size:13,bold:true});
+      let t2=ySrc-6;
+      for(const t of [src.id,src.desc,[src.rating,src.voltage].filter(Boolean).join(" ")].filter(Boolean)){
+        svg.text(tx.x+30,t2,t,{size:11,anchor:"start"}); t2+=14;
+      }
+    } else if(src.type===LV_BUSBAR){
+      svg.line(tx.x,Y_TX_C2+TX_R,tx.x,ySrc); svg.dot(tx.x,ySrc);
+    } else {
+      svg.line(tx.x,Y_TX_C2+TX_R,tx.x,ySrc);
+      svg.line(tx.x-11,ySrc,tx.x+11,ySrc,3);
+      let t2=ySrc+18, i=0;
+      for(const t of [src.id,src.desc,src.voltage].filter(Boolean)){
+        svg.text(tx.x,t2,t,{size:11.5,bold:i===0}); t2+=14; i++;
+      }
     }
   }
 
