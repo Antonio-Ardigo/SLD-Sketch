@@ -1195,7 +1195,29 @@ def render(info, items, order, width):
         svg.text(p.x, yc + 1, "M", size=13 if r > 13 else 11, bold=True)
         svg.text(p.x, yc + 13 if r > 13 else yc + 11, "3~", size=8.5)
         lbl = " · ".join(v for v in (p.id, p.desc, p.rating) if v)
-        svg.text(p.x + 4, yc + r + 14, lbl, size=11, anchor="start", rotate=90)
+        # an MV motor labels to the right when the next way leaves room;
+        # otherwise (and always for LV motors) the label runs downward
+        lines = [t for t in (p.id, p.desc, p.rating) if t]
+        need = r + 10 + max((len(t) for t in lines), default=0) * 5.8 + 14
+        room = 1e9
+        if not lv_par:
+            row = [o for o in order]
+            nxt = [items[o].x for o in row
+                   if items[o] is not p and items[o].x is not None
+                   and items[o].x > p.x
+                   and items[o].type in (TRANSFORMER, SU_TRANSFORMER,
+                                         GENERATOR, PUMP, MV_BUSBAR)]
+            nxt += [b.x_left for b in mvbs if b.x_left is not None
+                    and b.x_left > p.x]
+            room = (min(nxt) - p.x) if nxt else 1e9
+        if not lv_par and room >= need:
+            ty = yc - 6
+            for t in lines:
+                svg.text(p.x + r + 10, ty, t, size=11, anchor="start")
+                ty += 14
+        else:
+            svg.text(p.x + 4, yc + r + 14, lbl, size=11, anchor="start",
+                     rotate=90)
 
     # --- LV supply routes ------------------------------------------------
     # A board fed from several transformers gets one landing point per

@@ -1043,8 +1043,24 @@ function render(info, items, order, width, warnings){
     svg.circle(p.x,yc,r,2.2);
     svg.text(p.x,yc+1,"M",{size:r>13?13:11,bold:true});
     svg.text(p.x,r>13?yc+13:yc+11,"3~",{size:8.5});
-    svg.text(p.x+4,yc+r+14,[p.id,p.desc,p.rating].filter(Boolean).join(" · "),
-             {size:11,anchor:"start",rotate:90});
+    /* an MV motor labels to the right when the next way leaves room;
+       otherwise (and always for LV motors) the label runs downward */
+    const lines=[p.id,p.desc,p.rating].filter(Boolean);
+    const need=r+10+Math.max(0,...lines.map(t=>t.length))*5.8+14;
+    let room=1e9;
+    if(!lvPar.length){
+      const nxt=order.map(o=>items[o]).filter(o=>o!==p && o.x!==null && o.x>p.x
+        && [TRANSFORMER,SU_TRANSFORMER,GENERATOR,PUMP,MV_BUSBAR].includes(o.type))
+        .map(o=>o.x)
+        .concat(mvbs.filter(b=>b.xLeft!==null && b.xLeft>p.x).map(b=>b.xLeft));
+      room=nxt.length?Math.min(...nxt)-p.x:1e9;
+    }
+    if(!lvPar.length && room>=need){
+      let ty=yc-6;
+      for(const t of lines){ svg.text(p.x+r+10,ty,t,{size:11,anchor:"start"}); ty+=14; }
+    } else {
+      svg.text(p.x+4,yc+r+14,lines.join(" · "),{size:11,anchor:"start",rotate:90});
+    }
   }
 
   /* LV supply routes: a board fed from several transformers gets one
