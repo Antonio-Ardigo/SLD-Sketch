@@ -17,8 +17,7 @@ HEADERS = ["ID", "Type", "Description", "Rating", "Voltage", "Protection",
            "Feeds From", "Notes"]
 COL_WIDTHS = [10, 16, 26, 12, 12, 13, 14, 30]
 TYPES = ["MV Incomer", "Generator", "MV Busbar", "RMU", "Transformer",
-         "SU Transformer", "Pump", "LV Busbar", "Feeder", "MCC",
-         "Bus Coupler"]
+         "Pump", "LV Busbar", "Feeder", "MCC", "Bus Coupler"]
 PROTECTIONS = ["CB", "LBS", "Fuse", "Fuse-switch", "Contactor",
                "Fuse-contactor"]
 
@@ -89,12 +88,14 @@ def build_workbook(path, info, rows, legend_note=None):
         "2. Equipment sheet: one row per item, top of the network first.",
         "   - ID: short unique tag you invent (MV1, RMU1, TX1, BB1, F1...).",
         "   - Type: pick from the dropdown (MV Incomer, Generator, MV",
-        "     Busbar, RMU, Transformer, SU Transformer, Pump, LV Busbar,",
-        "     Feeder, MCC, Bus Coupler).",
-        "     SU Transformer = a step-up drawn hanging UNDER its MV board",
-        "     (Feeds From = that board), with its generator below it",
-        "     (the generator's Feeds From = the SU Transformer). A plain",
-        "     Transformer that feeds an MV board is drawn above it.",
+        "     Busbar, RMU, Transformer, Pump, LV Busbar, Feeder, MCC,",
+        "     Bus Coupler).",
+        "     One Transformer type covers step-down and step-up: which",
+        "     way it is drawn follows Feeds From. A transformer that",
+        "     feeds an MV board is a step-up, drawn above it with its",
+        "     source on top; one hung under an MV board whose load is a",
+        "     Generator is the same step-up drawn upside down. Write",
+        "     'step-up' in Description - the voltages say it too.",
         "     MV Busbar = an MV switchboard; Pump = an MV motor load;",
         "     MCC = motor control centre on an LV board. A Bus Coupler",
         "     between two MV Busbars is the bus tie.",

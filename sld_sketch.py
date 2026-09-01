@@ -30,7 +30,6 @@ MV_BUSBAR = "mv busbar"
 TRANSFORMER = "transformer"
 PUMP = "pump"
 GENERATOR = "generator"
-SU_TRANSFORMER = "su transformer"
 LV_BUSBAR = "lv busbar"
 FEEDER = "feeder"
 MCC = "mcc"
@@ -61,13 +60,13 @@ TYPE_ALIASES = {
     TRANSFORMER: TRANSFORMER,
     "trafo": TRANSFORMER,
     "tx": TRANSFORMER,
-    SU_TRANSFORMER: SU_TRANSFORMER,
-    "su tx": SU_TRANSFORMER,
-    "su trafo": SU_TRANSFORMER,
-    "step-up transformer": SU_TRANSFORMER,
-    "step up transformer": SU_TRANSFORMER,
-    "step-up": SU_TRANSFORMER,
-    "step up": SU_TRANSFORMER,
+    "su transformer": TRANSFORMER,     # kept so older sheets still load
+    "su tx": TRANSFORMER,
+    "su trafo": TRANSFORMER,
+    "step-up transformer": TRANSFORMER,
+    "step up transformer": TRANSFORMER,
+    "step-up": TRANSFORMER,
+    "step up": TRANSFORMER,
     LV_BUSBAR: LV_BUSBAR,
     "busbar": LV_BUSBAR,
     "lv board": LV_BUSBAR,
@@ -229,7 +228,7 @@ def read_workbook(path):
                           file=sys.stderr)
 
     for it in items.values():
-        if it.type in (TRANSFORMER, SU_TRANSFORMER):
+        if it.type in (TRANSFORMER,):
             up = [c for c in items.values()
                   if it.id in c.parents and c.type in (MV_BUSBAR, RMU)]
             dn = [c for c in items.values()
@@ -237,7 +236,7 @@ def read_workbook(path):
             if up and dn:
                 print(f"warning: '{it.id}' feeds both an MV and an LV board "
                       f"- drawn as a step-up", file=sys.stderr)
-        if it.type in (TRANSFORMER, SU_TRANSFORMER) and not it.parents:
+        if it.type in (TRANSFORMER,) and not it.parents:
             print(f"warning: '{it.id}' has no Feeds From - drawn with an "
                   f"open supply terminal", file=sys.stderr)
         if it.type == MCC:
@@ -247,28 +246,14 @@ def read_workbook(path):
                           f"'{p}' - an MCC is an LV assembly; add a "
                           f"transformer and an LV board in between",
                           file=sys.stderr)
-        if it.type == SU_TRANSFORMER:
-            up = [c for c in items.values()
-                  if it.id in c.parents and c.type in (MV_BUSBAR, RMU)]
-            dn = [p for p in it.parents
-                  if p in items and items[p].type in (MV_BUSBAR, RMU)]
-            lv_out = [c for c in items.values()
-                      if it.id in c.parents and c.type == LV_BUSBAR]
-            if not up and not dn and not lv_out:
-                lv = [p for p in it.parents
-                      if p in items and items[p].type == LV_BUSBAR
-                      and items[p].parents]
-                if lv:
-                    print(f"warning: SU transformer '{it.id}' has no MV "
-                          f"board or RMU on its output - drawn with an open "
-                          f"outgoing; put '{it.id}' in that board's "
-                          f"Feeds From to connect it", file=sys.stderr)
-                else:
-                    print(f"warning: SU transformer '{it.id}' is not "
-                          f"connected to an MV board or RMU", file=sys.stderr)
+        if it.type == TRANSFORMER and it.parents and not any(
+                it.id in c.parents for c in items.values()):
+            print(f"warning: '{it.id}' has nothing on its output - drawn "
+                  f"with an open outgoing terminal; put '{it.id}' in the "
+                  f"Feeds From of whatever it supplies", file=sys.stderr)
         if it.type == GENERATOR and not any(it.id in c.parents
                                             for c in items.values()) \
-                and not any(items[p].type == SU_TRANSFORMER
+                and not any(items[p].type == TRANSFORMER
                             for p in it.parents if p in items):
             print(f"warning: generator '{it.id}' feeds nothing",
                   file=sys.stderr)
@@ -338,32 +323,25 @@ def su_mid(items, order):
     out = {}
     for oid in order:
         tx = items[oid]
-        if tx.type not in (TRANSFORMER, SU_TRANSFORMER):
+        if tx.type not in (TRANSFORMER,):
             continue
         up = children_of(items, order, tx.id, {MV_BUSBAR, RMU})
         src = [items[p] for p in tx.parents
                if items[p].type == LV_BUSBAR and items[p].parents]
-        if not src:
-            continue
-        if up:
+        if up and src:
             out[tx.id] = (src[0], up[0])
-        elif (tx.type == SU_TRANSFORMER
-              and not any(items[p].type in (MV_BUSBAR, RMU)
-                          for p in tx.parents)
-              and not children_of(items, order, tx.id, {LV_BUSBAR})):
-            out[tx.id] = (src[0], None)   # outgoing board not entered yet
     return out
 
 
 def lv_subs(items, order):
-    """A transformer (or SU Transformer) taking supply from one LV board
+    """A transformer taking supply from one LV board
     and feeding another: drawn in the transformer row between the two
     bars, the fed board standing beside its parent with its own feeders."""
     mid = su_mid(items, order)
     out = {}
     for oid in order:
         tx = items[oid]
-        if tx.type not in (TRANSFORMER, SU_TRANSFORMER) or tx.id in mid:
+        if tx.type not in (TRANSFORMER,) or tx.id in mid:
             continue
         src = [items[p] for p in tx.parents
                if items[p].type == LV_BUSBAR and items[p].parents]
@@ -379,7 +357,7 @@ def step_ups(items, order):
     out = {}
     for oid in order:
         tx = items[oid]
-        if tx.type not in (TRANSFORMER, SU_TRANSFORMER):
+        if tx.type not in (TRANSFORMER,):
             continue
         if not children_of(items, order, tx.id, {MV_BUSBAR, RMU}):
             continue
@@ -459,7 +437,7 @@ def place_loose_boards(items, order, x):
     feeders under it, rather than a bare stub in the leftover row."""
     for oid in order:
         tx = items[oid]
-        if tx.type not in (TRANSFORMER, SU_TRANSFORMER) or tx.x is not None:
+        if tx.type not in (TRANSFORMER,) or tx.x is not None:
             continue
         todo = [b for b in children_of(items, order, tx.id, {LV_BUSBAR})
                 if b.x is None]
@@ -483,7 +461,7 @@ def place_loose_boards(items, order, x):
             continue
         bb = fed[0]
         sup = [items[i] for i in order
-               if items[i].type in (TRANSFORMER, SU_TRANSFORMER, GENERATOR)
+               if items[i].type in (TRANSFORMER, GENERATOR)
                and bb.id in [k.id for k in children_of(items, order, i)]]
         n = max(1, len(sup))
         k = sup.index(g) if g in sup else 0
@@ -513,7 +491,7 @@ def slot_width(items, order, item):
     """Width needed under one way of an MV switchboard."""
     if item.type == PUMP:
         return PUMP_SLOT
-    if item.type in (TRANSFORMER, GENERATOR, SU_TRANSFORMER):
+    if item.type in (TRANSFORMER, GENERATOR):
         boards = children_of(items, order, item.id, {LV_BUSBAR})
         w = 130
         for bb in boards:
@@ -550,17 +528,17 @@ def ring_group(items, order, head, depth):
 def mv_children(items, order, node):
     """The ways of an MV board / RMU that occupy a slot beneath it.
     An LV-fed step-up is a parent in the graph but a way in the drawing."""
-    types = ({TRANSFORMER, SU_TRANSFORMER, PUMP, MV_BUSBAR, RMU}
-             if node.type == MV_BUSBAR else {TRANSFORMER, SU_TRANSFORMER, PUMP})
+    types = ({TRANSFORMER, PUMP, MV_BUSBAR, RMU}
+             if node.type == MV_BUSBAR else {TRANSFORMER, PUMP})
     kids = children_of(items, order, node.id, types)
     kids += [items[t] for t, (_, up) in su_mid(items, order).items()
-             if up is not None and up.id == node.id and items[t] not in kids]
+             if up.id == node.id and items[t] not in kids]
     return kids
 
 
 def mv_own_width(items, order, node, depth=None):
     """Width one board / RMU needs for its own ways (no ring members)."""
-    if node.type in (TRANSFORMER, SU_TRANSFORMER, PUMP):
+    if node.type in (TRANSFORMER, PUMP):
         return slot_width(items, order, node)
     kids = mv_children(items, order, node)
     if not kids:
@@ -636,10 +614,6 @@ def place_su_mid(items, order, x):
         tx = items[tx_id]
         if tx.x is not None:
             continue
-        if up is None:                # no outgoing board: a slot of its own
-            tx.x = x + 60
-            x += 200
-            continue
         if up.x is not None:          # the gear already has its slot
             tx.x = up.x
             continue
@@ -671,14 +645,20 @@ def place_step_ups(items, order):
                 src.x_left, src.x_right = tx.x - 85, tx.x + 85
 
 
+def gen_below(items, order, tx):
+    """A transformer hung under MV gear whose load is a Generator can only
+    be a step-up drawn upside down: a generator is never a load."""
+    return (tx.type == TRANSFORMER
+            and any(items[p].type in (MV_BUSBAR, RMU) for p in tx.parents)
+            and bool(children_of(items, order, tx.id, {GENERATOR})))
+
+
 def place_su_sources(items, order):
     """The generation source drawn under a reversed step-up follows it."""
     for oid in order:
         tx = items[oid]
-        if tx.type != SU_TRANSFORMER or tx.x is None:
+        if tx.x is None or not gen_below(items, order, tx):
             continue
-        if not any(items[p].type in (MV_BUSBAR, RMU) for p in tx.parents):
-            continue                  # wired the other way: drawn above
         for src in children_of(items, order,
                                tx.id, {GENERATOR, LV_BUSBAR, MV_INCOMER}):
             src.x = tx.x
@@ -710,7 +690,7 @@ def layout_mv_boards(items, order):
         if bb.type != LV_BUSBAR or bb.x is not None:
             continue
         pxs = [items[p].x for p in bb.parents
-               if items[p].type in (TRANSFORMER, SU_TRANSFORMER)
+               if items[p].type in (TRANSFORMER,)
                and items[p].x is not None]
         if pxs:
             place_lv_board(items, order, bb, sum(pxs) / len(pxs))
@@ -1103,6 +1083,7 @@ def render(info, items, order, width):
     mvbs = [items[i] for i in order if items[i].type == MV_BUSBAR]
     rmus = [items[i] for i in order if items[i].type == RMU]
     lvsub = lv_subs(items, order)
+    lvsub_mid = su_mid(items, order)
     txs = [items[i] for i in order
            if items[i].type == TRANSFORMER or i in lvsub]
     pumps = [items[i] for i in order if items[i].type == PUMP]
@@ -1155,10 +1136,9 @@ def render(info, items, order, width):
                     if any(rmu.id == k.id
                            for k in children_of(items, order, t))]
         ways_out = children_of(items, order, rmu.id,
-                               {TRANSFORMER, SU_TRANSFORMER, PUMP})
+                               {TRANSFORMER, PUMP})
         ways_out += [items[t] for t, (_, up) in su_mid(items, order).items()
-                     if up is not None and up.id == rmu.id
-                     and items[t].x is not None]
+                     if up.id == rmu.id and items[t].x is not None]
         xs = [w.x for w in ways_in + ways_out if w.x is not None] or [rmu.x]
         xs = xs + [e[0] for e in ring_entries.get(rmu.id, [])]
         left = min(xs) - pad_l[rmu.id]
@@ -1338,8 +1318,8 @@ def render(info, items, order, width):
             nxt = [items[o].x for o in row
                    if items[o] is not p and items[o].x is not None
                    and items[o].x > p.x
-                   and items[o].type in (TRANSFORMER, SU_TRANSFORMER,
-                                         GENERATOR, PUMP, MV_BUSBAR)]
+                   and items[o].type in (TRANSFORMER, GENERATOR,
+                                         PUMP, MV_BUSBAR)]
             nxt += [b.x_left for b in mvbs if b.x_left is not None
                     and b.x_left > p.x]
             room = (min(nxt) - p.x) if nxt else 1e9
@@ -1383,7 +1363,7 @@ def render(info, items, order, width):
 
     # --- generation sources feeding an LV board directly -----------------
     for g in (items[i] for i in order if items[i].type == GENERATOR):
-        su_src = [k.id for i in order if items[i].type == SU_TRANSFORMER
+        su_src = [k.id for i in order if items[i].type == TRANSFORMER
                   for k in children_of(items, order, i, {GENERATOR})]
         if g.x is None or g.id in [s.id for s in sus.values() if s] \
                 or g.id in su_src:
@@ -1473,20 +1453,16 @@ def render(info, items, order, width):
             svg.line(x_land, y_lane, x_land, Y_BUS)
         svg.dot(x_land, Y_BUS)
         # up to the MV board / RMU it feeds
-        if up is None:                # outgoing board not entered yet
-            svg.open_end(tx.x, Y_TX_C1 - TX_R, Y_TX_C1 - TX_R - 36,
-                         "outgoing not defined")
-        elif up.type == MV_BUSBAR:
+        if up.type == MV_BUSBAR:
             svg.drop(tx.x, y_bus(up), Y_TX_C1 - TX_R,
                      prot_for(up, tx.id)[1] or "cb")
             svg.dot(tx.x, y_bus(up))
         else:
             svg.line(tx.x, y_rmu(up)[1], tx.x, Y_TX_C1 - TX_R)
 
-    # --- reversed step-ups (SU Transformer): board on top, source below --
-    su_below = [items[i] for i in order if items[i].type == SU_TRANSFORMER
-                and any(items[p].type in (MV_BUSBAR, RMU)
-                        for p in items[i].parents)]
+    # --- reversed step-ups: board on top, source below -------------------
+    su_below = [items[i] for i in order
+                if gen_below(items, order, items[i])]
     for tx in su_below:
         if tx.x is None:
             continue
@@ -1537,8 +1513,9 @@ def render(info, items, order, width):
 
     # --- transformers ----------------------------------------------------
     for tx in txs:
-        if tx.x is None or tx.id in sus:
-            continue
+        if (tx.x is None or tx.id in sus or tx.id in lvsub_mid
+                or gen_below(items, order, tx)):
+            continue                  # drawn as a column of its own
         fed = children_of(items, order, tx.id, {LV_BUSBAR})
         lbl = [tx.id, tx.desc,
                " ".join(v for v in (tx.rating, tx.voltage) if v)]
@@ -1557,20 +1534,32 @@ def render(info, items, order, width):
             elif par.type == LV_BUSBAR and par.x_left is not None:
                 # supply comes back up from an LV board on the same row
                 kind = prot_for(tx, par.id)[1] or "cb"
-                y_lane = Y_TX_C1 - TX_R - 22
                 x_land = (par.x_right - 25 if tx.x > par.x
                           else par.x_left + 25)
-                svg.drop(x_land, y_lane, Y_BUS, kind)
-                svg.line(x_land, y_lane, tx.x, y_lane)
-                svg.line(tx.x, y_lane, tx.x, Y_TX_C1 - TX_R)
+                if fed:      # LV/LV: supply in at the top, output below
+                    y_lane = Y_TX_C1 - TX_R - 22
+                    svg.drop(x_land, y_lane, Y_BUS, kind)
+                    svg.line(x_land, y_lane, tx.x, y_lane)
+                    svg.line(tx.x, y_lane, tx.x, Y_TX_C1 - TX_R)
+                else:        # source below: keep the run down by the bar
+                    y_lane = Y_BUS - 34
+                    svg.drop(tx.x, Y_TX_C2 + TX_R, y_lane, kind)
+                    svg.line(tx.x, y_lane, x_land, y_lane)
+                    svg.line(x_land, y_lane, x_land, Y_BUS)
                 svg.dot(x_land, Y_BUS)
         if not any(items[p].type in (RMU, MV_BUSBAR, LV_BUSBAR)
                    and items[p].x is not None for p in tx.parents):
             svg.open_end(tx.x, Y_TX_C1 - TX_R, Y_TX_C1 - TX_R - 36,
                          "supply not defined")
-        if not fed and not children_of(items, order, tx.id, {PUMP}):
-            svg.open_end(tx.x, Y_TX_C2 + TX_R, Y_TX_C2 + TX_R + 36,
-                         "outgoing not defined")
+        if not fed and not children_of(items, order, tx.id,
+                                       {PUMP, GENERATOR}):
+            # the open side is whichever one the supply did not take
+            if any(items[p].type == LV_BUSBAR for p in tx.parents):
+                svg.open_end(tx.x, Y_TX_C1 - TX_R, Y_TX_C1 - TX_R - 36,
+                             "outgoing not defined")
+            else:
+                svg.open_end(tx.x, Y_TX_C2 + TX_R, Y_TX_C2 + TX_R + 36,
+                             "outgoing not defined")
         ytop = ytop_tx
         dual = [bb for bb in fed if (tx.id, bb.id) in routes]
         rest = [bb for bb in fed if (tx.id, bb.id) not in routes]

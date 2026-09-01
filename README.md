@@ -35,7 +35,7 @@ diagram's title block.
 | Column | Meaning | Example |
 |---|---|---|
 | ID | Short unique tag you invent | `MV1`, `RMU1`, `TX1`, `BB1`, `F1` |
-| Type | Dropdown: MV Incomer, Generator, MV Busbar, RMU, Transformer, SU Transformer, Pump, LV Busbar, Feeder, MCC, Bus Coupler | `Transformer` |
+| Type | Dropdown: MV Incomer, Generator, MV Busbar, RMU, Transformer, Pump, LV Busbar, Feeder, MCC, Bus Coupler | `Transformer` |
 | Description | Free text | `Oil-immersed, Dyn11` |
 | Rating | From the nameplate | `1000 kVA`, `630 A` |
 | Voltage | From the nameplate | `11/0.4 kV`, `400 V` |
@@ -49,23 +49,26 @@ Busbar or RMU is a **step-up**: its source (a Generator, an LV Busbar acting as
 a generation board, or an MV Incomer row) is drawn at the top, the transformer
 below it, then down into the MV board beside any utility incomers.
 
-Use type **`SU Transformer`** to mark a step-up explicitly. It works in either
-rotation, chosen by how you wire it:
+There is **one `Transformer` type** — step-up and step-down are the same
+IEC symbol, and which way round it is drawn follows `Feeds From`. Write
+"step-up" in Description if you like; the Voltage field (`0.4/11 kV` against
+`11/0.4 kV`) says it too. Sheets that used the old `SU Transformer` type still
+load — the name is kept as an alias of `Transformer`.
 
-- **Below the board** (rotated 180°) — the SU's `Feeds From` is the MV board,
-  so it hangs under it like any other way, with its generator or generation
-  board below it (their `Feeds From` is the SU Transformer).
-- **Above the board** — the board's `Feeds From` names the SU, and the SU's
-  `Feeds From` is its generator, giving the source-on-top column.
-- **From a live LV board** — the SU's `Feeds From` is that LV board, and the
-  MV board or RMU it supplies names the SU in its own `Feeds From`. The SU is
-  drawn in the transformer row, taking supply from the LV bar below and
-  feeding the MV gear above.
+| Wiring | Drawn as |
+|---|---|
+| TX `Feeds From` MV gear, an LV board feeds from TX | ordinary step-down |
+| TX `Feeds From` a Generator or generation board, MV gear feeds from TX | source-on-top column |
+| TX `Feeds From` a live LV board, MV gear feeds from TX | step-up in the transformer row |
+| TX `Feeds From` MV gear, a Generator feeds from TX | the same column drawn upside down |
 
-Because `Feeds From` only ever points *upstream*, the last arrangement needs
-the SU named on the fed board's row. Until you do that the SU still draws —
-hanging off its LV board with an **open outgoing terminal** marked "outgoing
-not defined" — and a warning tells you which row to add it to.
+The last one works because a generator is never a load: a `Generator` whose
+`Feeds From` names a transformer can only be feeding *up* through it.
+
+Because `Feeds From` only ever points *upstream*, a step-up needs to be named
+on the row of the board it supplies. Until you do that it still draws — hanging
+off its LV board with an **open terminal** marked "outgoing not defined" — and
+a warning tells you which row to add it to.
 
 **A half-filled row still draws.** A transformer whose supply or whose load
 you have not entered yet is drawn where it belongs, with an **open terminal**
@@ -73,11 +76,11 @@ on the missing side ("supply not defined" / "outgoing not defined") and a
 warning saying so — rather than floating unconnected or vanishing. The board
 under such a transformer still gets a bar sized from its own feeders.
 
-An SU (or an ordinary `Transformer`) can also feed an **LV Busbar**: a 400/690 V
-unit for drives, say. Fed from one LV board and feeding another, it is drawn in
-the transformer row between the two, its supply taken from the parent board's
-bar and its output dropped into the fed board, which stands beside its parent
-with its own feeders. These chain, and one unit can feed several boards.
+A transformer can also sit between **two LV boards**: a 400/690 V unit for
+drives, say. Fed from one LV board and feeding another, it is drawn in the
+transformer row between the two, its supply taken from the parent board's bar
+and its output dropped into the fed board, which stands beside its parent with
+its own feeders. These chain, and one unit can feed several boards.
 
 **Motors.** A `Pump` on an MV Busbar or RMU is an MV motor drawn in the
 transformer row. A `Pump` on an **LV Busbar** is an LV motor drawn in the
