@@ -317,6 +317,23 @@ def set_tiers(extra, top=0):
     DIAG_H = 780 + extra
 
 
+def su_mid(items, order):
+    """Step-ups taking power from a real LV board (one that has its own
+    supply) up to an MV board or RMU: drawn in the transformer row, with
+    the board below them and their output above."""
+    out = {}
+    for oid in order:
+        tx = items[oid]
+        if tx.type not in (TRANSFORMER, SU_TRANSFORMER):
+            continue
+        up = children_of(items, order, tx.id, {MV_BUSBAR, RMU})
+        src = [items[p] for p in tx.parents
+               if items[p].type == LV_BUSBAR and items[p].parents]
+        if up and src:
+            out[tx.id] = (src[0], up[0])
+    return out
+
+
 def step_ups(items, order):
     """Transformers that feed an MV busbar or RMU (step-up), mapped to
     the source row that feeds them."""
@@ -327,6 +344,9 @@ def step_ups(items, order):
             continue
         if not children_of(items, order, tx.id, {MV_BUSBAR, RMU}):
             continue
+        if any(items[p].type == LV_BUSBAR and items[p].parents
+               for p in tx.parents):
+            continue                  # drawn in the transformer row instead
         src = next((items[p] for p in tx.parents), None)
         out[tx.id] = src
     return out
@@ -493,6 +513,20 @@ def place_tx_motors(items, order):
                 m.x = t.x
 
 
+def place_su_mid(items, order, x):
+    """Place an LV-fed step-up and the MV gear above it, left to right."""
+    for tx_id, (src, up) in su_mid(items, order).items():
+        tx = items[tx_id]
+        if tx.x is not None:
+            continue
+        tx.x = x + 60
+        up.x = tx.x
+        if up.type == MV_BUSBAR:
+            up.x_left, up.x_right = tx.x - 85, tx.x + 85
+        x += 200
+    return x
+
+
 def place_step_ups(items, order):
     """A step-up transformer (and its source) sits above the MV busbar or
     RMU it feeds, beside any utility incomers on that board."""
@@ -570,6 +604,8 @@ def layout_mv_boards(items, order):
                 n = len(feeds)
                 m.x = mvb.x + (feeds.index(m) - (n - 1) / 2) * 90
                 break
+
+    x = place_su_mid(items, order, x)
 
     # anything left over (e.g. an RMU branch mixed in) goes after the boards
     for oid in order:
@@ -665,6 +701,8 @@ def layout(items, order):
             placed = [k.x for k in kids if k.x is not None]
             if placed:
                 m.x = sum(placed) / len(placed)
+
+    x = place_su_mid(items, order, x)
 
     # 5. anything still unplaced goes in a row after the busbars
     for oid in order:
@@ -979,6 +1017,8 @@ def render(info, items, order, width):
                            for k in children_of(items, order, t))]
         ways_out = children_of(items, order, rmu.id,
                                {TRANSFORMER, SU_TRANSFORMER, PUMP})
+        ways_out += [items[t] for t, (_, up) in su_mid(items, order).items()
+                     if up.id == rmu.id and items[t].x is not None]
         xs = [w.x for w in ways_in + ways_out if w.x is not None] or [rmu.x]
         xs = xs + [e[0] for e in ring_entries.get(rmu.id, [])]
         left = min(xs) - pad_l[rmu.id]
@@ -1245,6 +1285,38 @@ def render(info, items, order, width):
                      prot_for(fed, tx_id)[1] or "cb")
             if fed.type == MV_BUSBAR:
                 svg.dot(tx.x, y_to)
+
+    # --- step-ups from a real LV board: board below, MV gear above -------
+    for tx_id, (src, up) in su_mid(items, order).items():
+        tx = items[tx_id]
+        if tx.x is None:
+            continue
+        svg.circle(tx.x, Y_TX_C1, TX_R, sw=2.2)
+        svg.circle(tx.x, Y_TX_C2, TX_R, sw=2.2)
+        lbl = [tx.id, tx.desc,
+               " ".join(v for v in (tx.rating, tx.voltage) if v)]
+        ty = Y_TX_C1 - 6
+        for t in [t for t in lbl if t]:
+            svg.text(tx.x + TX_R + 10, ty, t, anchor="start")
+            ty += 15
+        # down to the LV board that supplies it, routed onto its bar
+        kind = prot_for(tx, src.id)[1] or "cb"
+        x_land = min(max(tx.x, src.x_left + 25), src.x_right - 25)
+        if abs(x_land - tx.x) < 1:
+            svg.drop(tx.x, Y_TX_C2 + TX_R, Y_BUS, kind)
+        else:
+            y_lane = Y_BUS - 34
+            svg.drop(tx.x, Y_TX_C2 + TX_R, y_lane, kind)
+            svg.line(tx.x, y_lane, x_land, y_lane)
+            svg.line(x_land, y_lane, x_land, Y_BUS)
+        svg.dot(x_land, Y_BUS)
+        # up to the MV board / RMU it feeds
+        if up.type == MV_BUSBAR:
+            svg.drop(tx.x, y_bus(up), Y_TX_C1 - TX_R,
+                     prot_for(up, tx.id)[1] or "cb")
+            svg.dot(tx.x, y_bus(up))
+        else:
+            svg.line(tx.x, y_rmu(up)[1], tx.x, Y_TX_C1 - TX_R)
 
     # --- reversed step-ups (SU Transformer): board on top, source below --
     su_below = [items[i] for i in order if items[i].type == SU_TRANSFORMER

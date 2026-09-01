@@ -301,12 +301,39 @@ function setTiers(extra, top){
 /* MV distribution level of each busbar/RMU: a board or RMU fed from an MV
    busbar sits one level below it; RMUs linked to each other stay level */
 /* transformers that feed an MV busbar or RMU (step-up) -> their source */
+/* step-ups taking power from a real LV board up to MV gear: drawn in the
+   transformer row, board below them and their output above */
+function suMid(items, order){
+  const out={};
+  for(const oid of order){
+    const tx=items[oid];
+    if(tx.type!==TRANSFORMER && tx.type!==SU_TRANSFORMER) continue;
+    const up=childrenOf(items,order,tx.id,[MV_BUSBAR,RMU]);
+    const src=tx.parents.map(p=>items[p])
+      .filter(o=>o.type===LV_BUSBAR && o.parents.length);
+    if(up.length && src.length) out[tx.id]=[src[0],up[0]];
+  }
+  return out;
+}
+function placeSuMid(items, order, x){
+  const mid=suMid(items,order);
+  for(const txId of Object.keys(mid)){
+    const tx=items[txId], up=mid[txId][1];
+    if(tx.x!==null) continue;
+    tx.x=x+60; up.x=tx.x;
+    if(up.type===MV_BUSBAR){ up.xLeft=tx.x-85; up.xRight=tx.x+85; }
+    x+=200;
+  }
+  return x;
+}
 function stepUps(items, order){
   const out={};
   for(const oid of order){
     const tx=items[oid];
     if(tx.type!==TRANSFORMER && tx.type!==SU_TRANSFORMER) continue;
     if(!childrenOf(items,order,tx.id,[MV_BUSBAR,RMU]).length) continue;
+    if(tx.parents.some(p=>items[p].type===LV_BUSBAR && items[p].parents.length))
+      continue;                     /* drawn in the transformer row instead */
     out[tx.id]=tx.parents.length?items[tx.parents[0]]:null;
   }
   return out;
@@ -857,8 +884,12 @@ function render(info, items, order, width, warnings){
     const waysIn=mvs.filter(m=>childrenOf(items,order,m.id).some(k=>k.id===rmu.id))
       .concat(Object.keys(sus).map(t=>items[t])
         .filter(t=>childrenOf(items,order,t.id).some(k=>k.id===rmu.id)));
+    const midAll=suMid(items,order);
     const waysOut=childrenOf(items,order,rmu.id,
-                             [TRANSFORMER,SU_TRANSFORMER,PUMP]);
+                             [TRANSFORMER,SU_TRANSFORMER,PUMP])
+      .concat(Object.keys(midAll).filter(t=>midAll[t][1].id===rmu.id
+                                            && items[t].x!==null)
+                                 .map(t=>items[t]));
     let xs=waysIn.concat(waysOut).map(w=>w.x).filter(v=>v!==null);
     if(!xs.length) xs=[rmu.x];
     xs=xs.concat((ringEntries[rmu.id]||[]).map(e=>e[0]));
@@ -1091,6 +1122,36 @@ function render(info, items, order, width, warnings){
       const yTo=fed.type===MV_BUSBAR?yBus(fed):yRmu(fed)[0];
       svg.drop(tx.x,Y_SU_C2+TX_R,yTo,protFor(fed,txId)[1]||"cb");
       if(fed.type===MV_BUSBAR) svg.dot(tx.x,yTo);
+    }
+  }
+
+  /* step-ups from a real LV board: board below, MV gear above */
+  const midMap=suMid(items,order);
+  for(const txId of Object.keys(midMap)){
+    const tx=items[txId], src=midMap[txId][0], up=midMap[txId][1];
+    if(tx.x===null) continue;
+    svg.circle(tx.x,Y_TX_C1,TX_R,2.2);
+    svg.circle(tx.x,Y_TX_C2,TX_R,2.2);
+    let ty=Y_TX_C1-6;
+    for(const t of [tx.id,tx.desc,[tx.rating,tx.voltage].filter(Boolean).join(" ")].filter(Boolean)){
+      svg.text(tx.x+TX_R+10,ty,t,{anchor:"start"}); ty+=15;
+    }
+    const kind=protFor(tx,src.id)[1]||"cb";
+    const xLand=Math.min(Math.max(tx.x,src.xLeft+25),src.xRight-25);
+    if(Math.abs(xLand-tx.x)<1){
+      svg.drop(tx.x,Y_TX_C2+TX_R,Y_BUS,kind);
+    } else {
+      const yLane=Y_BUS-34;
+      svg.drop(tx.x,Y_TX_C2+TX_R,yLane,kind);
+      svg.line(tx.x,yLane,xLand,yLane);
+      svg.line(xLand,yLane,xLand,Y_BUS);
+    }
+    svg.dot(xLand,Y_BUS);
+    if(up.type===MV_BUSBAR){
+      svg.drop(tx.x,yBus(up),Y_TX_C1-TX_R,protFor(up,tx.id)[1]||"cb");
+      svg.dot(tx.x,yBus(up));
+    } else {
+      svg.line(tx.x,yRmu(up)[1],tx.x,Y_TX_C1-TX_R);
     }
   }
 
