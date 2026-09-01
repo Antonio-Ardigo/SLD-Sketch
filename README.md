@@ -119,6 +119,13 @@ warns instead of drawing, and a duplicate coupler on a pair warns too.
 Regenerate the workbooks with `python make_examples.py`, and the sketches with
 `python sld_sketch.py <workbook> -o <out.svg>`.
 
+**Checking a drawing against its table.** `python sld_check.py <workbook>`
+renders the sheet, reads the SVG back as raw geometry and verifies that every
+item is drawn once and every `Feeds From` edge is a continuous conductor
+between the two symbols; it also reports conductors drawn on top of each
+other and joints the table does not contain. `tests/` holds five demanding
+sites and the current baseline scores.
+
 ## What the symbols mean
 
 IEC-style sketch symbols: MV incomers come in from the top (source tick),
