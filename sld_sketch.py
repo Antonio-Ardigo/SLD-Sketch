@@ -808,6 +808,35 @@ def render(info, items, order, width):
         svg.text(p.x + 4, Y_PUMP + PUMP_R + 14, lbl, size=11,
                  anchor="start", rotate=90)
 
+    # --- LV supply routes ------------------------------------------------
+    # A board fed from several transformers gets one landing point per
+    # supply, and every sideways run its own horizontal lane, so
+    # cross-feeds between different MV boards never sit on one line.
+    ytop_tx = Y_TX_C2 + TX_R
+    routes, elbows = {}, []
+    for tx in txs:
+        if tx.x is None:
+            continue
+        for bb in children_of(items, order, tx.id, {LV_BUSBAR}):
+            sup = [items[p] for p in bb.parents
+                   if items[p].type == TRANSFORMER and items[p].x is not None]
+            if len(sup) < 2:
+                continue                      # single supply: handled below
+            sup.sort(key=lambda t: t.x)
+            i = [t.id for t in sup].index(tx.id)
+            w = bb.x_right - bb.x_left
+            x_land = bb.x_left + w * (i + 0.5) / len(sup)
+            routes[(tx.id, bb.id)] = [x_land, None]
+            if abs(x_land - tx.x) > 1:
+                elbows.append((tx.id, bb.id))
+    elbows.sort(key=lambda k: -abs(routes[k][0] - items[k[0]].x))
+    if elbows:
+        top = ytop_tx + 14
+        step = (min(13.0, ((Y_BUS - 42) - top) / (len(elbows) - 1))
+                if len(elbows) > 1 else 0)
+        for i, k in enumerate(elbows):
+            routes[k][1] = top + step * i
+
     # --- transformers ----------------------------------------------------
     for tx in txs:
         if tx.x is None:
@@ -827,22 +856,21 @@ def render(info, items, order, width):
                 svg.drop(tx.x, Y_MVBUS, Y_TX_C1 - TX_R,
                          prot_for(tx, par.id)[1] or "cb")
                 svg.dot(tx.x, Y_MVBUS)
-        ytop = Y_TX_C2 + TX_R
-        dual = [bb for bb in fed if len(bb.parents) > 1]
-        rest = [bb for bb in fed if len(bb.parents) == 1]
+        ytop = ytop_tx
+        dual = [bb for bb in fed if (tx.id, bb.id) in routes]
+        rest = [bb for bb in fed if (tx.id, bb.id) not in routes]
         for bb in dual:
-            # a board with two incomers: each supply gets its own drop
-            # at its own position, never at the shared board centre
+            # a board with several incomers: each supply drops at its own
+            # landing point, sideways runs on their own lanes
             kind = prot_for(bb, tx.id)[1] or "cb"
-            xc = min(max(tx.x, bb.x_left + 25), bb.x_right - 25)
-            if abs(xc - tx.x) < 1:
+            x_land, y_lane = routes[(tx.id, bb.id)]
+            if y_lane is None:
                 svg.drop(tx.x, ytop, Y_BUS, kind)
-            else:  # supply sits outside the board span: elbow over
-                ysplit = ytop + 32
-                svg.line(tx.x, ytop, tx.x, ysplit)
-                svg.line(tx.x, ysplit, xc, ysplit)
-                svg.drop(xc, ysplit, Y_BUS, kind)
-            svg.dot(xc, Y_BUS)
+            else:
+                svg.line(tx.x, ytop, tx.x, y_lane)
+                svg.line(tx.x, y_lane, x_land, y_lane)
+                svg.drop(x_land, y_lane, Y_BUS, kind)
+            svg.dot(x_land, Y_BUS)
         if len(rest) == 1 and abs(rest[0].x - tx.x) < 1:
             # straight drop to the busbar through the LV incomer device
             svg.drop(tx.x, ytop, Y_BUS,

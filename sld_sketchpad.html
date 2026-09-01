@@ -758,6 +758,33 @@ function render(info, items, order, width, warnings){
              {size:11,anchor:"start",rotate:90});
   }
 
+  /* LV supply routes: a board fed from several transformers gets one
+     landing point per supply, and every sideways run its own lane, so
+     cross-feeds between different MV boards never sit on one line */
+  const ytopTx=Y_TX_C2+TX_R, routes={}, elbows=[];
+  for(const tx of txs){
+    if(tx.x===null) continue;
+    for(const bb of childrenOf(items,order,tx.id,[LV_BUSBAR])){
+      const sup=bb.parents.map(p=>items[p])
+        .filter(p=>p.type===TRANSFORMER && p.x!==null);
+      if(sup.length<2) continue;      /* single supply: handled below */
+      sup.sort((a,b)=>a.x-b.x);
+      const i=sup.map(t=>t.id).indexOf(tx.id);
+      const w=bb.xRight-bb.xLeft;
+      const xLand=bb.xLeft+w*(i+0.5)/sup.length;
+      routes[tx.id+"|"+bb.id]=[xLand,null];
+      if(Math.abs(xLand-tx.x)>1) elbows.push([tx.id,bb.id]);
+    }
+  }
+  elbows.sort((a,b)=>Math.abs(routes[b[0]+"|"+b[1]][0]-items[b[0]].x)
+                    -Math.abs(routes[a[0]+"|"+a[1]][0]-items[a[0]].x));
+  if(elbows.length){
+    const top=ytopTx+14;
+    const step=elbows.length>1
+      ? Math.min(13,((Y_BUS-42)-top)/(elbows.length-1)) : 0;
+    elbows.forEach(([t,b],i)=>{ routes[t+"|"+b][1]=top+step*i; });
+  }
+
   /* transformers */
   for(const tx of txs){
     if(tx.x===null) continue;
@@ -773,23 +800,22 @@ function render(info, items, order, width, warnings){
         svg.dot(tx.x,Y_MVBUS);
       }
     }
-    const ytop=Y_TX_C2+TX_R;
-    const dualFed=fed.filter(bb=>bb.parents.length>1);
-    const rest=fed.filter(bb=>bb.parents.length===1);
+    const ytop=ytopTx;
+    const dualFed=fed.filter(bb=>routes[tx.id+"|"+bb.id]);
+    const rest=fed.filter(bb=>!routes[tx.id+"|"+bb.id]);
     for(const bb of dualFed){
-      /* a board with two incomers: each supply gets its own drop at
-         its own position, never at the shared board centre */
+      /* a board with several incomers: each supply drops at its own
+         landing point, sideways runs on their own lanes */
       const kind=protFor(bb,tx.id)[1]||"cb";
-      const xc=Math.min(Math.max(tx.x,bb.xLeft+25),bb.xRight-25);
-      if(Math.abs(xc-tx.x)<1){
+      const [xLand,yLane]=routes[tx.id+"|"+bb.id];
+      if(yLane===null){
         svg.drop(tx.x,ytop,Y_BUS,kind);
-      } else {  /* supply sits outside the board span: elbow over */
-        const ysplit=ytop+32;
-        svg.line(tx.x,ytop,tx.x,ysplit);
-        svg.line(tx.x,ysplit,xc,ysplit);
-        svg.drop(xc,ysplit,Y_BUS,kind);
+      } else {
+        svg.line(tx.x,ytop,tx.x,yLane);
+        svg.line(tx.x,yLane,xLand,yLane);
+        svg.drop(xLand,yLane,Y_BUS,kind);
       }
-      svg.dot(xc,Y_BUS);
+      svg.dot(xLand,Y_BUS);
     }
     if(rest.length===1 && Math.abs(rest[0].x-tx.x)<1){
       svg.drop(tx.x,ytop,Y_BUS,protFor(rest[0],tx.id)[1]||"cb");
