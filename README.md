@@ -58,6 +58,12 @@ rotation, chosen by how you wire it:
 - **Above the board** — the board's `Feeds From` names the SU, and the SU's
   `Feeds From` is its generator, giving the source-on-top column.
 
+**Motors.** A `Pump` on an MV Busbar or RMU is an MV motor drawn in the
+transformer row. A `Pump` on an **LV Busbar** is an LV motor drawn in the
+feeder band below the board, and a `Pump` fed straight from a **Transformer**
+hangs under that transformer (a dedicated motor supply). An `MCC` belongs on an
+LV Busbar; putting one on MV gear warns.
+
 Either type can also hang off an **RMU**: it takes a proper way inside the
 enclosure, with its device on the tee-off. A generation **LV board** under an
 SU is sized from its own feeders like any other board.

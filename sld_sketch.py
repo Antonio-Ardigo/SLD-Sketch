@@ -237,6 +237,13 @@ def read_workbook(path):
             if up and dn:
                 print(f"warning: '{it.id}' feeds both an MV and an LV board "
                       f"- drawn as a step-up", file=sys.stderr)
+        if it.type == MCC:
+            for p in it.parents:
+                if p in items and items[p].type in (MV_BUSBAR, RMU):
+                    print(f"warning: MCC '{it.id}' feeds from MV gear "
+                          f"'{p}' - an MCC is an LV assembly; add a "
+                          f"transformer and an LV board in between",
+                          file=sys.stderr)
         if it.type == SU_TRANSFORMER:
             up = [c for c in items.values()
                   if it.id in c.parents and c.type in (MV_BUSBAR, RMU)]
@@ -358,8 +365,8 @@ def children_of(items, order, pid, types=None):
 
 
 def place_lv_board(items, order, bb, center_x):
-    """Place an LV busbar (and its feeders/MCCs) centred on center_x."""
-    kids = children_of(items, order, bb.id, {FEEDER, MCC})
+    """Place an LV busbar (and its feeders/MCCs/motors) on center_x."""
+    kids = children_of(items, order, bb.id, {FEEDER, MCC, PUMP})
     width = max(MIN_BUS_WIDTH, len(kids) * FEEDER_SPACING)
     bb.x_left, bb.x_right = center_x - width / 2, center_x + width / 2
     bb.x = center_x
@@ -377,7 +384,7 @@ def slot_width(items, order, item):
         boards = children_of(items, order, item.id, {LV_BUSBAR})
         w = 130
         for bb in boards:
-            kids = children_of(items, order, bb.id, {FEEDER, MCC})
+            kids = children_of(items, order, bb.id, {FEEDER, MCC, PUMP})
             w = max(w, MIN_BUS_WIDTH, len(kids) * FEEDER_SPACING)
         return w
     return 130
@@ -477,6 +484,15 @@ def supplies_of(items, order, board, sus):
             and board.id in [k.id for k in children_of(items, order, i)]]
 
 
+def place_tx_motors(items, order):
+    """A motor fed straight from a transformer hangs under it."""
+    for oid in order:
+        t = items[oid]
+        if t.type == TRANSFORMER and t.x is not None:
+            for m in children_of(items, order, t.id, {PUMP}):
+                m.x = t.x
+
+
 def place_step_ups(items, order):
     """A step-up transformer (and its source) sits above the MV busbar or
     RMU it feeds, beside any utility incomers on that board."""
@@ -543,6 +559,7 @@ def layout_mv_boards(items, order):
     # step-up chains take an incomer position over the board they feed
     place_step_ups(items, order)
     place_su_sources(items, order)
+    place_tx_motors(items, order)
 
     # incomers share the supply spread with any step-up columns
     sus = step_ups(items, order)
@@ -578,7 +595,7 @@ def layout(items, order):
     # 1. busbars left-to-right, width driven by feeder count
     x = MARGIN
     for bb in busbars:
-        feeders = children_of(items, order, bb.id, {FEEDER, MCC})
+        feeders = children_of(items, order, bb.id, {FEEDER, MCC, PUMP})
         width = max(MIN_BUS_WIDTH, len(feeders) * FEEDER_SPACING)
         bb.x_left, bb.x_right = x, x + width
         bb.x = x + width / 2
@@ -588,6 +605,13 @@ def layout(items, order):
                 pad = (width - len(feeders) * FEEDER_SPACING) / 2
                 f.x = bb.x_left + pad + FEEDER_SPACING * (i + 0.5)
         x = bb.x_right + BUS_GAP
+
+    # a transformer feeding only a motor gets its own slot beside the boards
+    for tx in txs:
+        if tx.x is None and not children_of(items, order, tx.id, {LV_BUSBAR}) \
+                and children_of(items, order, tx.id, {PUMP}):
+            tx.x = x + PUMP_SLOT / 2
+            x += PUMP_SLOT + BUS_GAP
 
     # 2. transformers centred over the busbar they feed
     for tx in txs:
@@ -603,6 +627,8 @@ def layout(items, order):
                 tx.x = sum(bb.x for bb in fed) / len(fed)
 
     # 3. RMUs centred over their transformer children
+    place_tx_motors(items, order)
+
     for rmu in rmus:
         # pump ways sit beside the transformer ways, left to right
         pumps_r = children_of(items, order, rmu.id, {PUMP})
@@ -1099,6 +1125,11 @@ def render(info, items, order, width):
     for p in pumps:
         if p.x is None:
             continue
+        # an MV motor sits in the transformer row; a motor fed from an LV
+        # board or its own transformer hangs in the feeder band below it
+        lv_par = [items[q] for q in p.parents
+                  if items[q].type in (LV_BUSBAR, TRANSFORMER)]
+        yc, r = ((Y_ARROW - 14, 14) if lv_par else (Y_PUMP, PUMP_R))
         for par in (items[q] for q in p.parents):
             if par.type == MV_BUSBAR:
                 svg.drop(p.x, y_bus(par), Y_PUMP - PUMP_R,
@@ -1106,12 +1137,18 @@ def render(info, items, order, width):
                 svg.dot(p.x, y_bus(par))
             elif par.type == RMU:   # the way device is inside the enclosure
                 svg.line(p.x, y_rmu(par)[1], p.x, Y_PUMP - PUMP_R)
-        svg.circle(p.x, Y_PUMP, PUMP_R, sw=2.2)
-        svg.text(p.x, Y_PUMP + 1, "M", size=13, bold=True)
-        svg.text(p.x, Y_PUMP + 13, "3~", size=8.5)
+            elif par.type == LV_BUSBAR:          # LV motor off the board
+                svg.dot(p.x, Y_BUS)
+                svg.drop(p.x, Y_BUS, yc - r,
+                         prot_for(p, par.id)[1] or "cb", ydev=Y_FEED_BRK)
+            elif par.type == TRANSFORMER:        # motor on its own transformer
+                svg.drop(p.x, Y_TX_C2 + TX_R, yc - r,
+                         prot_for(p, par.id)[1] or "cb")
+        svg.circle(p.x, yc, r, sw=2.2)
+        svg.text(p.x, yc + 1, "M", size=13 if r > 13 else 11, bold=True)
+        svg.text(p.x, yc + 13 if r > 13 else yc + 11, "3~", size=8.5)
         lbl = " · ".join(v for v in (p.id, p.desc, p.rating) if v)
-        svg.text(p.x + 4, Y_PUMP + PUMP_R + 14, lbl, size=11,
-                 anchor="start", rotate=90)
+        svg.text(p.x + 4, yc + r + 14, lbl, size=11, anchor="start", rotate=90)
 
     # --- LV supply routes ------------------------------------------------
     # A board fed from several transformers gets one landing point per
