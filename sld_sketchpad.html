@@ -273,7 +273,7 @@ function protFor(item, parentId){
 
 /* ------------------------------------------------ geometry constants */
 const MARGIN=90, FEEDER_SPACING=95, BUS_GAP=110, MIN_BUS_WIDTH=170,
-      SLOT_GAP=30, PUMP_SLOT=115,
+      SLOT_GAP=30, PUMP_SLOT=115, TX_LABEL_W=150,
       Y_LABEL=34, Y_MV_TOP=62, Y_RMU_TOP=150, Y_RMU_BOT=268, Y_MVBUS=208,
       PUMP_R=20, TX_R=19, TIER_H=150;
 /* rows below the MV distribution - re-based by setTiers() when MV boards
@@ -517,9 +517,16 @@ function layout(items, order){
     }
   }
   for(const rmu of rmus){
-    const kids=childrenOf(items,order,rmu.id,[TRANSFORMER]);
-    if(kids.length && kids.every(k=>k.x!==null))
-      rmu.x=kids.reduce((a,k)=>a+k.x,0)/kids.length;
+    /* pump ways sit beside the transformer ways, left to right */
+    const pumpsR=childrenOf(items,order,rmu.id,[PUMP]);
+    const txsR=childrenOf(items,order,rmu.id,[TRANSFORMER]);
+    const placed=txsR.filter(k=>k.x!==null).map(k=>k.x);
+    if(pumpsR.length && placed.length){
+      let cursor=Math.max(...placed)+TX_R+TX_LABEL_W+PUMP_SLOT/2;
+      for(const k of pumpsR){ k.x=cursor; cursor+=PUMP_SLOT+SLOT_GAP; }
+    }
+    const kids=txsR.concat(pumpsR).filter(k=>k.x!==null);
+    if(kids.length) rmu.x=kids.reduce((a,k)=>a+k.x,0)/kids.length;
   }
   for(const rmu of rmus){
     if(rmu.x===null){
@@ -760,7 +767,7 @@ function render(info, items, order, width, warnings){
   const rmuBox={};
   for(const rmu of rmus){
     const waysIn=mvs.filter(m=>childrenOf(items,order,m.id).some(k=>k.id===rmu.id));
-    const waysOut=childrenOf(items,order,rmu.id,[TRANSFORMER]);
+    const waysOut=childrenOf(items,order,rmu.id,[TRANSFORMER,PUMP]);
     let xs=waysIn.concat(waysOut).map(w=>w.x).filter(v=>v!==null);
     if(!xs.length) xs=[rmu.x];
     xs=xs.concat((ringEntries[rmu.id]||[]).map(e=>e[0]));
@@ -891,10 +898,8 @@ function render(info, items, order, width, warnings){
       if(par.type===MV_BUSBAR){
         svg.drop(p.x,yBus(par),Y_PUMP-PUMP_R,protFor(p,par.id)[1]||"cb");
         svg.dot(p.x,yBus(par));
-      } else if(par.type===RMU){
-        const kind=protFor(p,par.id)[1];
-        if(kind) svg.drop(p.x,yRmu(par)[1],Y_PUMP-PUMP_R,kind);
-        else svg.line(p.x,yRmu(par)[1],p.x,Y_PUMP-PUMP_R);
+      } else if(par.type===RMU){  /* way device is inside the enclosure */
+        svg.line(p.x,yRmu(par)[1],p.x,Y_PUMP-PUMP_R);
       }
     }
     svg.circle(p.x,Y_PUMP,PUMP_R,2.2);

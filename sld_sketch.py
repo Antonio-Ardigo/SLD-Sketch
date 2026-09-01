@@ -225,6 +225,7 @@ MIN_BUS_WIDTH = 170
 
 SLOT_GAP = 30          # gap between slots on an MV switchboard
 PUMP_SLOT = 115        # slot width of a pump/motor way
+TX_LABEL_W = 150       # room a transformer's label block needs
 
 Y_LABEL = 34           # MV incomer labels
 Y_MV_TOP = 62          # top of the MV incomer stub
@@ -493,8 +494,18 @@ def layout(items, order):
 
     # 3. RMUs centred over their transformer children
     for rmu in rmus:
-        kids = children_of(items, order, rmu.id, {TRANSFORMER})
-        if kids and all(k.x is not None for k in kids):
+        # pump ways sit beside the transformer ways, left to right
+        pumps_r = children_of(items, order, rmu.id, {PUMP})
+        txs_r = children_of(items, order, rmu.id, {TRANSFORMER})
+        placed = [k.x for k in txs_r if k.x is not None]
+        if pumps_r and placed:
+            # clear the last transformer's label block before the first pump
+            cursor = max(placed) + TX_R + TX_LABEL_W + PUMP_SLOT / 2
+            for k in pumps_r:
+                k.x = cursor
+                cursor += PUMP_SLOT + SLOT_GAP
+        kids = [k for k in txs_r + pumps_r if k.x is not None]
+        if kids:
             rmu.x = sum(k.x for k in kids) / len(kids)
     for rmu in rmus:  # cascaded RMU: centre over the RMUs it feeds
         if rmu.x is None:
@@ -822,7 +833,7 @@ def render(info, items, order, width):
     for rmu in rmus:
         ways_in = [m for m in mvs if any(
             rmu.id == k.id for k in children_of(items, order, m.id))]
-        ways_out = children_of(items, order, rmu.id, {TRANSFORMER})
+        ways_out = children_of(items, order, rmu.id, {TRANSFORMER, PUMP})
         xs = [w.x for w in ways_in + ways_out if w.x is not None] or [rmu.x]
         xs = xs + [e[0] for e in ring_entries.get(rmu.id, [])]
         left = min(xs) - pad_l[rmu.id]
@@ -974,12 +985,8 @@ def render(info, items, order, width):
                 svg.drop(p.x, y_bus(par), Y_PUMP - PUMP_R,
                          prot_for(p, par.id)[1] or "cb")
                 svg.dot(p.x, y_bus(par))
-            elif par.type == RMU:
-                kind = prot_for(p, par.id)[1]
-                if kind:
-                    svg.drop(p.x, y_rmu(par)[1], Y_PUMP - PUMP_R, kind)
-                else:
-                    svg.line(p.x, y_rmu(par)[1], p.x, Y_PUMP - PUMP_R)
+            elif par.type == RMU:   # the way device is inside the enclosure
+                svg.line(p.x, y_rmu(par)[1], p.x, Y_PUMP - PUMP_R)
         svg.circle(p.x, Y_PUMP, PUMP_R, sw=2.2)
         svg.text(p.x, Y_PUMP + 1, "M", size=13, bold=True)
         svg.text(p.x, Y_PUMP + 13, "3~", size=8.5)
