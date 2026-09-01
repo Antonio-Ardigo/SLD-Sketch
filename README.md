@@ -35,13 +35,19 @@ diagram's title block.
 | Column | Meaning | Example |
 |---|---|---|
 | ID | Short unique tag you invent | `MV1`, `RMU1`, `TX1`, `BB1`, `F1` |
-| Type | Dropdown: MV Incomer, MV Busbar, RMU, Transformer, Pump, LV Busbar, Feeder, MCC, Bus Coupler | `Transformer` |
+| Type | Dropdown: MV Incomer, Generator, MV Busbar, RMU, Transformer, Pump, LV Busbar, Feeder, MCC, Bus Coupler | `Transformer` |
 | Description | Free text | `Oil-immersed, Dyn11` |
 | Rating | From the nameplate | `1000 kVA`, `630 A` |
 | Voltage | From the nameplate | `11/0.4 kV`, `400 V` |
 | Protection | Device on **this item's supply side**: CB, LBS, Fuse, Fuse-switch, Contactor. Blank = the usual default. Comma list matches Feeds From order. Free text on a busbar (e.g. `87B differential`) is printed as a label annotation | `CB` or `LBS, CB` |
 | Feeds From | ID of the item supplying this one; comma for two supplies | `RMU1` or `BB1, BB2` |
 | Notes | Anything else | `Normally open` |
+
+**Generation and step-up transformers.** A `Generator` feeding an LV board is
+drawn as a G-circle in the transformer row. A transformer that feeds an MV
+Busbar or RMU is a **step-up**: its source (a Generator, an LV Busbar acting as
+a generation board, or an MV Incomer row) is drawn at the top, the transformer
+below it, then down into the MV board beside any utility incomers.
 
 An MV Busbar or RMU can itself feed from another MV Busbar: the fed board or
 RMU is then drawn on its own tier below its source, with the feed through its

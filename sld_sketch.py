@@ -29,6 +29,7 @@ RMU = "rmu"
 MV_BUSBAR = "mv busbar"
 TRANSFORMER = "transformer"
 PUMP = "pump"
+GENERATOR = "generator"
 LV_BUSBAR = "lv busbar"
 FEEDER = "feeder"
 MCC = "mcc"
@@ -47,6 +48,12 @@ TYPE_ALIASES = {
     PUMP: PUMP,
     "motor": PUMP,
     "load": PUMP,
+    GENERATOR: GENERATOR,
+    "gen": GENERATOR,
+    "genset": GENERATOR,
+    "gen set": GENERATOR,
+    "dg": GENERATOR,
+    "alternator": GENERATOR,
     MCC: MCC,
     "motor control centre": MCC,
     "motor control center": MCC,
@@ -213,6 +220,20 @@ def read_workbook(path):
                           f"'{raw}', the default symbol is drawn",
                           file=sys.stderr)
 
+    for it in items.values():
+        if it.type == TRANSFORMER:
+            up = [c for c in items.values()
+                  if it.id in c.parents and c.type in (MV_BUSBAR, RMU)]
+            dn = [c for c in items.values()
+                  if it.id in c.parents and c.type == LV_BUSBAR]
+            if up and dn:
+                print(f"warning: '{it.id}' feeds both an MV and an LV board "
+                      f"- drawn as a step-up", file=sys.stderr)
+        if it.type == GENERATOR and not any(it.id in c.parents
+                                            for c in items.values()):
+            print(f"warning: generator '{it.id}' feeds nothing",
+                  file=sys.stderr)
+
     return info, items, order
 
 
@@ -236,6 +257,11 @@ PUMP_R = 20
 TX_R = 19
 LEGEND_H = 100         # symbol legend strip below the drawing
 TIER_H = 150           # vertical pitch of a cascaded MV level
+STEPUP_H = 170         # headroom above the MV rows for a step-up column
+STEPUP_SHIFT = 0       # set per drawing by set_tiers()
+Y_GEN = 96             # generation source symbol, step-up column
+Y_SU_C1 = 196          # step-up transformer, upper circle
+Y_SU_C2 = Y_SU_C1 + 27
 
 # rows below the MV distribution - re-based by set_tiers() when MV boards
 # or RMUs are fed from another MV board
@@ -249,10 +275,13 @@ Y_FEED_LBL = 592
 DIAG_H = 780
 
 
-def set_tiers(extra):
-    """Push the transformer/LV rows down by `extra` px."""
+def set_tiers(extra, top=0):
+    """Push the transformer/LV rows down by `extra` px; `top` is extra
+    headroom above the MV rows for a step-up column."""
     global Y_PUMP, Y_TX_C1, Y_TX_C2, Y_BUS, Y_FEED_BRK, Y_ARROW
-    global Y_FEED_LBL, DIAG_H
+    global Y_FEED_LBL, DIAG_H, STEPUP_SHIFT
+    STEPUP_SHIFT = top
+    extra = extra + top
     Y_PUMP = 352 + extra
     Y_TX_C1 = 342 + extra
     Y_TX_C2 = Y_TX_C1 + 27
@@ -261,6 +290,21 @@ def set_tiers(extra):
     Y_ARROW = 574 + extra
     Y_FEED_LBL = 592 + extra
     DIAG_H = 780 + extra
+
+
+def step_ups(items, order):
+    """Transformers that feed an MV busbar or RMU (step-up), mapped to
+    the source row that feeds them."""
+    out = {}
+    for oid in order:
+        tx = items[oid]
+        if tx.type != TRANSFORMER:
+            continue
+        if not children_of(items, order, tx.id, {MV_BUSBAR, RMU}):
+            continue
+        src = next((items[p] for p in tx.parents), None)
+        out[tx.id] = src
+    return out
 
 
 def mv_depth(items, order):
@@ -311,7 +355,7 @@ def slot_width(items, order, item):
     """Width needed under one way of an MV switchboard."""
     if item.type == PUMP:
         return PUMP_SLOT
-    if item.type == TRANSFORMER:
+    if item.type in (TRANSFORMER, GENERATOR):
         boards = children_of(items, order, item.id, {LV_BUSBAR})
         w = 130
         for bb in boards:
@@ -408,6 +452,33 @@ def place_own(items, order, node, left, width, depth=None):
         cursor += w + SLOT_GAP
 
 
+def supplies_of(items, order, board, sus):
+    """Everything feeding a board: utility incomers and step-up columns."""
+    return [items[i] for i in order
+            if (items[i].type == MV_INCOMER or i in sus)
+            and board.id in [k.id for k in children_of(items, order, i)]]
+
+
+def place_step_ups(items, order):
+    """A step-up transformer (and its source) sits above the MV busbar or
+    RMU it feeds, beside any utility incomers on that board."""
+    sus = step_ups(items, order)
+    for tx_id, src in sus.items():
+        tx = items[tx_id]
+        fed = children_of(items, order, tx_id, {MV_BUSBAR, RMU})
+        anchor = next((f for f in fed if f.x is not None), None)
+        if anchor is None:
+            continue
+        peers = supplies_of(items, order, anchor, sus)
+        n = max(1, len(peers))
+        k = peers.index(tx) if tx in peers else 0
+        tx.x = anchor.x + (k - (n - 1) / 2) * 90
+        if src is not None:
+            src.x = tx.x
+            if src.type == LV_BUSBAR:
+                src.x_left, src.x_right = tx.x - 85, tx.x + 85
+
+
 def layout_mv_boards(items, order):
     """Layout when the site has MV switchboards (MV Busbar rows)."""
     mvbs = [items[i] for i in order if items[i].type == MV_BUSBAR]
@@ -434,14 +505,17 @@ def layout_mv_boards(items, order):
         if pxs:
             place_lv_board(items, order, bb, sum(pxs) / len(pxs))
 
-    # incomers centred over the board(s) they feed
+    # step-up chains take an incomer position over the board they feed
+    place_step_ups(items, order)
+
+    # incomers share the supply spread with any step-up columns
+    sus = step_ups(items, order)
     for m in mvs:
         for mvb in mvbs:
-            feeds = [i for i in mvs if any(
-                mvb.id == k.id for k in children_of(items, order, i.id))]
+            feeds = supplies_of(items, order, mvb, sus)
             if m in feeds:
                 n = len(feeds)
-                m.x = mvb.x + (feeds.index(m) - (n - 1) / 2) * 80
+                m.x = mvb.x + (feeds.index(m) - (n - 1) / 2) * 90
                 break
 
     # anything left over (e.g. an RMU branch mixed in) goes after the boards
@@ -727,7 +801,7 @@ LEGEND_ITEMS = [
     ("cb", "Circuit breaker"), ("lbs", "Load-break switch"),
     ("fuse", "Fuse"), ("fuse-switch", "Fuse-switch"),
     ("contactor", "Contactor"), ("fuse-contactor", "Fused contactor"),
-    ("tx", "Transformer"), ("pump", "Pump/motor"), ("bus", "Busbar"),
+    ("tx", "Transformer"), ("gen", "Generator"), ("pump", "Pump/motor"), ("bus", "Busbar"),
     ("mcc", "MCC"), ("feeder", "Feeder"), ("rmu", "RMU enclosure"),
 ]
 
@@ -750,6 +824,9 @@ def draw_legend(svg):
         elif kind == "tx":
             svg.circle(cx, yc - 5, 8)
             svg.circle(cx, yc + 5, 8)
+        elif kind == "gen":
+            svg.circle(cx, yc, 9)
+            svg.text(cx, yc + 3.5, "G", size=9, bold=True)
         elif kind == "pump":
             svg.circle(cx, yc, 9)
             svg.text(cx, yc + 3.5, "M", size=9, bold=True)
@@ -772,17 +849,19 @@ def draw_legend(svg):
 def render(info, items, order, width):
     svg = SVG()
     depth = mv_depth(items, order)
-    set_tiers(max(depth.values(), default=0) * TIER_H)
+    sus = step_ups(items, order)
+    set_tiers(max(depth.values(), default=0) * TIER_H,
+              STEPUP_H if sus else 0)
 
     def dy(it):                       # vertical offset of an MV level
         return depth.get(it.id, 0) * TIER_H
 
     def y_rmu(r):                     # (top, bottom, bus) of an RMU box
-        o = dy(r)
+        o = dy(r) + STEPUP_SHIFT
         return Y_RMU_TOP + o, Y_RMU_BOT + o, (Y_RMU_TOP + Y_RMU_BOT) / 2 + o
 
     def y_bus(b):                     # busbar level of an MV board
-        return Y_MVBUS + dy(b)
+        return Y_MVBUS + dy(b) + STEPUP_SHIFT
     busbars = [items[i] for i in order if items[i].type == LV_BUSBAR]
     mvbs = [items[i] for i in order if items[i].type == MV_BUSBAR]
     rmus = [items[i] for i in order if items[i].type == RMU]
@@ -1023,9 +1102,73 @@ def render(info, items, order, width):
         for i, k in enumerate(elbows):
             routes[k][1] = top + step * i
 
+    # --- generation sources feeding an LV board directly -----------------
+    for g in (items[i] for i in order if items[i].type == GENERATOR):
+        if g.x is None or g.id in [s.id for s in sus.values() if s]:
+            continue                  # step-up sources are drawn below
+        svg.circle(g.x, Y_TX_C1 + 13, 20, sw=2.2)
+        svg.text(g.x, Y_TX_C1 + 17, "G", size=13, bold=True)
+        lbl = [g.id, g.desc, " ".join(v for v in (g.rating, g.voltage) if v)]
+        ty = Y_TX_C1 - 6
+        for t in [t for t in lbl if t]:
+            svg.text(g.x + 30, ty, t, anchor="start")
+            ty += 15
+        for bb in children_of(items, order, g.id, {LV_BUSBAR}):
+            svg.drop(g.x, Y_TX_C1 + 33, Y_BUS, prot_for(bb, g.id)[1] or "cb")
+            svg.dot(g.x, Y_BUS)
+
+    # --- step-up columns: source -> transformer -> MV busbar / RMU -------
+    for tx_id, src in sus.items():
+        tx = items[tx_id]
+        if tx.x is None:
+            continue
+        # the source symbol at the top of the column
+        y_src_bot = Y_GEN + 20
+        if src is None:
+            y_src_bot = Y_GEN
+        elif src.type == GENERATOR:
+            svg.circle(tx.x, Y_GEN, 20, sw=2.2)
+            svg.text(tx.x, Y_GEN + 4, "G", size=13, bold=True)
+            lbl = [src.id, src.desc,
+                   " ".join(v for v in (src.rating, src.voltage) if v)]
+            ty = Y_GEN - 26
+            for t in [t for t in lbl if t]:
+                svg.text(tx.x + 30, ty, t, size=11, anchor="start")
+                ty += 14
+        elif src.type == LV_BUSBAR:   # a generation board
+            svg.line(tx.x - 60, Y_GEN, tx.x + 60, Y_GEN, w=5.5)
+            svg.text(tx.x - 60, Y_GEN - 12,
+                     " ".join(v for v in (src.id, src.desc, src.rating,
+                                          src.voltage) if v),
+                     size=11.5, anchor="start", bold=True)
+            y_src_bot = Y_GEN
+        else:                          # an incomer row used as the source
+            svg.line(tx.x - 11, Y_GEN, tx.x + 11, Y_GEN, w=3)
+            lbl = [src.id, src.desc, src.voltage]
+            ty = Y_GEN - 40
+            for i, t in enumerate([t for t in lbl if t]):
+                svg.text(tx.x, ty, t, size=11.5, bold=(i == 0))
+                ty += 14
+            y_src_bot = Y_GEN
+        svg.line(tx.x, y_src_bot, tx.x, Y_SU_C1 - TX_R)
+        svg.circle(tx.x, Y_SU_C1, TX_R, sw=2.2)
+        svg.circle(tx.x, Y_SU_C2, TX_R, sw=2.2)
+        lbl = [tx.id, tx.desc,
+               " ".join(v for v in (tx.rating, tx.voltage) if v)]
+        ty = Y_SU_C1 - 6
+        for t in [t for t in lbl if t]:
+            svg.text(tx.x + TX_R + 10, ty, t, anchor="start")
+            ty += 15
+        for fed in children_of(items, order, tx_id, {MV_BUSBAR, RMU}):
+            y_to = y_bus(fed) if fed.type == MV_BUSBAR else y_rmu(fed)[0]
+            svg.drop(tx.x, Y_SU_C2 + TX_R, y_to,
+                     prot_for(fed, tx_id)[1] or "cb")
+            if fed.type == MV_BUSBAR:
+                svg.dot(tx.x, y_to)
+
     # --- transformers ----------------------------------------------------
     for tx in txs:
-        if tx.x is None:
+        if tx.x is None or tx.id in sus:
             continue
         fed = children_of(items, order, tx.id, {LV_BUSBAR})
         lbl = [tx.id, tx.desc,
