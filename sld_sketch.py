@@ -229,7 +229,7 @@ def read_workbook(path):
                           file=sys.stderr)
 
     for it in items.values():
-        if it.type == TRANSFORMER:
+        if it.type in (TRANSFORMER, SU_TRANSFORMER):
             up = [c for c in items.values()
                   if it.id in c.parents and c.type in (MV_BUSBAR, RMU)]
             dn = [c for c in items.values()
@@ -237,6 +237,9 @@ def read_workbook(path):
             if up and dn:
                 print(f"warning: '{it.id}' feeds both an MV and an LV board "
                       f"- drawn as a step-up", file=sys.stderr)
+        if it.type in (TRANSFORMER, SU_TRANSFORMER) and not it.parents:
+            print(f"warning: '{it.id}' has no Feeds From - drawn with an "
+                  f"open supply terminal", file=sys.stderr)
         if it.type == MCC:
             for p in it.parents:
                 if p in items and items[p].type in (MV_BUSBAR, RMU):
@@ -432,6 +435,63 @@ def place_lv_board(items, order, bb, center_x):
     return width
 
 
+def right_edge(items, x):
+    """The cursor to carry on from: past every bar already placed."""
+    return max([x] + [b.x_right for b in items.values()
+                      if b.type in (LV_BUSBAR, MV_BUSBAR)
+                      and b.x_right is not None])
+
+
+def place_board_row(items, order, boards, x):
+    """Place LV boards side by side from x, each sized by its feeders."""
+    cur = x + BUS_GAP
+    for bb in boards:
+        kids = children_of(items, order, bb.id, {FEEDER, MCC, PUMP})
+        w = max(MIN_BUS_WIDTH, len(kids) * FEEDER_SPACING)
+        place_lv_board(items, order, bb, cur + w / 2)
+        cur += w + BUS_GAP
+    return x + BUS_GAP, cur
+
+
+def place_loose_boards(items, order, x):
+    """Transformers and LV boards no other pass claimed - an entry whose
+    supply is not filled in yet.  They still get a proper bar with their
+    feeders under it, rather than a bare stub in the leftover row."""
+    for oid in order:
+        tx = items[oid]
+        if tx.type not in (TRANSFORMER, SU_TRANSFORMER) or tx.x is not None:
+            continue
+        todo = [b for b in children_of(items, order, tx.id, {LV_BUSBAR})
+                if b.x is None]
+        if not todo:
+            continue
+        left, cur = place_board_row(items, order, todo,
+                                    right_edge(items, x))
+        tx.x = (left + cur - BUS_GAP) / 2
+        x = cur
+    loose = [items[i] for i in order
+             if items[i].type == LV_BUSBAR and items[i].x is None]
+    if loose:
+        _, x = place_board_row(items, order, loose, right_edge(items, x))
+    for oid in order:                 # a generator feeding an LV board
+        g = items[oid]                # stands over that board's bar
+        if g.type != GENERATOR or g.x is not None:
+            continue
+        fed = [b for b in children_of(items, order, g.id, {LV_BUSBAR})
+               if b.x_left is not None]
+        if not fed:
+            continue
+        bb = fed[0]
+        sup = [items[i] for i in order
+               if items[i].type in (TRANSFORMER, SU_TRANSFORMER, GENERATOR)
+               and bb.id in [k.id for k in children_of(items, order, i)]]
+        n = max(1, len(sup))
+        k = sup.index(g) if g in sup else 0
+        g.x = (bb.x if n == 1
+               else bb.x_left + (bb.x_right - bb.x_left) * (k + 0.5) / n)
+    return x
+
+
 def place_lv_subs(items, order, x):
     """Place LV/LV transformers and the boards they feed, left to right."""
     for tx_id, (src, fed) in lv_subs(items, order).items():
@@ -441,16 +501,8 @@ def place_lv_subs(items, order, x):
                 xs = [b.x for b in fed if b.x is not None]
                 items[tx_id].x = sum(xs) / len(xs)
             continue
-        x = max([x] + [b.x_right for b in items.values()
-                       if b.type in (LV_BUSBAR, MV_BUSBAR)
-                       and b.x_right is not None])
-        left = x + BUS_GAP
-        cur = left
-        for bb in todo:
-            kids = children_of(items, order, bb.id, {FEEDER, MCC, PUMP})
-            w = max(MIN_BUS_WIDTH, len(kids) * FEEDER_SPACING)
-            place_lv_board(items, order, bb, cur + w / 2)
-            cur += w + BUS_GAP
+        left, cur = place_board_row(items, order, todo,
+                                    right_edge(items, x))
         if items[tx_id].x is None:
             items[tx_id].x = (left + cur - BUS_GAP) / 2
         x = cur
@@ -682,6 +734,8 @@ def layout_mv_boards(items, order):
 
     x = place_su_mid(items, order, x)
 
+    x = place_loose_boards(items, order, x)
+
     # anything left over (e.g. an RMU branch mixed in) goes after the boards
     for oid in order:
         it = items[oid]
@@ -779,6 +833,7 @@ def layout(items, order):
 
     x = place_su_mid(items, order, x)
     x = place_lv_subs(items, order, x)
+    x = place_loose_boards(items, order, x)
 
     # 5. anything still unplaced goes in a row after the busbars
     for oid in order:
@@ -966,6 +1021,12 @@ class SVG:
             else:
                 self.text(x + TX_R + 10, ty, s, anchor="start")
             ty += 15
+
+    def open_end(self, x, y_from, y_to, note):
+        """An unterminated conductor: a stub to an open terminal bar."""
+        self.line(x, y_from, x, y_to)
+        self.line(x - 12, y_to, x + 12, y_to)
+        self.text(x, y_to - 8 if y_to < y_from else y_to + 18, note, size=9)
 
     def arrow_down(self, x, ytip):
         self.poly([(x - 6, ytip - 11), (x + 6, ytip - 11), (x, ytip)])
@@ -1413,10 +1474,8 @@ def render(info, items, order, width):
         svg.dot(x_land, Y_BUS)
         # up to the MV board / RMU it feeds
         if up is None:                # outgoing board not entered yet
-            y_open = Y_TX_C1 - TX_R - 36
-            svg.line(tx.x, Y_TX_C1 - TX_R, tx.x, y_open)
-            svg.line(tx.x - 12, y_open, tx.x + 12, y_open)
-            svg.text(tx.x, y_open - 8, "outgoing not defined", size=9)
+            svg.open_end(tx.x, Y_TX_C1 - TX_R, Y_TX_C1 - TX_R - 36,
+                         "outgoing not defined")
         elif up.type == MV_BUSBAR:
             svg.drop(tx.x, y_bus(up), Y_TX_C1 - TX_R,
                      prot_for(up, tx.id)[1] or "cb")
@@ -1505,6 +1564,13 @@ def render(info, items, order, width):
                 svg.line(x_land, y_lane, tx.x, y_lane)
                 svg.line(tx.x, y_lane, tx.x, Y_TX_C1 - TX_R)
                 svg.dot(x_land, Y_BUS)
+        if not any(items[p].type in (RMU, MV_BUSBAR, LV_BUSBAR)
+                   and items[p].x is not None for p in tx.parents):
+            svg.open_end(tx.x, Y_TX_C1 - TX_R, Y_TX_C1 - TX_R - 36,
+                         "supply not defined")
+        if not fed and not children_of(items, order, tx.id, {PUMP}):
+            svg.open_end(tx.x, Y_TX_C2 + TX_R, Y_TX_C2 + TX_R + 36,
+                         "outgoing not defined")
         ytop = ytop_tx
         dual = [bb for bb in fed if (tx.id, bb.id) in routes]
         rest = [bb for bb in fed if (tx.id, bb.id) not in routes]

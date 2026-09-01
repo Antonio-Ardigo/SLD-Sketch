@@ -67,6 +67,12 @@ the SU named on the fed board's row. Until you do that the SU still draws —
 hanging off its LV board with an **open outgoing terminal** marked "outgoing
 not defined" — and a warning tells you which row to add it to.
 
+**A half-filled row still draws.** A transformer whose supply or whose load
+you have not entered yet is drawn where it belongs, with an **open terminal**
+on the missing side ("supply not defined" / "outgoing not defined") and a
+warning saying so — rather than floating unconnected or vanishing. The board
+under such a transformer still gets a bar sized from its own feeders.
+
 An SU (or an ordinary `Transformer`) can also feed an **LV Busbar**: a 400/690 V
 unit for drives, say. Fed from one LV board and feeding another, it is drawn in
 the transformer row between the two, its supply taken from the parent board's
