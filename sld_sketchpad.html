@@ -2707,15 +2707,32 @@ function currentDxf(){
 function dxfName(){
   return ((state.info.site||"sld-sketch").replace(/[^\w.-]+/g,"_").replace(/^_+|_+$/g,"")||"sld-sketch")+".dxf";
 }
-$("#dxf").addEventListener("click",()=>{
+$("#dxf").addEventListener("click",async ()=>{
   const out=$("#copystate"), text=currentDxf();
   if(!text){ out.textContent="Nothing to export yet — fix the table first."; return; }
+  const say=(m,keep)=>{ out.textContent=m; if(!keep) setTimeout(()=>{ out.textContent=""; },8000); };
+  /* inside the claude.ai viewer a page cannot download by itself: the
+     viewer's save prompt does it, when it can; opened as a file, the
+     browser's own download does */
+  const dl=(window.claude && typeof window.claude.use==="function")
+    ? await window.claude.use("downloads") : null;
+  if(dl){
+    try{
+      await dl.save({filename:dxfName(), data:text});
+      say(`${dxfName()} saved — R12 DXF, sketch and equipment table, 1 unit = 1 mm.`);
+    }catch(e){
+      const code=e && e.code;
+      if(code==="declined") say("Save cancelled.");
+      else if(code==="rate_limited") say("A save prompt is already open — answer it first.");
+      else say("This viewer cannot save .dxf files — use Copy DXF and paste into a file named .dxf, or run sld_sketch.py --dxf.",true);
+    }
+    return;
+  }
   const url=URL.createObjectURL(new Blob([text],{type:"application/dxf"}));
   const a=document.createElement("a"); a.href=url; a.download=dxfName();
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),2000);
-  out.textContent=`${dxfName()} — R12 DXF, sketch and equipment table, 1 unit = 1 mm.`;
-  setTimeout(()=>{ out.textContent=""; },6000);
+  say(`${dxfName()} — R12 DXF, sketch and equipment table, 1 unit = 1 mm.`);
 });
 $("#copydxf").addEventListener("click",async ()=>{
   const out=$("#copystate"), text=currentDxf();
