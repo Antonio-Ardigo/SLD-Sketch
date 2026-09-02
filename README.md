@@ -192,7 +192,11 @@ sorted onto layers so a CAD user can switch parts off: `SLD_DRAWING`
 width), `SLD_TEXT`, `SLD_ENCLOSURE` (RMU boxes, dashed), `SLD_FRAME` (title
 and title block), `SLD_LEGEND` and `SLD_TABLE`. The Sketchpad page has the
 same exporter behind its **Download DXF** button, and **Copy DXF** puts the
-file text on the clipboard for places where downloads are blocked.
+file text on the clipboard for places where downloads are blocked. CAD text
+is set with a width factor that keeps it no wider than the browser's, long
+table cells wrap, and `python sld_dxf.py <workbook> --check` reads the file
+back and reports any text that overlaps another text or crosses a table
+rule (none on any workbook in the repository).
 
 **Checking a drawing against its table.** `python sld_check.py <workbook>`
 renders the sheet, reads the SVG back as raw geometry and verifies that every
@@ -212,7 +216,9 @@ a circle with an "M 3~", MCCs are small labelled boxes, and the switch symbol
 with an × at its hinge is a circuit breaker (every way on an MV switchboard
 gets one). Feeders drop off a busbar
 and end in an arrow; a Bus Coupler between two busbars is drawn as a breaker in
-the gap, with its Notes text (e.g. "Normally open") underneath. A capacitor
+the gap, with its Notes text (e.g. "Normally open") underneath. The legend
+folds into as many rows as the sheet width allows, and the sheet grows so
+the longest feeder label never reaches the title line. A capacitor
 bank is the two plates to earth, a neutral earthing resistor the box to
 earth, a surge arrester the box with the arrow inside, to earth; the legend
 gains these entries only on sheets that use them.

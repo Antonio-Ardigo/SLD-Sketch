@@ -17,6 +17,7 @@ Only dependency: openpyxl.
 """
 
 import argparse
+import math
 import re
 import sys
 from xml.sax.saxutils import escape
@@ -383,6 +384,46 @@ Y_FEED_LBL = 592
 DIAG_H = 780
 LV_SUB_H = 200         # pitch of an LV sub-board row below its supply board
 SUB_PAD = 20           # clearance each side of a sub-board inside its slot
+
+
+LABEL_CHAR = 6.6       # width of one character of an 11 px rotated label
+
+
+def extend_sheet(extra):
+    """Push the title and the sheet bottom down by `extra` px so the
+    longest downward label clears them; the rows above stay put."""
+    global DIAG_H
+    DIAG_H += extra
+
+
+def label_clearance(items, order, lv_y):
+    """How much the sheet must grow so no rotated way label reaches the
+    title line (the title sits 42 px above DIAG_H, plus a 24 px gap)."""
+    end = 0
+    for oid in order:
+        f = items[oid]
+        if f.x is None or not f.parents:
+            continue
+        par = items[f.parents[0]]
+        if f.type in (FEEDER, MCC) + TERMINALS:
+            lbl = " · ".join(v for v in (f.id, f.desc, f.rating) if v)
+            h = {CAPACITOR: 24, EARTHING: 46, ARRESTER: 44}.get(f.type)
+            if par.type in (MV_BUSBAR, RMU):
+                y0 = Y_PUMP + 14 if h is None else Y_PUMP - 24 + h + 12
+            elif par.type == LV_BUSBAR:
+                if f.type == FEEDER and sub_boards_of(items, order, f):
+                    continue          # written beside the way, not down
+                yb = lv_y(par)
+                y0 = yb + 106 if h is None else yb + 64 + h + 12
+            else:
+                continue
+        elif f.type == PUMP and par.type == LV_BUSBAR:
+            lbl = " · ".join(v for v in (f.id, f.desc, f.rating) if v)
+            y0 = lv_y(par) + 102
+        else:
+            continue
+        end = max(end, y0 + len(lbl) * LABEL_CHAR)
+    return max(0, math.ceil(end + 24 - (DIAG_H - 42)))
 
 
 def alloc_lanes(runs, slots):
@@ -1485,16 +1526,33 @@ EXTRA_LEGEND = [(CAPACITOR, "Capacitor bank"), (EARTHING, "Earthing/NER"),
                 (ARRESTER, "Surge arrester")]
 
 
-def draw_legend(svg, extra=()):
-    cell = 68
+LEGEND_CELL = 68
+LEGEND_ROW_H = 60      # pitch of a second legend row on a narrow sheet
+
+
+def legend_entries(extra=()):
+    return LEGEND_ITEMS + [e for e in EXTRA_LEGEND if e[0] in extra]
+
+
+def legend_rows(width, n):
+    """(cells per row, rows) so the legend fits the sheet width."""
+    per_row = max(1, int((width - 48 - 16) // LEGEND_CELL))
+    return per_row, max(1, -(-n // per_row))
+
+
+def draw_legend(svg, extra=(), width=1e9):
+    cell = LEGEND_CELL
     x0, y0 = 24, DIAG_H + 6
-    entries = LEGEND_ITEMS + [e for e in EXTRA_LEGEND if e[0] in extra]
-    svg.rect(x0, y0, 16 + cell * len(entries), 82, sw=1.2)
+    entries = legend_entries(extra)
+    per_row, rows = legend_rows(width, len(entries))
+    svg.rect(x0, y0, 16 + cell * min(len(entries), per_row),
+             82 + LEGEND_ROW_H * (rows - 1), sw=1.2)
     svg.text(x0 + 8, y0 + 14, "LEGEND", size=10, anchor="start", bold=True)
-    ytop, ybot = y0 + 22, y0 + 52
-    yc = (ytop + ybot) / 2
     for i, (kind, label) in enumerate(entries):
-        cx = x0 + 8 + cell * i + cell / 2
+        ytop = y0 + 22 + LEGEND_ROW_H * (i // per_row)
+        ybot = ytop + 30
+        yc = (ytop + ybot) / 2
+        cx = x0 + 8 + cell * (i % per_row) + cell / 2
         if kind in ("cb", "fuse", "contactor", "fuse-contactor"):
             svg.drop(cx, ytop, ybot, kind)
         elif kind == "lbs":
@@ -1534,7 +1592,7 @@ def draw_legend(svg, extra=()):
             svg.line(cx + 3, ytop + 11, cx, ytop + 15)
             svg.line(cx, ytop + 18, cx, ytop + 22)
             svg.earth(cx, ytop + 22)
-        ty = y0 + 64
+        ty = ybot + 12
         for s in (label.split(" ", 1) if len(label) > 11 else [label]):
             svg.text(cx, ty, s, size=9)
             ty += 10
@@ -1563,6 +1621,8 @@ def render(info, items, order, width, canvas=None):
 
     def lv_y(bb):                     # bar level of an LV board / sub-board
         return Y_BUS + LV_SUB_H * lv_level(items, bb)
+
+    extend_sheet(label_clearance(items, order, lv_y))
 
     def no_toward(owner, other):      # owner's Notes: N.O. on the way to other
         return "no" in state_words(owner) and \
@@ -2524,10 +2584,11 @@ def render(info, items, order, width, canvas=None):
     if any(earth_below(items, items[i]) for i in order):
         used.add(EARTHING)
     svg.layer = "legend"
-    draw_legend(svg, used)
+    draw_legend(svg, used, width)
     svg.layer = "drawing"
 
-    return svg.document(width, DIAG_H + LEGEND_H)
+    _, rows = legend_rows(width, len(legend_entries(used)))
+    return svg.document(width, DIAG_H + LEGEND_H + LEGEND_ROW_H * (rows - 1))
 
 
 # ---------------------------------------------------------------- main

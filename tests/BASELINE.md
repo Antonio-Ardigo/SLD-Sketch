@@ -19,8 +19,8 @@ change and diff against this file; the History table records each step.
 ## The six shipped examples
 
 All clean: every item drawn once, every edge connected, no overlaps, no
-false nets. (`off-sheet 2` on the narrow sheets is the fixed-width legend
-overflowing an 870 px drawing.)
+false nets, nothing off the sheet (the legend now wraps on narrow sheets,
+and the sheet grows so downward feeder labels clear the title line).
 
 ## History
 

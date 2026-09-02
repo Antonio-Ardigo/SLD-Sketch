@@ -376,6 +376,33 @@ let STEPUP_SHIFT=0;
    or RMUs are fed from another MV board */
 let Y_PUMP=352, Y_TX_C1=342, Y_TX_C2=Y_TX_C1+27, Y_BUS=486,
     Y_FEED_BRK=516, Y_ARROW=574, Y_FEED_LBL=592, DIAG_H=780;
+const LABEL_CHAR=6.6;      /* width of one character of an 11 px rotated label */
+function extendSheet(extra){ DIAG_H+=extra; }  /* title and bottom move, rows stay */
+function labelClearance(items, order, lvY){
+  /* how much the sheet must grow so no rotated way label reaches the
+     title line (42 px above DIAG_H, plus a 24 px gap) */
+  let end=0;
+  for(const oid of order){
+    const f=items[oid];
+    if(f.x===null || !f.parents.length) continue;
+    const par=items[f.parents[0]];
+    let lbl, y0;
+    if([FEEDER,MCC].concat(TERMINALS).includes(f.type)){
+      lbl=[f.id,f.desc,f.rating].filter(Boolean).join(" · ");
+      const h={[CAPACITOR]:24,[EARTHING]:46,[ARRESTER]:44}[f.type];
+      if([MV_BUSBAR,RMU].includes(par.type)) y0=(h===undefined)?Y_PUMP+14:Y_PUMP-24+h+12;
+      else if(par.type===LV_BUSBAR){
+        if(f.type===FEEDER && subBoardsOf(items,order,f).length) continue;
+        const yb=lvY(par); y0=(h===undefined)?yb+106:yb+64+h+12;
+      } else continue;
+    } else if(f.type===PUMP && par.type===LV_BUSBAR){
+      lbl=[f.id,f.desc,f.rating].filter(Boolean).join(" · ");
+      y0=lvY(par)+102;
+    } else continue;
+    end=Math.max(end,y0+lbl.length*LABEL_CHAR);
+  }
+  return Math.max(0,Math.ceil(end+24-(DIAG_H-42)));
+}
 function allocLanes(runs, slots){
   /* every sideways run its own lane, longest first so nested elbows never
      cross; runs that do not overlap in x may share one. runs: [[key,x0,x1]].
@@ -1323,14 +1350,24 @@ const LEGEND_ITEMS=[
 ];
 const EXTRA_LEGEND=[[CAPACITOR,"Capacitor bank"],[EARTHING,"Earthing/NER"],
                     [ARRESTER,"Surge arrester"]];
-function drawLegend(svg, extra){
-  const cell=68, x0=24, y0=DIAG_H+6;
-  const entries=LEGEND_ITEMS.concat(EXTRA_LEGEND.filter(e=>extra && extra.has(e[0])));
-  svg.rect(x0,y0,16+cell*entries.length,82,1.2);
+const LEGEND_CELL=68, LEGEND_ROW_H=60;   /* a second row on a narrow sheet */
+function legendEntries(extra){
+  return LEGEND_ITEMS.concat(EXTRA_LEGEND.filter(e=>extra && extra.has(e[0])));
+}
+function legendRows(width, n){
+  /* [cells per row, rows] so the legend fits the sheet width */
+  const perRow=Math.max(1,Math.floor((width-48-16)/LEGEND_CELL));
+  return [perRow, Math.max(1,Math.ceil(n/perRow))];
+}
+function drawLegend(svg, extra, width){
+  const cell=LEGEND_CELL, x0=24, y0=DIAG_H+6;
+  const entries=legendEntries(extra);
+  const [perRow,rows]=legendRows(width===undefined?1e9:width,entries.length);
+  svg.rect(x0,y0,16+cell*Math.min(entries.length,perRow),82+LEGEND_ROW_H*(rows-1),1.2);
   svg.text(x0+8,y0+14,"LEGEND",{size:10,anchor:"start",bold:true});
-  const ytop=y0+22, ybot=y0+52, yc=(ytop+ybot)/2;
   entries.forEach(([kind,label],i)=>{
-    const cx=x0+8+cell*i+cell/2;
+    const ytop=y0+22+LEGEND_ROW_H*Math.floor(i/perRow), ybot=ytop+30, yc=(ytop+ybot)/2;
+    const cx=x0+8+cell*(i%perRow)+cell/2;
     if(["cb","fuse","contactor","fuse-contactor"].includes(kind)) svg.drop(cx,ytop,ybot,kind);
     else if(kind==="lbs") svg.lbs(cx,ytop,ybot);
     else if(kind==="fuse-switch") svg.fuseSwitch(cx,ytop,ybot);
@@ -1350,7 +1387,7 @@ function drawLegend(svg, extra){
       svg.line(cx-3,ytop+11,cx,ytop+15); svg.line(cx+3,ytop+11,cx,ytop+15);
       svg.line(cx,ytop+18,cx,ytop+22); svg.earth(cx,ytop+22);
     }
-    let ty=y0+64;
+    let ty=ybot+12;
     for(const s of (label.length>11?label.split(/ (.+)/).filter(Boolean):[label])){
       svg.text(cx,ty,s,{size:9}); ty+=10;
     }
@@ -1373,6 +1410,7 @@ function render(info, items, order, width, warnings, canvas){
            subLevels(items,order));
   const dy=it=>tierOff.length?tierOff[depth[it.id]||0]:0;
   const lvY=bb=>Y_BUS+LV_SUB_H*lvLevel(items,bb);
+  extendSheet(labelClearance(items,order,lvY));
   const noToward=(owner,other)=>stateWords(owner).has("no")
     && hasWord(owner.notes.toLowerCase(),[other.id.toLowerCase()]);
   const noUnnamed=(owner,others)=>stateWords(owner).has("no")
@@ -2179,10 +2217,11 @@ function render(info, items, order, width, warnings, canvas){
   const used=new Set(order.map(i=>items[i].type));
   if(order.some(i=>earthBelow(items,items[i]))) used.add(EARTHING);
   svg.layer="legend";
-  drawLegend(svg,used);
+  drawLegend(svg,used,width);
   svg.layer="drawing";
 
-  return svg.document(width,DIAG_H+LEGEND_H);
+  const rows=legendRows(width,legendEntries(used).length)[1];
+  return svg.document(width,DIAG_H+LEGEND_H+LEGEND_ROW_H*(rows-1));
 }
 
 /* ------------------------------------------------ DXF export */
@@ -2191,7 +2230,7 @@ function render(info, items, order, width, warnings, canvas){
    under it. One unit is one sketch pixel; take it as 1 mm. */
 const DXF_LAYERS=[["SLD_DRAWING",7],["SLD_BUSBAR",7],["SLD_TEXT",7],
   ["SLD_ENCLOSURE",8],["SLD_FRAME",8],["SLD_LEGEND",8],["SLD_TABLE",7]];
-const DXF_TEXT_H=0.72, DXF_CHAR_W=0.6;
+const DXF_TEXT_H=0.72, DXF_WIDTH_F=0.8, DXF_CHAR_W=0.9*DXF_WIDTH_F, DXF_WRAP_AT=40;
 const DXF_SUBST={"\u2014":"-","\u2013":"-","\u00b7":"-","\u00d7":"x","\u2192":"->",
   "\u2190":"<-","\u00b1":"+/-","\u2026":"..."};
 function dnum(v){
@@ -2199,6 +2238,16 @@ function dnum(v){
   return (t==="-0"||t==="")?"0":t;
 }
 function dclean(s){ return String(s).replace(/[\u2014\u2013\u00b7\u00d7\u2192\u2190\u00b1\u2026]/g,c=>DXF_SUBST[c]); }
+function dtextW(s,size){ return dclean(s).length*size*DXF_TEXT_H*DXF_CHAR_W; }
+function dwrap(s,n=DXF_WRAP_AT){
+  const out=[]; let cur="";
+  for(const w of String(s).split(/\s+/).filter(Boolean)){
+    if(cur && cur.length+1+w.length>n){ out.push(cur); cur=w; }
+    else cur=(cur+" "+w).trim();
+  }
+  if(cur) out.push(cur);
+  return out.length?out:[""];
+}
 class DXF extends SVG {
   constructor(table){ super(); this.ents=[]; this.table=table||null; this.count=0; }
   _layer(kind){
@@ -2284,9 +2333,9 @@ class DXF extends SVG {
     const labels={[CAPACITOR]:"Capacitor Bank",[EARTHING]:"Earthing/NER",[ARRESTER]:"Surge Arrester"};
     const rows=order.map(i=>{ const it=items[i];
       const typ=labels[it.type]||it.type.replace(/\b\w/g,c=>c.toUpperCase()).replace("Mv ","MV ").replace("Lv ","LV ").replace("Rmu","RMU").replace("Mcc","MCC");
-      return [it.id,typ,it.desc,it.rating,it.voltage,it.prots.join(", "),it.parents.join(", "),it.notes]; });
-    const cols=heads.map((h,i)=>Math.max(h.length,...rows.map(r=>r[i].length))*size*DXF_CHAR_W+2*pad);
-    const x1=x0+cols.reduce((a,b)=>a+b,0);
+      return [it.id,typ,it.desc,it.rating,it.voltage,it.prots.join(", "),it.parents.join(", "),it.notes].map(v=>dwrap(v)); });
+    const cols=heads.map((h,i)=>Math.max(dtextW(h,size),...rows.flatMap(r=>r[i].map(l=>dtextW(l,size))))*1.15+2*pad);
+    const x1=x0+cols.reduce((a,b)=>a+b,0), yHead=y;
     this.line(x0,y,x1,y,1.2);
     let cx=x0;
     heads.forEach((h,i)=>{ this.text(cx+pad,y+13,h,{size,anchor:"start",bold:true}); cx+=cols[i]; });
@@ -2294,12 +2343,12 @@ class DXF extends SVG {
     this.line(x0,y,x1,y,1.2);
     for(const r of rows){
       cx=x0;
-      r.forEach((v,i)=>{ if(v) this.text(cx+pad,y+13,v,{size,anchor:"start"}); cx+=cols[i]; });
-      y+=rowH;
+      const lines=Math.max(...r.map(c=>c.length));
+      r.forEach((cell,i)=>{ cell.forEach((v,k)=>{ if(v) this.text(cx+pad,y+13+15*k,v,{size,anchor:"start"}); }); cx+=cols[i]; });
+      y+=rowH+15*(lines-1);
       this.line(x0,y,x1,y,1);
     }
     cx=x0;
-    const yHead=y-rowH*rows.length-rowH;
     for(const cw of cols.concat([0])){ this.line(cx,yHead,cx,y,1); cx+=cw; }
     this.layer="drawing";
     return y;
@@ -2317,7 +2366,7 @@ class DXF extends SVG {
       "0\nENDTAB",`0\nTABLE\n2\nLAYER\n70\n${DXF_LAYERS.length}`];
     for(const [name,col] of DXF_LAYERS) out.push(`0\nLAYER\n2\n${name}\n70\n0\n62\n${col}\n6\nCONTINUOUS`);
     out.push("0\nENDTAB","0\nTABLE\n2\nSTYLE\n70\n1",
-      "0\nSTYLE\n2\nSTANDARD\n70\n0\n40\n0\n41\n1\n50\n0\n71\n0\n42\n2.5\n3\ntxt\n4\n",
+      `0\nSTYLE\n2\nSTANDARD\n70\n0\n40\n0\n41\n${dnum(DXF_WIDTH_F)}\n50\n0\n71\n0\n42\n2.5\n3\ntxt\n4\n`,
       "0\nENDTAB","0\nENDSEC","0\nSECTION\n2\nBLOCKS\n0\nENDSEC","0\nSECTION\n2\nENTITIES");
     out.push(...this.ents);
     out.push("0\nENDSEC","0\nEOF","");

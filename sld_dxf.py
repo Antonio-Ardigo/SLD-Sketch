@@ -26,7 +26,10 @@ LAYERS = [                      # name, colour index
     ("SLD_TABLE", 7),
 ]
 TEXT_H = 0.72                   # DXF text height per px of SVG font size
-CHAR_W = 0.6                    # em width of a character, for the table
+WIDTH_F = 0.8                   # STANDARD style width factor: txt at this
+                                # factor is no wider than the browser's Arial
+CHAR_W = 0.9 * WIDTH_F          # advance of one txt character, per unit height
+WRAP_AT = 40                    # table cells longer than this wrap
 SUBST = {"—": "-", "–": "-", "·": "-", "×": "x", "→": "->", "←": "<-",
          "±": "+/-", "…": "..."}
 
@@ -39,6 +42,25 @@ def num(v):
 
 def clean(s):
     return "".join(SUBST.get(c, c) for c in str(s))
+
+
+def text_w(s, size):
+    """Width of a DXF text of SVG size `size`, in drawing units."""
+    return len(clean(s)) * size * TEXT_H * CHAR_W
+
+
+def wrap(s, n=WRAP_AT):
+    """Fold a long cell at word boundaries."""
+    out, cur = [], ""
+    for w in str(s).split():
+        if cur and len(cur) + 1 + len(w) > n:
+            out.append(cur)
+            cur = w
+        else:
+            cur = (cur + " " + w).strip()
+    if cur:
+        out.append(cur)
+    return out or [""]
 
 
 class DXF(S.SVG):
@@ -182,12 +204,15 @@ class DXF(S.SVG):
             typ = labels.get(it.type, it.type.title().replace("Mv ", "MV ")
                              .replace("Lv ", "LV ").replace("Rmu", "RMU")
                              .replace("Mcc", "MCC"))
-            rows.append([it.id, typ, it.desc, it.rating, it.voltage,
-                         ", ".join(it.prots), ", ".join(it.parents), it.notes])
-        cols = [max([len(h)] + [len(r[i]) for r in rows]) * size * CHAR_W
-                + 2 * pad for i, h in enumerate(heads)]
-        total = sum(cols)
-        x1 = x0 + total
+            rows.append([wrap(v) for v in
+                         (it.id, typ, it.desc, it.rating, it.voltage,
+                          ", ".join(it.prots), ", ".join(it.parents),
+                          it.notes)])
+        cols = [max([text_w(h, size)] + [text_w(l, size) for r in rows
+                                          for l in r[i]]) * 1.15 + 2 * pad
+                for i, h in enumerate(heads)]
+        x1 = x0 + sum(cols)
+        y_head = y
         self.line(x0, y, x1, y, w=1.2)
         cx = x0
         for h, cw in zip(heads, cols):
@@ -197,14 +222,16 @@ class DXF(S.SVG):
         self.line(x0, y, x1, y, w=1.2)
         for r in rows:
             cx = x0
-            for v, cw in zip(r, cols):
-                if v:
-                    self.text(cx + pad, y + 13, v, size=size, anchor="start")
+            lines = max(len(c) for c in r)
+            for cell, cw in zip(r, cols):
+                for k, v in enumerate(cell):
+                    if v:
+                        self.text(cx + pad, y + 13 + 15 * k, v, size=size,
+                                  anchor="start")
                 cx += cw
-            y += row_h
+            y += row_h + 15 * (lines - 1)
             self.line(x0, y, x1, y, w=1)
         cx = x0
-        y_head = y - row_h * len(rows) - row_h
         for cw in cols + [0]:
             self.line(cx, y_head, cx, y, w=1)
             cx += cw
@@ -227,7 +254,7 @@ class DXF(S.SVG):
         for name, col in LAYERS:
             out.append(f"0\nLAYER\n2\n{name}\n70\n0\n62\n{col}\n6\nCONTINUOUS")
         out += ["0\nENDTAB", "0\nTABLE\n2\nSTYLE\n70\n1",
-                "0\nSTYLE\n2\nSTANDARD\n70\n0\n40\n0\n41\n1\n50\n0\n71\n0\n42\n2.5\n3\ntxt\n4\n",
+                f"0\nSTYLE\n2\nSTANDARD\n70\n0\n40\n0\n41\n{num(WIDTH_F)}\n50\n0\n71\n0\n42\n2.5\n3\ntxt\n4\n",
                 "0\nENDTAB", "0\nENDSEC", "0\nSECTION\n2\nBLOCKS\n0\nENDSEC",
                 "0\nSECTION\n2\nENTITIES"]
         out += self.ents
@@ -249,6 +276,64 @@ def write_dxf(path, info, items, order, width):
     return n
 
 
+def check_dxf(text):
+    """Read the TEXT and LINE entities back and report texts that overlap
+    another text, table text crossing a table rule, and anything outside
+    the declared extents.  Returns a list of messages (empty = clean)."""
+    lines = text.split("\n")
+    ents, cur = [], None
+    for i in range(0, len(lines) - 1, 2):
+        code, val = lines[i].strip(), lines[i + 1]
+        if code == "0":
+            cur = {"type": val}
+            ents.append(cur)
+        elif cur is not None:
+            cur[code] = val
+    ext = {}
+    for i in range(0, len(lines) - 1, 2):
+        if lines[i].strip() == "9" and lines[i + 1] in ("$EXTMIN", "$EXTMAX"):
+            ext[lines[i + 1]] = (float(lines[i + 3]), float(lines[i + 5]))
+    boxes = []
+    for e in ents:
+        if e["type"] != "TEXT":
+            continue
+        h = float(e["40"])
+        w = len(e["1"]) * h * CHAR_W
+        x, y = float(e["10"]), float(e["20"])
+        rot = float(e.get("50", 0)) % 360
+        al = int(e.get("72", 0))
+        if abs(rot - 270) < 1:                  # runs downward
+            box = (x - h, y - w, x, y)
+        else:
+            x0 = x - (w / 2 if al == 1 else w if al == 2 else 0)
+            box = (x0, y, x0 + w, y + h)
+        boxes.append((box, e["1"], e["8"]))
+    out = []
+    for i, (a, ta, la) in enumerate(boxes):
+        for b, tb, lb in boxes[i + 1:]:
+            if a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]:
+                out.append(f"text overlaps text: '{ta}' / '{tb}' ({la})")
+    rules = [(float(e["10"]), float(e["20"]), float(e["11"]), float(e["21"]))
+             for e in ents if e["type"] == "LINE" and e["8"] == "SLD_TABLE"]
+    for box, t, lay in boxes:
+        if lay != "SLD_TABLE":
+            continue
+        for x1, y1, x2, y2 in rules:
+            if abs(x1 - x2) < 0.01 and box[0] < x1 < box[2] \
+                    and min(y1, y2) < box[3] and max(y1, y2) > box[1]:
+                out.append(f"table text crosses a column rule: '{t}'")
+            if abs(y1 - y2) < 0.01 and box[1] < y1 < box[3] \
+                    and min(x1, x2) < box[2] and max(x1, x2) > box[0]:
+                out.append(f"table text crosses a row rule: '{t}'")
+    if ext:
+        (xmin, ymin), (xmax, ymax) = ext["$EXTMIN"], ext["$EXTMAX"]
+        for box, t, lay in boxes:
+            if box[0] < xmin - 1 or box[2] > xmax + 1 \
+                    or box[1] < ymin - 1 or box[3] > ymax + 1:
+                out.append(f"text outside the sheet: '{t}' ({lay})")
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="Export a site-survey workbook's single-line diagram "
@@ -256,12 +341,21 @@ def main():
     ap.add_argument("workbook", help="input .xlsx file")
     ap.add_argument("-o", "--output",
                     help="output .dxf file (default: <workbook>.dxf)")
+    ap.add_argument("--check", action="store_true",
+                    help="read the file back and report overlapping text")
     args = ap.parse_args()
     out = args.output or (args.workbook.rsplit(".", 1)[0] + ".dxf")
     info, items, order = S.read_workbook(args.workbook)
     width = S.layout(items, order)
     n = write_dxf(out, info, items, order, width)
     print(f"wrote {out}  ({len(items)} items, {n} entities)")
+    if args.check:
+        probs = check_dxf(open(out, encoding="utf-8").read())
+        for m in probs:
+            print("  " + m)
+        print(f"  {len(probs)} text problems" if probs else "  text clean")
+        if probs:
+            raise SystemExit(1)
 
 
 if __name__ == "__main__":
