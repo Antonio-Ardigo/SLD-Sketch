@@ -64,15 +64,17 @@ load — the name is kept as an alias of `Transformer`.
 | TX `Feeds From` a Generator or generation board, MV gear feeds from TX | source-on-top column |
 | TX `Feeds From` a live LV board, MV gear feeds from TX | step-up in the transformer row |
 | TX `Feeds From` MV gear, a Generator feeds from TX | the same column drawn upside down |
-| TX `Feeds From` an LV board, only Pumps feed from TX | step-down under the board: a way of it, the transformer on the row below, the motor under it |
+| TX `Feeds From` an LV board, only Pumps feed from TX (or nothing yet) | step-down under the board: a way of it, the transformer on the row below, the motor (or an open terminal) under it |
+| TX `Feeds From` MV gear, no board but a Pump or MCC feeds from TX | dedicated transformer: the load under it (an MCC becomes the board: incomer device, box, bus and motors in the dashed outline) |
+| TX feeds a board, and a Pump or MCC also names TX | a way of that board, not a tap on the secondary (a note says so) |
 
 The last one works because a generator is never a load: a `Generator` whose
 `Feeds From` names a transformer can only be feeding *up* through it.
 
 Because `Feeds From` only ever points *upstream*, a step-up needs to be named
-on the row of the board it supplies. Until you do that it still draws — hanging
-off its LV board with an **open terminal** marked "outgoing not defined" — and
-a warning tells you which row to add it to.
+on the row of the board it supplies. Until you do that it still draws — as a
+way under its LV board with an **open terminal** marked "outgoing not defined"
+— and a warning tells you which row to add it to.
 
 **A half-filled row still draws.** A transformer whose supply or whose load
 you have not entered yet is drawn where it belongs, with an **open terminal**
@@ -126,7 +128,16 @@ feeder band below the board, and a `Pump` fed straight from a **Transformer**
 hangs under that transformer (a dedicated motor supply). When that transformer
 itself feeds from an LV board (a 400/300 V motor supply, say) it is a way of
 the board: dot on the bar, the board's device, the transformer on the row
-below, the motor under its secondary. An `MCC` belongs on an
+below, the motor under its secondary.
+
+A transformer's secondary goes to one place: the incomer of the board it
+feeds. So a `Pump` or `MCC` whose `Feeds From` names a transformer that also
+feeds a board is drawn as a **way of that board**, taking its protection from
+the bar, and the reader prints a note suggesting the board in `Feeds From`. A
+transformer that feeds **no board** keeps its loads under it: a dedicated
+motor transformer, or a pump-station transformer feeding an `MCC` directly,
+which is then drawn as the board itself: transformer, incomer device, MCC box,
+its bus and the motors inside the dashed outline. An `MCC` belongs on an
 LV Busbar; putting one on MV gear warns. A `Pump` or `Feeder` can feed from
 an **MCC**: the MCC then gets a bus of its own on the row below the board,
 and its motors hang off that bus with their starters (a contactor unless the

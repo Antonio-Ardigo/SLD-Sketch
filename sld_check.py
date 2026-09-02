@@ -658,6 +658,14 @@ def check(path):
     info, items, order = S.read_workbook(path)
     width = S.layout(items, order)
     svg = S.render(info, items, order, width)
+    # a load named on a transformer that feeds a board is drawn as a way
+    # of that board: judge the drawing against that reading
+    for it in items.values():
+        if it.type in (S.PUMP, S.MCC):
+            it.parents = [S.tx_board(items, items[q]).id
+                          if q in items and items[q].type == S.TRANSFORMER
+                          and S.tx_board(items, items[q]) is not None else q
+                          for q in it.parents]
     d = Drawing(svg, items, order)
     lfeed = link_feeders(items)
 
