@@ -17,7 +17,8 @@ HEADERS = ["ID", "Type", "Description", "Rating", "Voltage", "Protection",
            "Feeds From", "Notes"]
 COL_WIDTHS = [10, 16, 26, 12, 12, 13, 14, 30]
 TYPES = ["MV Incomer", "Generator", "MV Busbar", "RMU", "Transformer",
-         "Pump", "LV Busbar", "Feeder", "MCC", "Bus Coupler"]
+         "Pump", "LV Busbar", "Feeder", "MCC", "Bus Coupler",
+         "Capacitor Bank", "Earthing/NER", "Surge Arrester"]
 PROTECTIONS = ["CB", "LBS", "Fuse", "Fuse-switch", "Contactor",
                "Fuse-contactor"]
 
@@ -89,7 +90,7 @@ def build_workbook(path, info, rows, legend_note=None):
         "   - ID: short unique tag you invent (MV1, RMU1, TX1, BB1, F1...).",
         "   - Type: pick from the dropdown (MV Incomer, Generator, MV",
         "     Busbar, RMU, Transformer, Pump, LV Busbar, Feeder, MCC,",
-        "     Bus Coupler).",
+        "     Bus Coupler, Capacitor Bank, Earthing/NER, Surge Arrester).",
         "     One Transformer type covers step-down and step-up: which",
         "     way it is drawn follows Feeds From. A transformer that",
         "     feeds an MV board is a step-up, drawn above it with its",
@@ -98,7 +99,16 @@ def build_workbook(path, info, rows, legend_note=None):
         "     'step-up' in Description - the voltages say it too.",
         "     MV Busbar = an MV switchboard; Pump = an MV motor load;",
         "     MCC = motor control centre on an LV board. A Bus Coupler",
-        "     between two MV Busbars is the bus tie.",
+        "     between two MV Busbars is the bus tie; one between a board",
+        "     and a Generator is a changeover (ATS). A Generator can also",
+        "     feed a board directly: name it in the board's Feeds From.",
+        "     An LV Busbar fed from a Feeder or another LV Busbar is a",
+        "     sub-board, drawn on the row below. A Feeder on MV gear is",
+        "     an outgoing cable way. Capacitor Bank, Earthing/NER and",
+        "     Surge Arrester need no load; a Feeder whose words say",
+        "     capacitor / NER / arrester is drawn as one anyway.",
+        "     Notes: 'VSD' on a motor draws a drive box, 'Spare' dashes",
+        "     the way, 'N.O.' on an RMU marks the ring's open point.",
         "   - Rating / Voltage: as read from the nameplate (e.g. 1000 kVA,",
         "     11/0.4 kV, 630 A, 400 V).",
         "   - Protection: the device on THIS item's supply side - pick",

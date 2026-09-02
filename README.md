@@ -35,7 +35,7 @@ diagram's title block.
 | Column | Meaning | Example |
 |---|---|---|
 | ID | Short unique tag you invent | `MV1`, `RMU1`, `TX1`, `BB1`, `F1` |
-| Type | Dropdown: MV Incomer, Generator, MV Busbar, RMU, Transformer, Pump, LV Busbar, Feeder, MCC, Bus Coupler | `Transformer` |
+| Type | Dropdown: MV Incomer, Generator, MV Busbar, RMU, Transformer, Pump, LV Busbar, Feeder, MCC, Bus Coupler, Capacitor Bank, Earthing/NER, Surge Arrester | `Transformer` |
 | Description | Free text | `Oil-immersed, Dyn11` |
 | Rating | From the nameplate | `1000 kVA`, `630 A` |
 | Voltage | From the nameplate | `11/0.4 kV`, `400 V` |
@@ -82,6 +82,40 @@ transformer row between the two, its supply taken from the parent board's bar
 and its output dropped into the fed board, which stands beside its parent with
 its own feeders. These chain, and one unit can feed several boards.
 
+**Generators as supplies.** A `Generator` can feed any board directly: name
+it in the board's `Feeds From` (`MV, DG1, DG2` on an 11 kV generation board
+with two gensets). On MV gear it stands above the bar like an incomer, on an
+LV board over the bar; several supplies share one spread. A standby set on a
+**changeover** is a `Bus Coupler` whose two ends are the board and the
+generator (`MSB3, G1`, Notes `ATS`): the generator drops onto the board
+through the coupler's device, with the coupler's ID and Notes beside it.
+
+**Sub-boards.** An `LV Busbar` fed from a **Feeder** (`DBL1` feeds from `F1`)
+or straight from another **LV Busbar** hangs on a row below its supply board,
+under the way that feeds it, with its own feeders under it; the feeder's
+device sits by the upper bar and the sub-board's own Protection, when given,
+by its bar as its incomer. Cascades can be any depth, two boards can share
+one feeder, and a sub-board can carry a tie, a motor, an MCC or a generator
+like any other board.
+
+**Outgoing ways on MV gear and terminal items.** A `Feeder` on an MV Busbar
+or RMU is an outgoing cable way with its device and an arrow in the
+transformer row. Three types need no load by design: `Capacitor Bank`,
+`Earthing/NER` (neutral earthing resistor) and `Surge Arrester`, each drawn
+with its IEC symbol to earth, on MV gear or an LV board. You need not even
+change the Type: a `Feeder` whose Description or Notes says *capacitor*,
+*PFC*, *kvar*, *NER*, *earthing* or *arrester* is drawn as that item, and a
+`Transformer` with no load whose row says *earthing*, *NER* or *zig-zag* is
+an earthing transformer, ending in a resistor to earth instead of an "outgoing
+not defined" stub.
+
+**Notes that change the symbol.** *VSD* (or *VFD*, *drive*) in a motor's
+Description or Notes puts a drive box on its drop; Notes starting with
+*spare*, *future* or *out of service* dash the way's conductor; *N.O.* or
+*normally open* in an RMU's Notes marks the open point of a ring on the way
+to the RMU it names (`N.O. towards RMU2`), or under the box when no way is
+named. Nothing else in Notes is read.
+
 **Motors.** A `Pump` on an MV Busbar or RMU is an MV motor drawn in the
 transformer row. A `Pump` on an **LV Busbar** is an LV motor drawn in the
 feeder band below the board, and a `Pump` fed straight from a **Transformer**
@@ -96,6 +130,14 @@ An MV Busbar or RMU can itself feed from another MV Busbar: the fed board or
 RMU is then drawn on its own tier below its source, with the feed through its
 Protection device. Cascades can be any depth (main MV board -> sub-board ->
 sub-sub-board), and the transformer and LV rows move down to suit.
+
+**Spurs and sub-rings.** RMUs that feed from each other draw side by side as
+a ring. Where one RMU of a ring feeds a branch that has no supply of its own
+(a spur RMU, or a sub-ring fed at both ends from the same RMU), that branch
+hangs a tier below it: a tee-off way in the enclosure, a dog-leg cable down
+to the branch, and the branch's own ring beside the enclosure's other ways.
+A link written on both rows (`R1` feeds from `R2` and `R2` from `R1`) is
+drawn once.
 
 **Several voltage levels.** Whatever feeds a board is drawn above it. A board
 fed from another board, directly or through a transformer, sits one tier
@@ -141,7 +183,8 @@ renders the sheet, reads the SVG back as raw geometry and verifies that every
 item is drawn once and every `Feeds From` edge is a continuous conductor
 between the two symbols; it also reports conductors drawn on top of each
 other and joints the table does not contain. `tests/` holds five demanding
-sites and the current baseline scores.
+sites, ten multi-level arrangements, five feature sheets and the baseline
+scores.
 
 ## What the symbols mean
 
@@ -153,7 +196,10 @@ a circle with an "M 3~", MCCs are small labelled boxes, and the switch symbol
 with an × at its hinge is a circuit breaker (every way on an MV switchboard
 gets one). Feeders drop off a busbar
 and end in an arrow; a Bus Coupler between two busbars is drawn as a breaker in
-the gap, with its Notes text (e.g. "Normally open") underneath.
+the gap, with its Notes text (e.g. "Normally open") underneath. A capacitor
+bank is the two plates to earth, a neutral earthing resistor the box to
+earth, a surge arrester the box with the arrow inside, to earth; the legend
+gains these entries only on sheets that use them.
 
 The Protection column swaps the device drawn on an item's supply side, using
 IEC 60617 notation, where the function mark sits at the hinge of the switch

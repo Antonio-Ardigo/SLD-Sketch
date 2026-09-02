@@ -216,12 +216,15 @@ class Drawing:
     def _classify(self, g):
         self.busbars, self.ticks, self.rmubars = [], [], []
         self.conductors, self.marks = [], []
+        plates = []
         for ln in g["lines"]:
             L = seg_len(ln)
             axis = (abs(ln["x1"] - ln["x2"]) < 0.6
                     or abs(ln["y1"] - ln["y2"]) < 0.6)
             if abs(ln["w"] - 5.5) < 0.1:
                 self.busbars.append(ln)
+            elif abs(ln["w"] - 2.5) < 0.1 and abs(L - 18) < 1:
+                plates.append(ln)          # capacitor plates
             elif abs(ln["w"] - 3.4) < 0.1:
                 self.rmubars.append(ln)
             elif abs(ln["w"] - 3) < 0.1 and abs(L - 22) < 1:
@@ -273,6 +276,18 @@ class Drawing:
             if tag:
                 self.machines.append(dict(x=c["cx"], y=c["cy"], r=c["r"],
                                           tag=tag))
+        # capacitor banks: two plates 18 wide, 6 apart, one above the other
+        self.caps = []
+        plates.sort(key=lambda p: (round((p["x1"] + p["x2"]) / 2), p["y1"]))
+        for a, b in zip(plates, plates[1:]):
+            if abs((a["x1"] + a["x2"]) - (b["x1"] + b["x2"])) < 1 \
+                    and abs(b["y1"] - a["y1"] - 6) < 0.6:
+                self.caps.append(dict(x=(a["x1"] + a["x2"]) / 2, top=a["y1"]))
+        # earthing resistors 12 x 30, surge arresters 14 x 28
+        self.ners = [r for r in g["rects"]
+                     if abs(r["w"] - 12) < 0.1 and abs(r["h"] - 30) < 0.1]
+        self.arresters = [r for r in g["rects"]
+                          if abs(r["w"] - 14) < 0.1 and abs(r["h"] - 28) < 0.1]
         # RMU enclosures
         self.rmus = [r for r in g["rects"] if r["dash"] and r["w"] > 40]
         # MCC boxes
@@ -321,7 +336,17 @@ class Drawing:
                         if r["x"] <= s["x1"] <= r["x"] + r["w"]
                         and r["y"] <= s["y1"] <= r["y"] + r["h"]), None)
             cands.append((dict(kind="rmu", rect=r, seg=bar), {S.RMU},
-                          r["x"] + r["w"], r["y"]))
+                          [r["x"], r["x"] + r["w"] / 2, r["x"] + r["w"]],
+                          r["y"]))
+        for c in self.caps:
+            cands.append((dict(kind="terminal", x=c["x"], top=c["top"]),
+                          {S.CAPACITOR}, c["x"], c["top"]))
+        for r in self.ners:
+            cands.append((dict(kind="terminal", x=r["x"] + 6, top=r["y"]),
+                          {S.EARTHING}, r["x"] + 6, r["y"]))
+        for r in self.arresters:
+            cands.append((dict(kind="terminal", x=r["x"] + 7, top=r["y"]),
+                          {S.ARRESTER}, r["x"] + 7, r["y"]))
         for t in self.ticks:
             cands.append((dict(kind="tick", seg=t),
                           {S.MV_INCOMER, S.MV_BUSBAR, S.LV_BUSBAR},
@@ -338,7 +363,8 @@ class Drawing:
                 if it[oid].type not in types:
                     continue
                 for lx, ly, t in self.labels.get(oid, []):
-                    d = math.hypot(lx - ax, ly - ay)
+                    d = min(math.hypot(lx - x, ly - ay)
+                            for x in (ax if isinstance(ax, list) else [ax]))
                     if d < bd:
                         best, bd = oid, d
             if best is not None and bd < 260:
@@ -473,7 +499,7 @@ class Drawing:
                     d, t = pt_seg_dist(nx, ny, s)
                     if d <= TOL and 0.0 < t < 1.0:
                         pts.append((nx, ny))
-        elif k == "arrow":
+        elif k in ("arrow", "terminal"):
             pts = [(sym["x"], sym["top"])]
         elif k == "mcc":
             r = sym["rect"]
@@ -589,7 +615,8 @@ def classify_edge(items, parent, child, via, mvset=frozenset(),
         return "source"
     if c.type == S.LV_BUSBAR and p.type in (S.FEEDER, S.LV_BUSBAR):
         return "lv-subboard"
-    if c.type == S.FEEDER and p.type in (S.MV_BUSBAR, S.RMU):
+    if c.type in (S.FEEDER, S.MCC) + S.TERMINALS \
+            and p.type in (S.MV_BUSBAR, S.RMU):
         return "mv-feeder"
     # MV board -> transformer -> MV board, seen from either edge
     if c.type == S.TRANSFORMER and p.type in (S.MV_BUSBAR, S.RMU):
@@ -605,11 +632,22 @@ def classify_edge(items, parent, child, via, mvset=frozenset(),
     return "other"
 
 
+def link_feeders(items):
+    """Feeders that carry on to an LV sub-board: drawn as the cable
+    between the two boards, with no symbol of their own."""
+    return {f.id: next((p for p in f.parents
+                        if p in items and items[p].type == S.LV_BUSBAR), None)
+            for f in items.values() if f.type == S.FEEDER
+            and any(f.id in c.parents and c.type == S.LV_BUSBAR
+                    for c in items.values())}
+
+
 def check(path):
     info, items, order = S.read_workbook(path)
     width = S.layout(items, order)
     svg = S.render(info, items, order, width)
     d = Drawing(svg, items, order)
+    lfeed = link_feeders(items)
 
     rep = dict(file=os.path.basename(path), items=len(order),
                drawn=0, missing=[], duplicates=list(d.duplicates),
@@ -621,7 +659,7 @@ def check(path):
     # items
     for oid in order:
         it = items[oid]
-        if it.type == S.BUS_COUPLER:
+        if it.type == S.BUS_COUPLER or oid in lfeed:
             continue                       # a coupler is an edge, not a symbol
         if oid in d.sym and d.item_nodes.get(oid):
             rep["drawn"] += 1
@@ -629,7 +667,8 @@ def check(path):
             rep["drawn"] += 1              # drawn but nothing touches it
         else:
             rep["missing"].append(oid)
-    rep["items"] = sum(1 for o in order if items[o].type != S.BUS_COUPLER)
+    rep["items"] = sum(1 for o in order if items[o].type != S.BUS_COUPLER
+                       and o not in lfeed)
     mvset = mv_chain_set(items)
     broken = set(rep["missing"]) | set(rep["duplicates"])
     for oid in broken:
@@ -647,8 +686,12 @@ def check(path):
             if len(ends) == 2:
                 expected.append((ends[0], ends[1], oid))
             continue
+        if oid in lfeed:
+            continue                       # counted as board -> sub-board
         for p in it.parents:
-            if p in items:
+            if p in lfeed and lfeed[p] is not None:
+                expected.append((lfeed[p], oid, p))
+            elif p in items:
                 expected.append((p, oid, None))
     rep["edges"] = len(expected)
     edge_paths = {}
@@ -697,7 +740,7 @@ def check(path):
     # two panels off one transformer share its secondary split: one node
     for oid in order:
         it = items[oid]
-        if it.type in (S.TRANSFORMER, S.GENERATOR):
+        if it.type in (S.TRANSFORMER, S.GENERATOR, S.FEEDER):
             kids = [o for o in order if oid in items[o].parents]
             for i, a in enumerate(kids):
                 for b in kids[i + 1:]:

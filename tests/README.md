@@ -19,9 +19,16 @@ of tag × workbook.
 
 `tests/sites/` holds five deliberately demanding sites (water works with
 four voltage levels, building with a three-deep LV cascade, pumping station,
-five-RMU ring with a sub-ring, hybrid PV/BESS/genset plant). `BASELINE.md`
-records their scores before any engine change; re-run and diff to measure a
-change.
+five-RMU ring with a sub-ring, hybrid PV/BESS/genset plant). `tests/levels/`
+holds ten multi-level board arrangements and `tests/features/` five sheets
+exercising generators as supplies and changeovers, spurs off a ring,
+terminal items and MV outgoing ways, sub-boards, and an RMU-only chain with
+a spur. `BASELINE.md` records the scores at each engine change; re-run and
+diff to measure a change.
+
+```bash
+python sld_check.py examples/config*.xlsx tests/levels/*.xlsx tests/features/*.xlsx tests/sites/*.xlsx
+```
 
 The six `examples/` workbooks must always score clean: all items drawn, all
 edges connected, no overlaps, no false nets.
