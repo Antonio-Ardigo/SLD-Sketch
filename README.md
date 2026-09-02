@@ -185,9 +185,7 @@ board end of the run, where the cubicle is.
 
 That's all the connectivity the tool needs: everything hangs off `Feeds From`.
 A bus coupler feeds from its two busbars (`BB1, BB2`); an RMU on a ring feeds
-from both ring incomers (`MV1, MV2`). A coupler between boards on **different
-levels** is routed clear of both bars, and one that reaches **past an
-intervening board** runs on its own lane above the bar row. Couplers must join
+from both ring incomers (`MV1, MV2`). A coupler between boards on **different levels** runs in the gap beside the two boards (to the left if the right is taken), its device on the vertical; a coupler that reaches past an **intervening board** runs on its own lane above the bar row with its device at its own end, clear of the other board's incomer. A sub-board fed from **two feeders** gets one landing point and one incomer device per feeder, like a board fed from two transformers. Couplers must join
 two busbars of the same kind — anything else (an RMU, one board, three boards)
 warns instead of drawing, and a duplicate coupler on a pair warns too.
 

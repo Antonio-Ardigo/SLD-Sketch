@@ -2352,6 +2352,8 @@ function render(info, items, order, width, warnings, canvas){
   for(const bb of busbars){
     if(!isSubBoard(items,bb) || bb.x===null) continue;
     const ySub=lvY(bb);
+    /* several feeders into one board: one landing point each */
+    const fsup=bb.parents.filter(p=>items[p] && items[p].type===FEEDER && items[p].x!==null);
     for(const p of bb.parents){
       const par=items[p];
       if(!par || par.x===null) continue;
@@ -2367,23 +2369,25 @@ function render(info, items, order, width, warnings, canvas){
         const dash=stateWords(par).has("spare")?"5 4":null;
         const k0=protFor(par,pb.id)[1]||"cb", k1=protFor(bb,p)[1];
         svg.dot(par.x,yPar);
-        if(Math.abs(par.x-bb.x)<1) twoDevices(par.x,yPar,ySub,k0,k1,dash);
-        else {                      /* several boards under one feeder */
-          const ySplit=ySub-60;
+        const i=fsup.indexOf(p), n=fsup.length;
+        const xTo=n===1?bb.x:bb.xLeft+(bb.xRight-bb.xLeft)*(i+0.5)/n;
+        if(Math.abs(par.x-xTo)<1) twoDevices(par.x,yPar,ySub,k0,k1,dash);
+        else {            /* several boards under one feeder, or feeders into one */
+          const ySplit=ySub-60-12*i;
           if(!splitDone.has(p)){
             splitDone.add(p);
             const g0=svg.device(k0,par.x,yPar+30);
             svg.line(par.x,yPar,par.x,yPar+30-g0,2,dash);
             svg.line(par.x,yPar+30+g0,par.x,ySplit,2,dash);
           }
-          svg.line(par.x,ySplit,bb.x,ySplit,2,dash);
+          svg.line(par.x,ySplit,xTo,ySplit,2,dash);
           if(k1){
-            const g1=svg.device(k1,bb.x,ySub-30);
-            svg.line(bb.x,ySplit,bb.x,ySub-30-g1);
-            svg.line(bb.x,ySub-30+g1,bb.x,ySub);
-          } else svg.line(bb.x,ySplit,bb.x,ySub);
+            const g1=svg.device(k1,xTo,ySub-30);
+            svg.line(xTo,ySplit,xTo,ySub-30-g1);
+            svg.line(xTo,ySub-30+g1,xTo,ySub);
+          } else svg.line(xTo,ySplit,xTo,ySub);
         }
-        svg.dot(bb.x,ySub);
+        svg.dot(xTo,ySub);
       }
     }
   }
@@ -2413,33 +2417,51 @@ function render(info, items, order, width, warnings, canvas){
     const extra=(craw && !ckind)?craw:"";
     const lbl=[bc.id,bc.rating,extra].filter(Boolean).join(" ");
 
-    if(Math.abs(ya-yb)>1){                 /* boards on different levels */
-      const xLink=Math.max(a.xRight,b.xRight)+34;
-      svg.dot(a.xRight,ya);
-      svg.line(a.xRight,ya,xLink,ya,2);
+    if(Math.abs(ya-yb)>1){
+      /* boards on different levels: the link runs in the gap beside them,
+         clear of any neighbour's bar on either row */
+      const rows=busbars.concat(mvbs).filter(o=>o!==a&&o!==b&&o.xLeft!==null
+        && Math.min(...[ya,yb].map(y=>Math.abs((o.type===MV_BUSBAR?yBus(o):lvY(o))-y)))<1);
+      const blocked=(x0,x1)=>rows.some(o=>o.xLeft-8<=Math.max(x0,x1) && o.xRight+8>=Math.min(x0,x1));
+      let xLink=Math.max(a.xRight,b.xRight)+15, right=true;
+      if(blocked(Math.min(a.xRight,b.xRight),xLink)){
+        const alt=Math.min(a.xLeft,b.xLeft)-15;
+        if(!blocked(alt,Math.max(a.xLeft,b.xLeft))){ xLink=alt; right=false; }
+      }
+      const xa=right?a.xRight:a.xLeft, xb=right?b.xRight:b.xLeft;
+      svg.dot(xa,ya);
+      svg.line(xa,ya,xLink,ya,2);
       svg.drop(xLink,Math.min(ya,yb),Math.max(ya,yb),dev);
-      svg.line(xLink,yb,b.xRight,yb,2);
-      svg.dot(b.xRight,yb);
+      svg.line(xLink,yb,xb,yb,2);
+      svg.dot(xb,yb);
       const ym=(ya+yb)/2;
-      svg.text(xLink+10,ym,lbl,{size:11,anchor:"start"});
-      svg.text(xLink+10,ym+14,bc.notes,{size:10,anchor:"start"});
+      if(right){
+        svg.text(xLink+10,ym,lbl,{size:11,anchor:"start"});
+        svg.text(xLink+10,ym+14,bc.notes,{size:10,anchor:"start"});
+      } else {
+        svg.text(xLink-10,ym,lbl,{size:11,anchor:"end"});
+        svg.text(xLink-10,ym+14,bc.notes,{size:10,anchor:"end"});
+      }
       continue;
     }
     const blocking=busbars.concat(mvbs).filter(o=>o!==a&&o!==b&&o.xLeft!==null
       && a.xRight<o.x && o.x<b.xLeft
       && Math.abs((o.type===MV_BUSBAR?yBus(o):lvY(o))-ya)<1);
     const xm=(a.xRight+b.xLeft)/2;
-    if(blocking.length){                   /* another board lies between */
-      const yLane=ya-30;
+    if(blocking.length){
+      /* another board lies between: run the tie above the bar row, its
+         device at this end, in the gap before the next board, clear of
+         that board's incomer */
+      const yLane=ya-30, xd=a.xRight+20;
       svg.dot(a.xRight,ya);
       svg.line(a.xRight,ya,a.xRight,yLane,2);
-      const g=svg.deviceH(dev,xm,yLane);
-      svg.line(a.xRight,yLane,xm-g,yLane,2);
-      svg.line(xm+g,yLane,b.xLeft,yLane,2);
+      const g=svg.deviceH(dev,xd,yLane);
+      svg.line(a.xRight,yLane,xd-g,yLane,2);
+      svg.line(xd+g,yLane,b.xLeft,yLane,2);
       svg.line(b.xLeft,yLane,b.xLeft,yb,2);
       svg.dot(b.xLeft,yb);
-      svg.text(xm,yLane-10,lbl,{size:11});
-      svg.text(xm,yLane-24,bc.notes,{size:10});
+      svg.text(xd,yLane-10,lbl,{size:11});
+      svg.text(xd,yLane-24,bc.notes,{size:10});
       continue;
     }
     const cgap=svg.deviceH(dev,xm,ya);

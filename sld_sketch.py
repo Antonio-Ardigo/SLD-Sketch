@@ -2616,6 +2616,9 @@ def render(info, items, order, width, canvas=None):
         if not is_sub_board(items, bb) or bb.x is None:
             continue
         y_sub = lv_y(bb)
+        # several feeders into one board: one landing point each
+        fsup = [p for p in bb.parents
+                if items[p].type == FEEDER and items[p].x is not None]
         for p in bb.parents:
             par = items[p]
             if par.x is None:
@@ -2636,10 +2639,13 @@ def render(info, items, order, width, canvas=None):
                 k0 = prot_for(par, pb.id)[1] or "cb"
                 k1 = prot_for(bb, p)[1]
                 svg.dot(par.x, y_par)
-                if abs(par.x - bb.x) < 1:
+                i, n = fsup.index(p), len(fsup)
+                x_to = (bb.x if n == 1 else
+                        bb.x_left + (bb.x_right - bb.x_left) * (i + 0.5) / n)
+                if abs(par.x - x_to) < 1:
                     two_devices(par.x, y_par, y_sub, k0, k1, dash)
-                else:                 # several boards under one feeder
-                    y_split = y_sub - 60
+                else:                 # several boards under one feeder,
+                    y_split = y_sub - 60 - 12 * i    # or feeders into one
                     if p not in split_done:
                         split_done.add(p)
                         g0 = svg.device(k0, par.x, y_par + 30)
@@ -2647,14 +2653,14 @@ def render(info, items, order, width, canvas=None):
                                  dash=dash)
                         svg.line(par.x, y_par + 30 + g0, par.x, y_split,
                                  dash=dash)
-                    svg.line(par.x, y_split, bb.x, y_split, dash=dash)
+                    svg.line(par.x, y_split, x_to, y_split, dash=dash)
                     if k1:
-                        g1 = svg.device(k1, bb.x, y_sub - 30)
-                        svg.line(bb.x, y_split, bb.x, y_sub - 30 - g1)
-                        svg.line(bb.x, y_sub - 30 + g1, bb.x, y_sub)
+                        g1 = svg.device(k1, x_to, y_sub - 30)
+                        svg.line(x_to, y_split, x_to, y_sub - 30 - g1)
+                        svg.line(x_to, y_sub - 30 + g1, x_to, y_sub)
                     else:
-                        svg.line(bb.x, y_split, bb.x, y_sub)
-                svg.dot(bb.x, y_sub)
+                        svg.line(x_to, y_split, x_to, y_sub)
+                svg.dot(x_to, y_sub)
 
     # --- bus couplers / ties ---------------------------------------------
     seen_pairs = {}
@@ -2687,16 +2693,38 @@ def render(info, items, order, width, canvas=None):
         lbl = " ".join(v for v in (bc.id, bc.rating, extra) if v)
 
         if abs(ya - yb) > 1:
-            # the two boards sit on different levels: route clear of both
-            x_link = max(a.x_right, b.x_right) + 34
-            svg.dot(a.x_right, ya)
-            svg.line(a.x_right, ya, x_link, ya, w=2)
+            # the two boards sit on different levels: the link runs in the
+            # gap beside them, clear of any neighbour's bar on either row
+            rows = [o for o in busbars + mvbs
+                    if o is not a and o is not b and o.x_left is not None
+                    and min(abs((y_bus(o) if o.type == MV_BUSBAR else lv_y(o))
+                                - y) for y in (ya, yb)) < 1]
+
+            def blocked(x0, x1):
+                return any(o.x_left - 8 <= max(x0, x1)
+                           and o.x_right + 8 >= min(x0, x1) for o in rows)
+            x_link = max(a.x_right, b.x_right) + 15
+            right = True
+            if blocked(min(a.x_right, b.x_right), x_link):
+                alt = min(a.x_left, b.x_left) - 15
+                if not blocked(alt, max(a.x_left, b.x_left)):
+                    x_link, right = alt, False
+            xa = a.x_right if right else a.x_left
+            xb = b.x_right if right else b.x_left
+            svg.dot(xa, ya)
+            svg.line(xa, ya, x_link, ya, w=2)
             svg.drop(x_link, min(ya, yb), max(ya, yb), dev)
-            svg.line(x_link, yb, b.x_right, yb, w=2)
-            svg.dot(b.x_right, yb)
+            svg.line(x_link, yb, xb, yb, w=2)
+            svg.dot(xb, yb)
             ym = (ya + yb) / 2
-            svg.text(x_link + 10, ym, lbl, size=11, anchor="start")
-            svg.text(x_link + 10, ym + 14, bc.notes, size=10, anchor="start")
+            if right:
+                svg.text(x_link + 10, ym, lbl, size=11, anchor="start")
+                svg.text(x_link + 10, ym + 14, bc.notes, size=10,
+                         anchor="start")
+            else:
+                svg.text(x_link - 10, ym, lbl, size=11, anchor="end")
+                svg.text(x_link - 10, ym + 14, bc.notes, size=10,
+                         anchor="end")
             continue
 
         blocking = [o for o in busbars + mvbs
@@ -2705,18 +2733,20 @@ def render(info, items, order, width, canvas=None):
                     and abs((y_bus(o) if o.type == MV_BUSBAR else lv_y(o))
                             - ya) < 1]
         if blocking:
-            # another board lies between: run the tie above the bar row
+            # another board lies between: run the tie above the bar row,
+            # its device at this end, in the gap before the next board,
+            # clear of that board's incomer
             y_lane = ya - 30
-            xm = (a.x_right + b.x_left) / 2
+            xd = a.x_right + 20
             svg.dot(a.x_right, ya)
             svg.line(a.x_right, ya, a.x_right, y_lane, w=2)
-            gap = svg.device_h(dev, xm, y_lane)
-            svg.line(a.x_right, y_lane, xm - gap, y_lane, w=2)
-            svg.line(xm + gap, y_lane, b.x_left, y_lane, w=2)
+            gap = svg.device_h(dev, xd, y_lane)
+            svg.line(a.x_right, y_lane, xd - gap, y_lane, w=2)
+            svg.line(xd + gap, y_lane, b.x_left, y_lane, w=2)
             svg.line(b.x_left, y_lane, b.x_left, yb, w=2)
             svg.dot(b.x_left, yb)
-            svg.text(xm, y_lane - 10, lbl, size=11)
-            svg.text(xm, y_lane - 24, bc.notes, size=10)
+            svg.text(xd, y_lane - 10, lbl, size=11)
+            svg.text(xd, y_lane - 24, bc.notes, size=10)
             continue
 
         xm = (a.x_right + b.x_left) / 2
