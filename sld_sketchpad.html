@@ -168,6 +168,39 @@
   }
 
   footer.note { margin-top: 22px; color: var(--muted); font-size: 12.5px; max-width: 68ch; }
+
+  /* the how-to-fill page: a collapsible panel of reference tables */
+  details.help { padding: 0; }
+  details.help summary {
+    cursor: pointer; padding: 14px 18px; font-size: 12px; font-weight: 700;
+    letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
+    list-style: none; display: flex; align-items: center; gap: 10px;
+  }
+  details.help summary::-webkit-details-marker { display: none; }
+  details.help summary::before { content: "▸"; font-size: 11px; }
+  details.help[open] summary::before { content: "▾"; }
+  details.help summary .sub { font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 12.5px; }
+  .help-body { padding: 0 18px 18px; }
+  .help-body h3 {
+    margin: 18px 0 8px; font-size: 13px; font-weight: 700; color: var(--ink);
+  }
+  .help-body h3:first-child { margin-top: 4px; }
+  .help-body p { margin: 6px 0 10px; max-width: 80ch; }
+  .help-body table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  .help-body th {
+    text-align: left; font-size: 11px; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--muted); padding: 4px 8px 6px; border-bottom: 2px solid var(--ink);
+    white-space: nowrap;
+  }
+  .help-body td { padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .help-body td:first-child { white-space: nowrap; font-weight: 600; }
+  .help-body code {
+    font: 500 12px "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    background: var(--field); border: 1px solid var(--border); border-radius: 3px; padding: 0 4px;
+  }
+  .help-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+  @media (max-width: 900px) { .help-cols { grid-template-columns: 1fr; } }
+  #helpbtn.on { border-color: var(--accent); color: var(--accent); }
 </style>
 
 <div class="wrap">
@@ -186,8 +219,94 @@
         <option value="6">6 · Three RMUs, closed ring</option>
       </select>
       <button id="clear">Clear all</button>
+      <button id="helpbtn" title="Open the how-to-fill page">How to fill</button>
     </div>
   </header>
+
+  <details class="panel help" id="help">
+    <summary>How to fill the table <span class="sub">— every column, every type, the wiring recipes, and the words that change a symbol</span></summary>
+    <div class="help-body">
+      <h3>The idea</h3>
+      <p>One row per item, top of the network first. The drawing's topology comes only from
+      <strong>ID</strong> and <strong>Feeds from</strong>: an item is drawn under whatever it feeds from.
+      Row order sets left-to-right order. A half-filled row still draws, with an open terminal where the
+      supply or the load is missing, and the problems box above the drawing tells you which row to complete.</p>
+
+      <h3>Columns</h3>
+      <table>
+        <tr><th>Column</th><th>What to write</th><th>What it does</th></tr>
+        <tr><td>ID</td><td>a short unique tag you invent: <code>MV1</code>, <code>RMU1</code>, <code>TX1</code>, <code>BB1</code>, <code>F1</code></td><td>the handle other rows point at; printed bold on the symbol</td></tr>
+        <tr><td>Type</td><td>pick from the list (below)</td><td>chooses the symbol and where it sits</td></tr>
+        <tr><td>Description</td><td>free text: <code>Oil-immersed, Dyn11</code>, <code>Main pump 4 (VSD)</code></td><td>printed as a label; a few words also change the symbol (below)</td></tr>
+        <tr><td>Rating</td><td>from the nameplate: <code>1000 kVA</code>, <code>630 A</code>, <code>315 kW</code></td><td>printed</td></tr>
+        <tr><td>Voltage</td><td>from the nameplate: <code>11/0.4 kV</code>, <code>400 V</code></td><td>printed only; it never moves anything</td></tr>
+        <tr><td>Protection</td><td>the device on <em>this item's supply side</em>: <code>CB</code>, <code>LBS</code>, <code>Fuse</code>, <code>Fuse-switch</code>, <code>Contactor</code>, <code>Fuse-contactor</code>; blank = the usual default; a comma list matches Feeds from order (<code>LBS, CB</code>)</td><td>swaps the device symbol on that connection; free text on a busbar (<code>87B differential</code>) is printed as a zone label</td></tr>
+        <tr><td>Feeds from</td><td>the ID of the item supplying this one; comma for two supplies (<code>BB1, BB2</code>, <code>MV1, MV2</code>)</td><td>the wiring, and the only thing that is</td></tr>
+        <tr><td>Notes</td><td>anything worth remembering</td><td>printed on ties; a few leading words change the symbol (below)</td></tr>
+      </table>
+
+      <h3>Types and how each one draws</h3>
+      <table>
+        <tr><th>Type</th><th>Also accepted</th><th>Drawn as</th></tr>
+        <tr><td>MV Incomer</td><td>Incomer, MV</td><td>a source tick at the top; feeds an MV Busbar, an RMU or a transformer</td></tr>
+        <tr><td>MV Busbar</td><td>MV board, MV switchboard</td><td>a thick bar with a breaker on every way; a board fed from another board sits one tier lower</td></tr>
+        <tr><td>RMU</td><td>Ring main unit</td><td>a dashed enclosure with load-break switches on the incoming ways and fuse-switches on the tee-offs; RMUs that feed from each other form a ring side by side</td></tr>
+        <tr><td>Transformer</td><td>Tx, Trafo, Step-up</td><td>two circles; step-down or step-up follows Feeds from (see recipes)</td></tr>
+        <tr><td>Generator</td><td>Gen, Genset, DG, Alternator</td><td>a G circle: over the board it feeds, on top of a step-up column, or under a reversed one</td></tr>
+        <tr><td>Pump</td><td>Motor, Load</td><td>an M 3~ circle: in the transformer row on MV gear, in the feeder band on an LV board or an MCC, under a transformer of its own</td></tr>
+        <tr><td>LV Busbar</td><td>Busbar, LV board</td><td>a thick bar with its feeders under it; fed from a Feeder or another LV Busbar it becomes a sub-board on the row below</td></tr>
+        <tr><td>Feeder</td><td>LV feeder, Outgoing</td><td>a drop with its device and an arrow; on MV gear, an outgoing cable way</td></tr>
+        <tr><td>MCC</td><td>Motor control centre</td><td>a labelled box; with Pumps or Feeders under it, a bus of its own on the row below with the motor ways off it</td></tr>
+        <tr><td>Bus Coupler</td><td>Coupler</td><td>a breaker between two busbars of the same kind (<code>BB1, BB2</code>); between a board and a Generator, a changeover (ATS)</td></tr>
+        <tr><td>Capacitor Bank</td><td>Capacitor, PFC</td><td>the plates to earth, on an LV board or MV gear; needs no load</td></tr>
+        <tr><td>Earthing/NER</td><td>NER, NGR, Earthing transformer</td><td>the resistor box to earth; needs no load</td></tr>
+        <tr><td>Surge Arrester</td><td>Arrester, Surge</td><td>the arrester box to earth; needs no load</td></tr>
+      </table>
+
+      <h3>Wiring recipes (Feeds from)</h3>
+      <div class="help-cols">
+      <table>
+        <tr><th>You want</th><th>Write</th></tr>
+        <tr><td>Step-down</td><td>TX feeds from the MV board or RMU; the LV Busbar feeds from TX</td></tr>
+        <tr><td>Step-up from a genset or PV board</td><td>TX feeds from the Generator (or generation LV Busbar); the MV Busbar or RMU feeds from TX</td></tr>
+        <tr><td>Step-up from a live LV board</td><td>TX feeds from the LV Busbar that has its own supply; the MV gear feeds from TX</td></tr>
+        <tr><td>Genset straight onto a board</td><td>the board feeds from <code>MV, DG1, DG2</code>; the Generator rows have Feeds from blank</td></tr>
+        <tr><td>Standby set on a changeover</td><td>a Bus Coupler row <code>ATS</code> feeding from <code>MSB3, G1</code></td></tr>
+        <tr><td>Sub-board (DB)</td><td>the LV Busbar feeds from the Feeder that supplies it, or straight from the main LV Busbar</td></tr>
+        <tr><td>Motors in an MCC</td><td>the MCC feeds from the board; each Pump feeds from the MCC</td></tr>
+      </table>
+      <table>
+        <tr><th>You want</th><th>Write</th></tr>
+        <tr><td>Bus tie</td><td>a Bus Coupler feeding from the two boards <code>BB1, BB2</code>; Notes <code>Normally open</code></td></tr>
+        <tr><td>Board with two supplies</td><td>the board feeds from both: <code>TX1, TX2</code></td></tr>
+        <tr><td>Ring of RMUs from a board</td><td>each RMU feeds from its neighbours (<code>PB, R2</code> … <code>R4, PB</code>); a link written on both rows is drawn once</td></tr>
+        <tr><td>Open point of a ring</td><td>Notes on one RMU: <code>N.O. towards RMU2</code></td></tr>
+        <tr><td>Spur or sub-ring off an RMU</td><td>the spur RMU feeds from the ring RMU; a sub-ring's two RMUs feed from it and from each other</td></tr>
+        <tr><td>Boards at several voltage levels</td><td>the lower board feeds from the transformer, the transformer from the upper board; tiers follow the wiring, never the Voltage column</td></tr>
+        <tr><td>Outgoing MV cable, capacitor bank, NER</td><td>a Feeder, Capacitor Bank or Earthing/NER row feeding from the MV board or RMU</td></tr>
+      </table>
+      </div>
+
+      <h3>Words that change the symbol</h3>
+      <p>These are read from Description and Notes, so a normal survey note is enough; no extra column.</p>
+      <table>
+        <tr><th>Write</th><th>Where</th><th>Effect</th></tr>
+        <tr><td><code>VSD</code>, <code>VFD</code>, <code>drive</code></td><td>Description or Notes of a Pump</td><td>a drive box on the motor's drop</td></tr>
+        <tr><td><code>Spare</code>, <code>Future</code>, <code>Out of service</code></td><td>at the start of Notes</td><td>the way's conductor drawn dashed</td></tr>
+        <tr><td><code>N.O.</code>, <code>Normally open</code></td><td>Notes of a Bus Coupler</td><td>printed under the coupler</td></tr>
+        <tr><td><code>N.O. towards RMU2</code>, <code>ring open here</code></td><td>Notes of an RMU</td><td>an N.O. marker on the cable to the RMU named, or under the box when none is named</td></tr>
+        <tr><td><code>capacitor</code>, <code>PFC</code>, <code>kvar</code></td><td>Description or Notes of a Feeder</td><td>drawn as a capacitor bank</td></tr>
+        <tr><td><code>NER</code>, <code>earthing</code>, <code>zig-zag</code></td><td>a Feeder, or a Transformer with nothing on its output</td><td>drawn as an earthing resistor / earthing transformer to earth</td></tr>
+        <tr><td><code>arrester</code>, <code>surge</code></td><td>Description or Notes of a Feeder</td><td>drawn as a surge arrester</td></tr>
+        <tr><td><code>CB</code> <code>MCCB</code> <code>MCB</code> <code>ACB</code> · <code>LBS</code> <code>isolator</code> · <code>Fuse</code> · <code>Fuse-switch</code> <code>SFU</code> · <code>Contactor</code> · <code>Fuse-contactor</code> <code>starter</code></td><td>Protection</td><td>the device symbol on that connection</td></tr>
+      </table>
+
+      <h3>Getting it out</h3>
+      <p><strong>Copy SVG</strong> puts the drawing on the clipboard. <strong>Download DXF</strong> saves an R12 DXF with the
+      sketch and, to its right, the equipment table, centred so it opens in the middle of any CAD window; <strong>Copy DXF</strong>
+      gives the same file as text where downloads are blocked. Your table and your view are kept in this browser between visits.</p>
+    </div>
+  </details>
 
   <section class="panel">
     <h2>Survey info</h2>
@@ -226,7 +345,7 @@
     </div>
     <div class="tbl-foot">
       <button id="addrow" class="primary">+ Add row</button>
-      <span class="hint">Feeds from = the ID of the item supplying this one; comma for two supplies (bus tie: <code>BB1, BB2</code> — ring RMU: <code>RMU1, RMU2</code>). Protection = the device on this item's supply side (CB, LBS, Fuse, Fuse-switch, Contactor, Fuse-contactor; blank = the usual default; comma list matches Feeds from). Row order sets left-to-right order.</span>
+      <span class="hint">Feeds from = the ID of the item supplying this one; comma for two supplies (bus tie: <code>BB1, BB2</code> — ring RMU: <code>RMU1, RMU2</code>). Protection = the device on this item's supply side (CB, LBS, Fuse, Fuse-switch, Contactor, Fuse-contactor; blank = the usual default; comma list matches Feeds from). Row order sets left-to-right order. Words like <code>VSD</code>, <code>Spare</code>, <code>N.O.</code> or <code>capacitor</code> in Description / Notes change the symbol — see <a href="#help" id="helplink">How to fill</a>.</span>
     </div>
   </section>
 
@@ -2839,6 +2958,17 @@ $("#copydxf").addEventListener("click",async ()=>{
   }
   setTimeout(()=>{ out.textContent=""; },6000);
 });
+
+/* the how-to-fill page */
+const helpEl=$("#help");
+function showHelp(open){
+  helpEl.open=open;
+  $("#helpbtn").classList.toggle("on",open);
+  if(open) helpEl.scrollIntoView({behavior:"smooth",block:"start"});
+}
+$("#helpbtn").addEventListener("click",()=>showHelp(!helpEl.open));
+$("#helplink").addEventListener("click",e=>{ e.preventDefault(); showHelp(true); });
+helpEl.addEventListener("toggle",()=>$("#helpbtn").classList.toggle("on",helpEl.open));
 
 /* boot: restore last session, else start on example 1 */
 (function(){
