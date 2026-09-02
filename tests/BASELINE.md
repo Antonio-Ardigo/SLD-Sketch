@@ -35,6 +35,7 @@ MCC enclosure and scores clean from the start: 16/16 items, 15/15 edges.
 | tiers from Feeds From alone (voltage a label) | 30/31 | 25/29 | 25/26 | 33/37 | 19/21 | 0 |
 | generators as supplies and changeovers, LV sub-boards, MV outgoing ways and terminal items, spurs and sub-rings off an RMU, Notes keywords | **31/31** | **27/27** | **26/26** | **37/37** | **21/21** | 0 |
 | motors and feeders under an MCC: its own bus on the row below, incomer, box and bus in a dashed outline (`tests/features/f6_mcc.xlsx`) | 31/31 | 27/27 | 26/26 | 37/37 | 21/21 | 0 |
+| a transformer off an LV board feeding a motor hangs under the board (`tests/features/f7_board_tx.xlsx`); the checker now reports a transformer whose supply and load meet on one terminal (`bypassed`) | 31/31 | 27/27 | 26/26 | 37/37 | 21/21 | 0 |
 
 The first change removed every `rmu-entry` failure (C1 2, C4 2, nine
 probes) and changed nothing else: the six examples are byte-identical and

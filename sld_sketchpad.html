@@ -252,7 +252,7 @@
         <tr><td>MV Incomer</td><td>Incomer, MV</td><td>a source tick at the top; feeds an MV Busbar, an RMU or a transformer</td></tr>
         <tr><td>MV Busbar</td><td>MV board, MV switchboard</td><td>a thick bar with a breaker on every way; a board fed from another board sits one tier lower</td></tr>
         <tr><td>RMU</td><td>Ring main unit</td><td>a dashed enclosure with load-break switches on the incoming ways and fuse-switches on the tee-offs; RMUs that feed from each other form a ring side by side</td></tr>
-        <tr><td>Transformer</td><td>Tx, Trafo, Step-up</td><td>two circles; step-down or step-up follows Feeds from (see recipes)</td></tr>
+        <tr><td>Transformer</td><td>Tx, Trafo, Step-up</td><td>two circles; step-down or step-up follows Feeds from (see recipes); fed from an LV board and feeding only Pumps, it hangs under that board as one of its ways</td></tr>
         <tr><td>Generator</td><td>Gen, Genset, DG, Alternator</td><td>a G circle: over the board it feeds, on top of a step-up column, or under a reversed one</td></tr>
         <tr><td>Pump</td><td>Motor, Load</td><td>an M 3~ circle: in the transformer row on MV gear, in the feeder band on an LV board or an MCC, under a transformer of its own</td></tr>
         <tr><td>LV Busbar</td><td>Busbar, LV board</td><td>a thick bar with its feeders under it; fed from a Feeder or another LV Busbar it becomes a sub-board on the row below</td></tr>
@@ -519,6 +519,9 @@ function labelClearance(items, order, lvY){
     } else if(f.type===PUMP && (par.type===LV_BUSBAR||par.type===MCC)){
       lbl=[f.id,f.desc,f.rating].filter(Boolean).join(" · ");
       y0=lvY(par)+102;
+    } else if(f.type===PUMP && boardTx(items,par)){
+      lbl=[f.id,f.desc,f.rating].filter(Boolean).join(" · ");
+      y0=lvY(items[par.parents[0]])+218;
     } else continue;
     end=Math.max(end,y0+lbl.length*LABEL_CHAR);
   }
@@ -957,13 +960,29 @@ function lvKids(items, order, bb){
      sub-boards fed straight from it, each taking a slot on the bar; an MCC
      with loads is a little board of its own: its ways are its kids */
   if(bb.type===MCC) return mccLoads(items,order,bb);
-  return childrenOf(items,order,bb.id,LV_LOADS.concat([LV_BUSBAR]));
+  return childrenOf(items,order,bb.id,LV_LOADS.concat([LV_BUSBAR,TRANSFORMER]))
+    .filter(k=>k.type!==TRANSFORMER || boardTx(items,k));
 }
 function subBoardsOf(items, order, f){ return childrenOf(items,order,f.id,[LV_BUSBAR]); }
 function isSubBoard(items, bb){
   /* an LV board fed from a feeder or another LV board hangs below it */
   return bb.type===LV_BUSBAR
     && bb.parents.some(p=>items[p] && [FEEDER,LV_BUSBAR].includes(items[p].type));
+}
+function boardTx(items, tx){
+  /* a transformer taking supply from an LV board and feeding only motors:
+     a way of that board, drawn as a step-down on the row below it (a
+     transformer feeding MV gear is a step-up, one feeding another LV board
+     an LV/LV transformer; both are drawn in the transformer row) */
+  if(tx.type!==TRANSFORMER || !tx.parents.length) return false;
+  const par=items[tx.parents[0]];
+  if(!par || par.type!==LV_BUSBAR) return false;
+  const kids=Object.values(items).filter(c=>c.parents.includes(tx.id));
+  return kids.length>0 && kids.every(c=>c.type===PUMP);
+}
+function txLines(tx){
+  /* the label block of a transformer: id, description, rating+voltage */
+  return [tx.id,tx.desc,[tx.rating,tx.voltage].filter(Boolean).join(" ")].filter(Boolean);
 }
 function lvLevel(items, bb, seen){
   /* how many rows below the main LV row a board sits */
@@ -988,6 +1007,10 @@ function lvKidWidth(items, order, k){
   if(subs.length)
     return Math.max(FEEDER_SPACING,
       subs.reduce((a,b)=>a+lvBoardWidth(items,order,b)+2*SUB_PAD,0));
+  if(k.type===TRANSFORMER){   /* a board transformer: room for its label */
+    const need=TX_R+10+Math.max(...txLines(k).map(t=>t.length))*7.2+8;
+    return Math.max(FEEDER_SPACING, FEEDER_SPACING/2+need);
+  }
   return FEEDER_SPACING;
 }
 function lvBoardWidth(items, order, bb){
@@ -1005,6 +1028,7 @@ function placeLvBoard(items, order, bb, cx){
   kids.forEach((k,i)=>{
     const w=widths[i];
     k.x=cur+w/2;
+    if(k.type===TRANSFORMER) k.x=cur+FEEDER_SPACING/2;  /* label block on the right */
     if(k.type===LV_BUSBAR || (k.type===MCC && mccLoads(items,order,k).length))
       placeLvBoard(items,order,k,k.x);
     else if(k.type===FEEDER){
@@ -1024,7 +1048,8 @@ function placeLvBoard(items, order, bb, cx){
 }
 function subLevels(items, order){
   return Math.max(0,...order.filter(i=>items[i].type===LV_BUSBAR
-      || (items[i].type===MCC && mccLoads(items,order,items[i]).length))
+      || (items[i].type===MCC && mccLoads(items,order,items[i]).length)
+      || boardTx(items,items[i]))
     .map(i=>lvLevel(items,items[i])));
 }
 function slotWidth(items, order, item){
@@ -1791,6 +1816,7 @@ function render(info, items, order, width, warnings, canvas){
       .filter(o=>[LV_BUSBAR,TRANSFORMER,MCC].includes(o.type));
     let yc=lvPar.length?Y_ARROW-14:Y_PUMP; const r=lvPar.length?14:PUMP_R;
     if(lvPar.length && [LV_BUSBAR,MCC].includes(lvPar[0].type)) yc=lvY(lvPar[0])+88-14;
+    else if(lvPar.length && boardTx(items,lvPar[0])) yc=lvY(items[lvPar[0].parents[0]])+190;
     const vsd=stateWords(p).has("vsd");
     for(const q of p.parents){
       const par=items[q];
@@ -1805,7 +1831,10 @@ function render(info, items, order, width, warnings, canvas){
         svg.dot(p.x,yb);
         svg.drop(p.x,yb,yc-r,protFor(p,par.id)[1]||(par.type===MCC?"contactor":"cb"),yb+30);
       } else if(par.type===TRANSFORMER){     /* motor on its own transformer */
-        svg.drop(p.x,Y_TX_C2+TX_R,yc-r,protFor(p,par.id)[1]||"cb");
+        if(boardTx(items,par)){              /* under its board's row */
+          const yT=lvY(items[par.parents[0]])+70+27+TX_R;
+          svg.drop(p.x,yT,yc-r,protFor(p,par.id)[1]||"cb",yT+30);
+        } else svg.drop(p.x,Y_TX_C2+TX_R,yc-r,protFor(p,par.id)[1]||"cb");
       }
     }
     if(vsd) svg.vsd(p.x,yc-r-14);           /* drive box on the drop */
@@ -1864,7 +1893,7 @@ function render(info, items, order, width, warnings, canvas){
   const highRuns=[];
   for(const tx of txs){
     if(tx.x===null || (tx.id in sus) || (tx.id in lvsubMid) || ltx.has(tx.id)
-       || genBelow(items,order,tx)) continue;
+       || genBelow(items,order,tx) || boardTx(items,tx)) continue;
     const fedLv=childrenOf(items,order,tx.id,[LV_BUSBAR]);
     for(const p of tx.parents){
       const par=items[p];
@@ -2079,7 +2108,7 @@ function render(info, items, order, width, warnings, canvas){
   /* transformers */
   for(const tx of txs){
     if(tx.x===null || (tx.id in sus) || (tx.id in lvsubMid) || ltx.has(tx.id)
-       || genBelow(items,order,tx)) continue;   /* drawn as its own column */
+       || genBelow(items,order,tx) || boardTx(items,tx)) continue;   /* drawn as its own column */
     const fed=childrenOf(items,order,tx.id,[LV_BUSBAR]);
     /* transformers sharing a board label away from each other */
     let side=fed.some(bb=>bb.parents.length>1 && tx.x<bb.x)?"left":"right";
@@ -2340,6 +2369,17 @@ function render(info, items, order, width, warnings, canvas){
       svg.arrowDown(f.x,yArrow);
     }
     svg.text(f.x+4,yLbl,lbl,{size:11,anchor:"start",rotate:90});
+  }
+
+  /* transformers hanging under an LV board (a way feeding a motor) */
+  for(const tx of txs){
+    if(tx.x===null || !boardTx(items,tx)) continue;
+    const par=items[tx.parents[0]];
+    if(par.xLeft===null) continue;
+    const yb=lvY(par), yC1=yb+70;
+    svg.dot(tx.x,yb);
+    svg.drop(tx.x,yb,yC1-TX_R,protFor(tx,par.id)[1]||"cb",yb+30);
+    svg.transformer(tx.x,txLines(tx),"right",yC1);
   }
 
   /* title block */

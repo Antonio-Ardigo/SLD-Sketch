@@ -64,6 +64,7 @@ load — the name is kept as an alias of `Transformer`.
 | TX `Feeds From` a Generator or generation board, MV gear feeds from TX | source-on-top column |
 | TX `Feeds From` a live LV board, MV gear feeds from TX | step-up in the transformer row |
 | TX `Feeds From` MV gear, a Generator feeds from TX | the same column drawn upside down |
+| TX `Feeds From` an LV board, only Pumps feed from TX | step-down under the board: a way of it, the transformer on the row below, the motor under it |
 
 The last one works because a generator is never a load: a `Generator` whose
 `Feeds From` names a transformer can only be feeding *up* through it.
@@ -122,7 +123,10 @@ box when no way is named. Nothing else in Notes is read.
 **Motors.** A `Pump` on an MV Busbar or RMU is an MV motor drawn in the
 transformer row. A `Pump` on an **LV Busbar** is an LV motor drawn in the
 feeder band below the board, and a `Pump` fed straight from a **Transformer**
-hangs under that transformer (a dedicated motor supply). An `MCC` belongs on an
+hangs under that transformer (a dedicated motor supply). When that transformer
+itself feeds from an LV board (a 400/300 V motor supply, say) it is a way of
+the board: dot on the bar, the board's device, the transformer on the row
+below, the motor under its secondary. An `MCC` belongs on an
 LV Busbar; putting one on MV gear warns. A `Pump` or `Feeder` can feed from
 an **MCC**: the MCC then gets a bus of its own on the row below the board,
 and its motors hang off that bus with their starters (a contactor unless the

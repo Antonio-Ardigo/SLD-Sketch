@@ -571,6 +571,7 @@ TAGS = {
     "ring-group": "ring groups headed by an RMU",
     "rmu-entry": "board-fed RMU: draw the incoming way through to its bar",
     "no-load-ok": "terminal item types (NER, capacitor bank, arrester)",
+    "tx-bypass": "a transformer with supply and load on one terminal",
     "other": "unclassified",
 }
 NO_LOAD_WORDS = ("ner", "earthing", "neutral", "capacitor", "arrester",
@@ -664,7 +665,7 @@ def check(path):
                drawn=0, missing=[], duplicates=list(d.duplicates),
                edges=0, connected=0, disconnected=[], via=[],
                overlaps=[], unexpected=[], false_nets=[], crossings=0,
-               labels=0,
+               labels=0, bypassed=[],
                off_sheet=d.off_sheet, tags=defaultdict(int))
 
     # items
@@ -722,6 +723,24 @@ def check(path):
             tag = classify_edge(items, p, child, set(), mvset, broken)
             rep["disconnected"].append((name, tag))
         rep["tags"][tag] += 1
+
+    # a transformer must be crossed: its supply lands on one terminal and
+    # its loads leave from the other.  Supply and a load on the same
+    # terminal means the wires reach round it and it changes nothing.
+    for oid in order:
+        it = items[oid]
+        if it.type != S.TRANSFORMER or oid not in d.item_nodes:
+            continue
+        sup = {edge_paths.get(f"{p}>{oid}") for p in it.parents} - {None}
+        loads = set()
+        for c in order:
+            if oid in items[c].parents and items[c].type != S.BUS_COUPLER:
+                n, _ = d.path(c, oid, avoid_others=True)
+                if n is not None:
+                    loads.add(n)
+        if sup & loads:
+            rep["bypassed"].append(oid)
+            rep["tags"]["tx-bypass"] += 1
 
     # superimposed conductors: collinear overlap between different wires
     conds = [s for s in d.wires if s["kind"] == "cond" and seg_len(s) > LONG]
@@ -848,6 +867,8 @@ def fmt(rep):
     line += (f"  overlaps {len(rep['overlaps'])}  false nets "
              f"{len(rep['false_nets'])}  crossings {rep['crossings']}  "
              f"labels {rep['labels']}  off-sheet {rep['off_sheet']}")
+    if rep["bypassed"]:
+        line += f"  bypassed {len(rep['bypassed'])}"
     out = [line]
     if rep["missing"]:
         out.append(f"    missing symbols: {', '.join(rep['missing'])}")
@@ -859,6 +880,9 @@ def fmt(rep):
         out.append(f"    via {','.join(via):10s} {name:22s} [{tag}]")
     for comp in rep["false_nets"]:
         out.append(f"    drawn as one net, table says no: {' ~ '.join(comp)}")
+    for oid in rep["bypassed"]:
+        out.append(f"    transformer {oid} bypassed: supply and load on the "
+                   f"same terminal")
     for x, y, ov in rep["overlaps"][:6]:
         out.append(f"    superimposed conductors near ({x},{y}), {ov} px")
     if len(rep["overlaps"]) > 6:

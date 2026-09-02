@@ -31,4 +31,4 @@ python sld_check.py examples/config*.xlsx tests/levels/*.xlsx tests/features/*.x
 ```
 
 The seven `examples/` workbooks must always score clean: all items drawn, all
-edges connected, no overlaps, no false nets.
+edges connected, no overlaps, no false nets, no bypassed transformer.

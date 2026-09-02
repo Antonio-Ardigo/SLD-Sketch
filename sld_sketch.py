@@ -422,6 +422,9 @@ def label_clearance(items, order, lv_y):
         elif f.type == PUMP and par.type in (LV_BUSBAR, MCC):
             lbl = " · ".join(v for v in (f.id, f.desc, f.rating) if v)
             y0 = lv_y(par) + 102
+        elif f.type == PUMP and board_tx(items, par):
+            lbl = " · ".join(v for v in (f.id, f.desc, f.rating) if v)
+            y0 = lv_y(items[par.parents[0]]) + 218
         else:
             continue
         end = max(end, y0 + len(lbl) * LABEL_CHAR)
@@ -685,7 +688,9 @@ def lv_kids(items, order, bb):
     MCC with loads is a little board of its own: its ways are its kids."""
     if bb.type == MCC:
         return mcc_loads(items, order, bb)
-    return children_of(items, order, bb.id, set(LV_LOADS) | {LV_BUSBAR})
+    kids = children_of(items, order, bb.id,
+                       set(LV_LOADS) | {LV_BUSBAR, TRANSFORMER})
+    return [k for k in kids if k.type != TRANSFORMER or board_tx(items, k)]
 
 
 def sub_boards_of(items, order, f):
@@ -698,6 +703,26 @@ def is_sub_board(items, bb):
     below that board and is placed with it, not on the main row."""
     return bb.type == LV_BUSBAR and any(
         items[p].type in (FEEDER, LV_BUSBAR) for p in bb.parents)
+
+
+def board_tx(items, tx):
+    """A transformer taking supply from an LV board and feeding only
+    motors: a way of that board, drawn as a step-down on the row below
+    it.  (A transformer feeding MV gear is a step-up, one feeding another
+    LV board an LV/LV transformer; both are drawn in the transformer row.)"""
+    if tx.type != TRANSFORMER or not tx.parents:
+        return False
+    if items[tx.parents[0]].type != LV_BUSBAR:
+        return False
+    kids = [c for c in items.values() if tx.id in c.parents]
+    return bool(kids) and all(c.type == PUMP for c in kids)
+
+
+def tx_lines(tx):
+    """The label block of a transformer: id, description, rating+voltage."""
+    return [s for s in (tx.id, tx.desc,
+                        " ".join(v for v in (tx.rating, tx.voltage) if v))
+            if s]
 
 
 def lv_level(items, bb, _seen=None):
@@ -726,6 +751,9 @@ def lv_kid_width(items, order, k):
         return max(FEEDER_SPACING,
                    sum(lv_board_width(items, order, b) + 2 * SUB_PAD
                        for b in subs))
+    if k.type == TRANSFORMER:   # a board transformer: room for its label
+        need = TX_R + 10 + max(len(t) for t in tx_lines(k)) * 7.2 + 8
+        return max(FEEDER_SPACING, FEEDER_SPACING / 2 + need)
     return FEEDER_SPACING
 
 
@@ -746,6 +774,8 @@ def place_lv_board(items, order, bb, center_x):
     cur = bb.x_left + (width - sum(widths)) / 2
     for k, w in zip(kids, widths):
         k.x = cur + w / 2
+        if k.type == TRANSFORMER:     # the label block takes the right
+            k.x = cur + FEEDER_SPACING / 2
         if k.type == LV_BUSBAR or (k.type == MCC
                                    and mcc_loads(items, order, k)):
             place_lv_board(items, order, k, k.x)
@@ -1185,7 +1215,8 @@ def sub_levels(items, order):
     return max([lv_level(items, items[i]) for i in order
                 if items[i].type == LV_BUSBAR
                 or (items[i].type == MCC
-                    and mcc_loads(items, order, items[i]))] + [0])
+                    and mcc_loads(items, order, items[i]))
+                or board_tx(items, items[i])] + [0])
 
 
 def layout(items, order):
@@ -1941,6 +1972,8 @@ def render(info, items, order, width, canvas=None):
         yc, r = ((Y_ARROW - 14, 14) if lv_par else (Y_PUMP, PUMP_R))
         if lv_par and lv_par[0].type in (LV_BUSBAR, MCC):
             yc = lv_y(lv_par[0]) + 88 - 14
+        elif lv_par and board_tx(items, lv_par[0]):
+            yc = lv_y(items[lv_par[0].parents[0]]) + 190
         vsd = "vsd" in state_words(p)
         for par in (items[q] for q in p.parents):
             if par.type == MV_BUSBAR:
@@ -1956,8 +1989,13 @@ def render(info, items, order, width, canvas=None):
                          or ("contactor" if par.type == MCC else "cb"),
                          ydev=yb + 30)
             elif par.type == TRANSFORMER:        # motor on its own transformer
-                svg.drop(p.x, Y_TX_C2 + TX_R, yc - r,
-                         prot_for(p, par.id)[1] or "cb")
+                if board_tx(items, par):         # under its board's row
+                    y_t = lv_y(items[par.parents[0]]) + 70 + 27 + TX_R
+                    svg.drop(p.x, y_t, yc - r,
+                             prot_for(p, par.id)[1] or "cb", ydev=y_t + 30)
+                else:
+                    svg.drop(p.x, Y_TX_C2 + TX_R, yc - r,
+                             prot_for(p, par.id)[1] or "cb")
         if vsd:                                  # drive box on the drop
             svg.vsd(p.x, yc - r - 14)
         svg.circle(p.x, yc, r, sw=2.2)
@@ -2024,7 +2062,8 @@ def render(info, items, order, width, canvas=None):
     high_runs = []
     for tx in txs:
         if (tx.x is None or tx.id in sus or tx.id in lvsub_mid
-                or tx.id in ltx or gen_below(items, order, tx)):
+                or tx.id in ltx or gen_below(items, order, tx)
+                or board_tx(items, tx)):
             continue
         fed_lv = children_of(items, order, tx.id, {LV_BUSBAR})
         for p in tx.parents:
@@ -2293,7 +2332,8 @@ def render(info, items, order, width, canvas=None):
     # --- transformers ----------------------------------------------------
     for tx in txs:
         if (tx.x is None or tx.id in sus or tx.id in lvsub_mid
-                or tx.id in ltx or gen_below(items, order, tx)):
+                or tx.id in ltx or gen_below(items, order, tx)
+                or board_tx(items, tx)):
             continue                  # drawn as a column of its own
         fed = children_of(items, order, tx.id, {LV_BUSBAR})
         lbl = [tx.id, tx.desc,
@@ -2589,6 +2629,20 @@ def render(info, items, order, width, canvas=None):
             svg.drop(f.x, yb, y_arrow - 10, kind, ydev=y_dev, dash=dash)
             svg.arrow_down(f.x, y_arrow)
         svg.text(f.x + 4, y_lbl, lbl, size=11, anchor="start", rotate=90)
+
+    # --- transformers hanging under an LV board (a way feeding a motor) --
+    for tx in txs:
+        if tx.x is None or not board_tx(items, tx):
+            continue
+        par = items[tx.parents[0]]
+        if par.x_left is None:
+            continue
+        yb = lv_y(par)
+        y_c1 = yb + 70
+        svg.dot(tx.x, yb)
+        svg.drop(tx.x, yb, y_c1 - TX_R, prot_for(tx, par.id)[1] or "cb",
+                 ydev=yb + 30)
+        svg.transformer(tx.x, tx_lines(tx), "right", y=y_c1)
 
     # --- title block -----------------------------------------------------
     svg.layer = "frame"
