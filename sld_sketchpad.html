@@ -256,7 +256,7 @@
         <tr><td>Pump</td><td>Motor, Load</td><td>an M 3~ circle: in the transformer row on MV gear, in the feeder band on an LV board or an MCC, under a transformer of its own</td></tr>
         <tr><td>LV Busbar</td><td>Busbar, LV board</td><td>a thick bar with its feeders under it; fed from a Feeder or another LV Busbar it becomes a sub-board on the row below</td></tr>
         <tr><td>Feeder</td><td>LV feeder, Outgoing</td><td>a drop with its device and an arrow; on MV gear, an outgoing cable way</td></tr>
-        <tr><td>MCC</td><td>Motor control centre</td><td>a labelled box; with Pumps or Feeders under it, a bus of its own on the row below with the motor ways off it</td></tr>
+        <tr><td>MCC</td><td>Motor control centre</td><td>a labelled box; with Pumps or Feeders under it, a bus of its own on the row below with the motor ways off it, incomer, box and bus inside a dashed outline</td></tr>
         <tr><td>Bus Coupler</td><td>Coupler</td><td>a breaker between two busbars of the same kind (<code>BB1, BB2</code>); between a board and a Generator, a changeover (ATS)</td></tr>
         <tr><td>Capacitor Bank</td><td>Capacitor, PFC</td><td>the plates to earth, on an LV board or MV gear; needs no load</td></tr>
         <tr><td>Earthing/NER</td><td>NER, NGR, Earthing transformer</td><td>the resistor box to earth; needs no load</td></tr>
@@ -1474,7 +1474,7 @@ const LEGEND_ITEMS=[
   ["fuse-switch","Fuse-switch"],["contactor","Contactor"],
   ["fuse-contactor","Fused contactor"],
   ["tx","Transformer"],["gen","Generator"],["pump","Pump/motor"],["bus","Busbar"],["mcc","MCC"],
-  ["feeder","Feeder"],["rmu","RMU enclosure"]
+  ["feeder","Feeder"],["rmu","RMU/MCC enclosure"]
 ];
 const EXTRA_LEGEND=[[CAPACITOR,"Capacitor bank"],[EARTHING,"Earthing/NER"],
                     [ARRESTER,"Surge arrester"]];
@@ -2320,6 +2320,7 @@ function render(info, items, order, width, warnings, canvas){
       if(mccLoads(items,order,f).length && f.xLeft!==null){
         /* its own bus on the row below, the motor ways hang off it */
         const yM=lvY(f);
+        svg.rect(f.xLeft-10,yb+12,f.xRight-f.xLeft+20,yM-yb-2,1.6,"7 5");
         svg.line(f.x,yArrow,f.x,yM);
         svg.line(f.xLeft,yM,f.xRight,yM,5.5);
         svg.text(f.xLeft,yM-12,[f.id,f.desc,f.rating].filter(Boolean).join(" "),{size:11.5,anchor:"start",bold:true});

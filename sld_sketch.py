@@ -1531,7 +1531,7 @@ LEGEND_ITEMS = [
     ("fuse", "Fuse"), ("fuse-switch", "Fuse-switch"),
     ("contactor", "Contactor"), ("fuse-contactor", "Fused contactor"),
     ("tx", "Transformer"), ("gen", "Generator"), ("pump", "Pump/motor"), ("bus", "Busbar"),
-    ("mcc", "MCC"), ("feeder", "Feeder"), ("rmu", "RMU enclosure"),
+    ("mcc", "MCC"), ("feeder", "Feeder"), ("rmu", "RMU/MCC enclosure"),
 ]
 
 
@@ -2563,8 +2563,13 @@ def render(info, items, order, width, canvas=None):
             svg.rect(f.x - 14, y_arrow - 26, 28, 26, sw=2)
             svg.text(f.x, y_arrow - 8, "MCC", size=8)
             if mcc_loads(items, order, f) and f.x_left is not None:
-                # its own bus on the row below, the motor ways hang off it
+                # its own bus on the row below, the motor ways hang off it;
+                # incomer, box and bus sit inside a dashed outline, like
+                # an RMU
                 y_m = lv_y(f)
+                svg.rect(f.x_left - 10, yb + 12,
+                         f.x_right - f.x_left + 20, y_m - yb - 2,
+                         sw=1.6, dash="7 5")
                 svg.line(f.x, y_arrow, f.x, y_m)
                 svg.line(f.x_left, y_m, f.x_right, y_m, w=5.5)
                 svg.text(f.x_left, y_m - 12, " ".join(

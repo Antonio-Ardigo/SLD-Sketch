@@ -288,11 +288,18 @@ class Drawing:
                      if abs(r["w"] - 12) < 0.1 and abs(r["h"] - 30) < 0.1]
         self.arresters = [r for r in g["rects"]
                           if abs(r["w"] - 14) < 0.1 and abs(r["h"] - 28) < 0.1]
-        # RMU enclosures
-        self.rmus = [r for r in g["rects"] if r["dash"] and r["w"] > 40]
         # MCC boxes
         self.mccs = [r for r in g["rects"]
                      if abs(r["w"] - 28) < 0.1 and abs(r["h"] - 26) < 0.1]
+
+        def holds_mcc(r):        # a dashed outline round an MCC box + bus
+            return any(r["x"] <= m["x"] and m["x"] + m["w"] <= r["x"] + r["w"]
+                       and r["y"] <= m["y"] and m["y"] + m["h"] <= r["y"] + r["h"]
+                       for m in self.mccs)
+        dashed = [r for r in g["rects"] if r["dash"] and r["w"] > 40]
+        self.mcc_encl = [r for r in dashed if holds_mcc(r)]
+        # RMU enclosures
+        self.rmus = [r for r in dashed if not holds_mcc(r)]
         # feeder arrows
         self.arrows = [dict(x=p[2][0], top=p[0][1]) for p in g["polys"]
                        if len(p) == 3]

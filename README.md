@@ -126,7 +126,8 @@ hangs under that transformer (a dedicated motor supply). An `MCC` belongs on an
 LV Busbar; putting one on MV gear warns. A `Pump` or `Feeder` can feed from
 an **MCC**: the MCC then gets a bus of its own on the row below the board,
 and its motors hang off that bus with their starters (a contactor unless the
-row's Protection says otherwise).
+row's Protection says otherwise). Its incomer, box and bus sit inside a
+dashed outline, like an RMU, so the MCC reads as one piece of switchgear.
 
 Either type can also hang off an **RMU**: it takes a proper way inside the
 enclosure, with its device on the tee-off. A generation **LV board** under an
