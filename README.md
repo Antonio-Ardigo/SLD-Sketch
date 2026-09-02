@@ -185,8 +185,10 @@ Regenerate the workbooks with `python make_examples.py`, and the sketches with
 a `.dxf` beside it (or `python sld_dxf.py <workbook> -o out.dxf` for the DXF
 alone). The file is R12 DXF, the dialect every CAD package and viewer opens:
 the sketch exactly as the SVG draws it, built from the same symbol
-primitives, with the equipment table that produced it laid out under the
-sheet. One drawing unit is one sketch pixel, meant as 1 mm. Entities are
+primitives, with the equipment table that produced it laid out beside the
+sheet, to its right. The drawing is centred on the origin and the file's
+opening view is fitted to it, so it comes up in the middle of the window in
+any CAD program. One drawing unit is one sketch pixel, meant as 1 mm. Entities are
 sorted onto layers so a CAD user can switch parts off: `SLD_DRAWING`
 (conductors and symbols), `SLD_BUSBAR` (the thick bars, as polylines with
 width), `SLD_TEXT`, `SLD_ENCLOSURE` (RMU boxes, dashed), `SLD_FRAME` (title

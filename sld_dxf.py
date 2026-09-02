@@ -70,7 +70,7 @@ class DXF(S.SVG):
     def __init__(self, table=None):
         super().__init__()
         self.ents = []
-        self.table = table          # (info, items, order) to draw below
+        self.table = table          # (info, items, order) to draw beside
         self.count = 0
 
     # -- helpers ------------------------------------------------------------
@@ -85,8 +85,22 @@ class DXF(S.SVG):
                 "enclosure": "SLD_ENCLOSURE"}.get(kind, "SLD_DRAWING")
 
     def _e(self, *pairs):
-        self.ents.append("\n".join(f"{c}\n{v}" for c, v in pairs))
+        """Queue an entity.  Coordinates (codes 10-13 / 20-23) stay raw
+        numbers in DXF space until document() knows the extents and can
+        centre the whole drawing on the origin."""
+        self.ents.append(pairs)
         self.count += 1
+
+    @staticmethod
+    def _emit(pairs, dx, dy):
+        out = []
+        for c, v in pairs:
+            if c in (10, 11, 12, 13):
+                v = num(v + dx)
+            elif c in (20, 21, 22, 23):
+                v = num(v + dy)
+            out.append(f"{c}\n{v}")
+        return "\n".join(out)
 
     # -- primitives (the engine's symbols call only these) ------------------
     def line(self, x1, y1, x2, y2, w=2, dash=None):
@@ -95,16 +109,16 @@ class DXF(S.SVG):
                     (70, 0), (40, num(w)), (41, num(w)),
                     (10, 0), (20, 0), (30, 0))
             self._e((0, "VERTEX"), (8, self._layer("busbar")),
-                    (10, num(x1)), (20, num(-y1)), (30, 0))
+                    (10, x1), (20, -y1), (30, 0))
             self._e((0, "VERTEX"), (8, self._layer("busbar")),
-                    (10, num(x2)), (20, num(-y2)), (30, 0))
+                    (10, x2), (20, -y2), (30, 0))
             self._e((0, "SEQEND"), (8, self._layer("busbar")))
             return
         pairs = [(0, "LINE"), (8, self._layer())]
         if dash:
             pairs.append((6, "DASHED"))
-        pairs += [(10, num(x1)), (20, num(-y1)), (30, 0),
-                  (11, num(x2)), (21, num(-y2)), (31, 0)]
+        pairs += [(10, x1), (20, -y1), (30, 0),
+                  (11, x2), (21, -y2), (31, 0)]
         self._e(*pairs)
 
     def rect(self, x, y, w, h, sw=2, dash=None, fill="none"):
@@ -116,12 +130,12 @@ class DXF(S.SVG):
         self._e(*pairs)
         for px, py in ((x, y), (x + w, y), (x + w, y + h), (x, y + h)):
             self._e((0, "VERTEX"), (8, lay),
-                    (10, num(px)), (20, num(-py)), (30, 0))
+                    (10, px), (20, -py), (30, 0))
         self._e((0, "SEQEND"), (8, lay))
 
     def circle(self, x, y, r, sw=2):
         self._e((0, "CIRCLE"), (8, self._layer()),
-                (10, num(x)), (20, num(-y)), (30, 0), (40, num(r)))
+                (10, x), (20, -y), (30, 0), (40, num(r)))
 
     def dot(self, x, y, r=3.2):
         # a filled dot: the classic donut, a closed polyline of two bulged
@@ -130,7 +144,7 @@ class DXF(S.SVG):
         self._e((0, "POLYLINE"), (8, lay), (66, 1), (70, 1),
                 (40, num(r)), (41, num(r)), (10, 0), (20, 0), (30, 0))
         for px in (x - r / 2, x + r / 2):
-            self._e((0, "VERTEX"), (8, lay), (10, num(px)), (20, num(-y)),
+            self._e((0, "VERTEX"), (8, lay), (10, px), (20, -y),
                     (30, 0), (42, 1))
         self._e((0, "SEQEND"), (8, lay))
 
@@ -143,7 +157,7 @@ class DXF(S.SVG):
         pairs = [(0, "SOLID"), (8, self._layer())]
         # a SOLID's corners run 1-2-4-3 (a bow-tie otherwise)
         for k, (px, py) in zip((0, 1, 3, 2), pts[:4]):
-            pairs += [(10 + k, num(px)), (20 + k, num(-py)), (30 + k, 0)]
+            pairs += [(10 + k, px), (20 + k, -py), (30 + k, 0)]
         self._e(*pairs)
 
     def text(self, x, y, s, size=12, anchor="middle", bold=False,
@@ -151,13 +165,13 @@ class DXF(S.SVG):
         if not s:
             return
         pairs = [(0, "TEXT"), (8, self._layer("text")), (7, "STANDARD"),
-                 (10, num(x)), (20, num(-y)), (30, 0),
+                 (10, x), (20, -y), (30, 0),
                  (40, num(size * TEXT_H)), (1, clean(s))]
         if rotate:
             pairs.append((50, num(-rotate)))   # SVG rotates clockwise
         if anchor != "start":
             pairs += [(72, 1 if anchor == "middle" else 2),
-                      (11, num(x)), (21, num(-y)), (31, 0)]
+                      (11, x), (21, -y), (31, 0)]
         self._e(*pairs)
 
     def path(self, d, sw=2):
@@ -174,15 +188,16 @@ class DXF(S.SVG):
         # SVG sweep=1 is clockwise on screen; a DXF arc runs anticlockwise
         start, end = (a2, a1) if sweep == 1 else (a1, a2)
         self._e((0, "ARC"), (8, self._layer()),
-                (10, num(cx)), (20, num(cy)), (30, 0), (40, num(r)),
+                (10, cx), (20, cy), (30, 0), (40, num(r)),
                 (50, num(start)), (51, num(end)))
 
     # -- the equipment table under the sheet --------------------------------
-    def draw_table(self, y_top, width):
+    def draw_table(self, x_left, y_top):
+        """The equipment table beside the sheet; returns (right, bottom)."""
         info, items, order = self.table
         self.layer = "table"
         size, row_h, pad = 11, 18, 8
-        x0, y = 24, y_top
+        x0, y = x_left, y_top
         site = info.get("site", "")
         self.text(x0, y + 14, ("EQUIPMENT TABLE - " + site) if site
                   else "EQUIPMENT TABLE", size=14, anchor="start", bold=True)
@@ -236,17 +251,34 @@ class DXF(S.SVG):
             self.line(cx, y_head, cx, y, w=1)
             cx += cw
         self.layer = "drawing"
-        return y
+        return x1, y
 
     # -- the file -------------------------------------------------------------
     def document(self, width, height):
-        h = height
+        # the table stands to the right of the sheet, 40 units clear
+        right, bottom = width, height
         if self.table:
-            h = self.draw_table(height + 40, width) + 24
+            x1, y1 = self.draw_table(width + 40, 24)
+            right, bottom = max(right, x1 + 24), max(bottom, y1 + 24)
+        # centre the whole drawing on the origin
+        dx, dy = -right / 2, bottom / 2
+        xmin, xmax = -right / 2, right / 2
+        ymin, ymax = -bottom / 2, bottom / 2
         out = ["0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009",
-               f"9\n$EXTMIN\n10\n0\n20\n{num(-h)}\n30\n0",
-               f"9\n$EXTMAX\n10\n{num(width)}\n20\n0\n30\n0",
+               f"9\n$EXTMIN\n10\n{num(xmin)}\n20\n{num(ymin)}\n30\n0",
+               f"9\n$EXTMAX\n10\n{num(xmax)}\n20\n{num(ymax)}\n30\n0",
+               f"9\n$LIMMIN\n10\n{num(xmin)}\n20\n{num(ymin)}",
+               f"9\n$LIMMAX\n10\n{num(xmax)}\n20\n{num(ymax)}",
                "0\nENDSEC", "0\nSECTION\n2\nTABLES",
+               # the opening view: centred on the drawing, fitted with a margin
+               "0\nTABLE\n2\nVPORT\n70\n1",
+               "0\nVPORT\n2\n*ACTIVE\n70\n0\n10\n0\n20\n0\n11\n1\n21\n1"
+               "\n12\n0\n22\n0\n13\n0\n23\n0\n14\n10\n24\n10\n15\n10\n25\n10"
+               "\n16\n0\n26\n0\n36\n1\n17\n0\n27\n0\n37\n0"
+               f"\n40\n{num(bottom * 1.08)}\n41\n{num(right / bottom)}"
+               "\n42\n50\n43\n0\n44\n0\n50\n0\n51\n0\n71\n0\n72\n100"
+               "\n73\n1\n74\n3\n75\n0\n76\n0\n77\n0\n78\n0",
+               "0\nENDTAB",
                "0\nTABLE\n2\nLTYPE\n70\n2",
                "0\nLTYPE\n2\nCONTINUOUS\n70\n0\n3\nSolid line\n72\n65\n73\n0\n40\n0",
                "0\nLTYPE\n2\nDASHED\n70\n0\n3\n__ __ __\n72\n65\n73\n2\n40\n9\n49\n6\n49\n-3",
@@ -257,7 +289,7 @@ class DXF(S.SVG):
                 f"0\nSTYLE\n2\nSTANDARD\n70\n0\n40\n0\n41\n{num(WIDTH_F)}\n50\n0\n71\n0\n42\n2.5\n3\ntxt\n4\n",
                 "0\nENDTAB", "0\nENDSEC", "0\nSECTION\n2\nBLOCKS\n0\nENDSEC",
                 "0\nSECTION\n2\nENTITIES"]
-        out += self.ents
+        out += [self._emit(e, dx, dy) for e in self.ents]
         out += ["0\nENDSEC", "0\nEOF", ""]
         return "\n".join(out)
 
@@ -331,6 +363,19 @@ def check_dxf(text):
             if box[0] < xmin - 1 or box[2] > xmax + 1 \
                     or box[1] < ymin - 1 or box[3] > ymax + 1:
                 out.append(f"text outside the sheet: '{t}' ({lay})")
+        vp = next((e for e in ents if e["type"] == "VPORT"
+                   and e.get("2") == "*ACTIVE"), None)
+        if vp is None:
+            out.append("no *ACTIVE viewport: the file opens wherever the CAD "
+                       "program likes")
+        else:
+            cx, cy = float(vp["12"]), float(vp["22"])
+            vh, asp = float(vp["40"]), float(vp["41"])
+            if abs(cx - (xmin + xmax) / 2) > 1 or abs(cy - (ymin + ymax) / 2) > 1:
+                out.append(f"opening view centred at ({cx}, {cy}), not on the "
+                           f"drawing ({(xmin + xmax) / 2}, {(ymin + ymax) / 2})")
+            if vh < ymax - ymin or vh * asp < xmax - xmin:
+                out.append("opening view smaller than the drawing")
     return out
 
 
