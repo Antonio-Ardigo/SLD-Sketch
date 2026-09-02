@@ -125,18 +125,47 @@
     margin-bottom: 6px; background: var(--surface);
   }
 
-  .sheet-bar { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+  .sheet-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 10px; }
   .sheet-bar h2 {
     margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .09em;
     text-transform: uppercase; color: var(--muted);
   }
   .sheet-bar .copystate { font-size: 12.5px; color: var(--muted); }
-  .sheet-scroll {
-    overflow-x: auto; background: var(--ground);
-    border-radius: 6px; padding: 4px 2px 10px;
+  .viewtools { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .viewtools button { padding: 4px 9px; min-width: 30px; }
+  .readout {
+    font: 500 12px "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    color: var(--muted); min-width: 4.5ch; text-align: right;
   }
+  .viewhint { font-size: 12px; color: var(--muted); }
+  @media (max-width: 900px) { .viewhint { display: none; } }
+  /* the viewer: a fixed-height window with its own scrollbars; the sheet
+     inside is scaled by the zoom and the spacer sized to match, so the
+     scrollbars always reach every corner of the drawing */
+  .viewport {
+    height: min(72vh, 900px); overflow: scroll; scrollbar-gutter: stable;
+    background: var(--ground); border: 1px solid var(--border);
+    border-radius: 6px; cursor: grab; outline: none; position: relative;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  /* classic, always-visible scrollbars, whatever the platform's overlay setting */
+  .viewport { scrollbar-width: auto; scrollbar-color: var(--muted) var(--field); }
+  .viewport::-webkit-scrollbar { width: 14px; height: 14px; }
+  .viewport::-webkit-scrollbar-track { background: var(--field); }
+  .viewport::-webkit-scrollbar-thumb {
+    background: var(--muted); border: 3px solid var(--field); border-radius: 7px;
+  }
+  .viewport::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+  .viewport::-webkit-scrollbar-corner { background: var(--field); }
+  .viewport.dragging { cursor: grabbing; }
+  .viewport:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+  #sheetbox { position: relative; width: 100%; height: 100%; }
+  #sheet { position: absolute; left: 16px; top: 16px; transform-origin: 0 0; }
   /* the drawing is a paper object: always white, always dark ink */
-  #sheet svg { display: block; box-shadow: var(--sheet-shadow); border-radius: 3px; }
+  #sheet svg {
+    display: block; box-shadow: var(--sheet-shadow); border-radius: 3px;
+    -webkit-user-drag: none;
+  }
 
   footer.note { margin-top: 22px; color: var(--muted); font-size: 12.5px; max-width: 68ch; }
 </style>
@@ -208,14 +237,26 @@
       <h2>Drawing</h2>
       <button id="copysvg">Copy SVG</button>
       <span class="copystate" id="copystate"></span>
+      <span class="viewtools">
+        <button id="v-fit" title="Fit the whole drawing (0)">Fit</button>
+        <button id="v-100" title="Actual size (1)">100%</button>
+        <button id="v-out" title="Zoom out (&minus;)">&minus;</button>
+        <button id="v-in" title="Zoom in (+)">+</button>
+        <span class="readout" id="v-zoom">100%</span>
+        <span class="viewhint">drag to pan &middot; scrollbars or wheel to move &middot; ctrl+wheel to zoom</span>
+      </span>
     </div>
-    <div class="sheet-scroll"><div id="sheet"></div></div>
+    <div class="viewport" id="viewport" tabindex="0"
+         aria-label="Drawing: drag or use the scrollbars to move, + and - to zoom, 0 to fit">
+      <div id="sheetbox"><div id="sheet"></div></div>
+    </div>
   </section>
 
   <footer class="note">
     The drawing rebuilds as you type. Topology comes only from <strong>ID</strong> and
     <strong>Feeds from</strong> — Description, Rating, Voltage and Notes are printed as labels.
-    Your table is kept in this browser between visits.
+    Drag the drawing or use its scrollbars to move around a big sheet; Fit, +, &minus; and
+    ctrl+wheel zoom it. Your table and your view are kept in this browser between visits.
   </footer>
 </div>
 
@@ -2292,6 +2333,7 @@ function redraw(){
     $("#sheet").innerHTML="";
     probs.hidden=false;
     probs.innerHTML="<div>No equipment yet — add rows or load an example.</div>";
+    syncView();
     return;
   }
   if(errors.length){
@@ -2302,9 +2344,148 @@ function redraw(){
   const width=layout(items,order);
   const svgStr=render(state.info,items,order,width,warnings);
   $("#sheet").innerHTML=svgStr;
+  syncView();
   probs.hidden=!warnings.length;
   probs.innerHTML=warnings.map(e=>`<div>${esc(e)}</div>`).join("");
 }
+
+/* ------------------------------------------------ viewer: scroll, pan, zoom */
+const VIEW_KEY="sld-sketchpad-view", PAD=16, ZMIN=0.1, ZMAX=8, ZSTEP=1.25;
+const view={z:1, w:0, h:0, fitted:true, sl:null, st:null};
+const viewport=$("#viewport"), sheetbox=$("#sheetbox"), sheetEl=$("#sheet");
+function drawingSize(){
+  const svg=$("#sheet svg");
+  if(!svg) return {w:0,h:0};
+  return {w:+svg.getAttribute("width")||0, h:+svg.getAttribute("height")||0};
+}
+function saveView(){
+  try{ localStorage.setItem(VIEW_KEY, JSON.stringify({z:view.z, w:view.w, h:view.h,
+    fitted:view.fitted, sl:viewport.scrollLeft, st:viewport.scrollTop})); }catch(e){}
+}
+function loadView(){
+  try{
+    const v=JSON.parse(localStorage.getItem(VIEW_KEY)||"null");
+    if(v && [v.z,v.w,v.h,v.sl,v.st].every(n=>typeof n==="number" && isFinite(n))){
+      view.z=Math.min(ZMAX,Math.max(ZMIN,v.z)); view.w=v.w; view.h=v.h;
+      view.fitted=!!v.fitted; view.sl=v.sl; view.st=v.st;
+      return;
+    }
+  }catch(e){}
+  view.fitted=true;
+}
+function applyView(){
+  sheetbox.style.width=(view.w?view.w*view.z+2*PAD:0)+"px";
+  sheetbox.style.height=(view.h?view.h*view.z+2*PAD:0)+"px";
+  sheetEl.style.transform=`scale(${view.z})`;
+  $("#v-zoom").textContent=Math.round(view.z*100)+"%";
+  saveView();
+}
+function setZoom(z, cx, cy){
+  z=Math.min(ZMAX,Math.max(ZMIN,z));
+  if(cx===undefined){ cx=viewport.clientWidth/2; cy=viewport.clientHeight/2; }
+  const u=(viewport.scrollLeft+cx-PAD)/view.z, v=(viewport.scrollTop+cy-PAD)/view.z;
+  view.z=z; view.fitted=false;
+  applyView();
+  viewport.scrollLeft=u*z+PAD-cx;
+  viewport.scrollTop=v*z+PAD-cy;
+  saveView();
+}
+function fitView(){
+  const vw=viewport.clientWidth, vh=viewport.clientHeight;
+  if(!view.w || !view.h || vw<=0 || vh<=0) view.z=1;
+  else view.z=Math.min(ZMAX,Math.max(ZMIN,
+    Math.min((vw-2*PAD)/view.w,(vh-2*PAD)/view.h)));
+  view.fitted=true;
+  applyView();
+  viewport.scrollLeft=0; viewport.scrollTop=0;
+  saveView();
+}
+function zoomActual(){ setZoom(1); }
+function syncView(){
+  /* after every redraw: keep the user's view unless there was nothing, the
+     user never moved it, or the sheet changed size by more than half */
+  const {w,h}=drawingSize();
+  const big=(a,b)=>Math.max(a,b)/Math.max(1,Math.min(a,b))>1.5;
+  const refit=view.fitted || !view.w || !w || big(view.w,w) || big(view.h,h);
+  view.w=w; view.h=h;
+  if(refit){ fitView(); return; }
+  applyView();
+  if(view.sl!==null){                 /* the saved scroll, once at boot */
+    viewport.scrollLeft=view.sl; viewport.scrollTop=view.st;
+    view.sl=view.st=null;
+  }
+}
+(function bindViewer(){
+  const pointers=new Map();
+  const onScrollbar=e=>e.offsetX>viewport.clientWidth || e.offsetY>viewport.clientHeight;
+  viewport.addEventListener("pointerdown",e=>{
+    if(e.button!==0 || onScrollbar(e)) return;
+    e.preventDefault();
+    viewport.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    viewport.classList.add("dragging");
+    viewport.focus({preventScroll:true});
+  });
+  viewport.addEventListener("pointermove",e=>{
+    const p=pointers.get(e.pointerId);
+    if(!p) return;
+    if(pointers.size===1){
+      viewport.scrollLeft-=e.clientX-p.x; viewport.scrollTop-=e.clientY-p.y;
+      view.fitted=false;
+    } else if(pointers.size===2){    /* pinch */
+      const [a,b]=[...pointers.values()];
+      const before=Math.hypot(a.x-b.x,a.y-b.y);
+      const other=(p===a)?b:a;
+      const after=Math.hypot(e.clientX-other.x,e.clientY-other.y);
+      const r=viewport.getBoundingClientRect();
+      if(before>0) setZoom(view.z*after/before,
+        (e.clientX+other.x)/2-r.left,(e.clientY+other.y)/2-r.top);
+    }
+    p.x=e.clientX; p.y=e.clientY;
+  });
+  const release=e=>{
+    pointers.delete(e.pointerId);
+    if(!pointers.size) viewport.classList.remove("dragging");
+  };
+  for(const ev of ["pointerup","pointercancel","lostpointercapture"])
+    viewport.addEventListener(ev,release);
+  viewport.addEventListener("wheel",e=>{
+    if(!(e.ctrlKey||e.metaKey)) return;    /* plain wheel scrolls natively */
+    e.preventDefault();
+    const r=viewport.getBoundingClientRect();
+    const dy=e.deltaMode===1?e.deltaY*16:e.deltaMode===2?e.deltaY*viewport.clientHeight:e.deltaY;
+    setZoom(view.z*Math.exp(-dy*0.002), e.clientX-r.left, e.clientY-r.top);
+  },{passive:false});
+  viewport.addEventListener("keydown",e=>{
+    const step=e.shiftKey?200:40; let done=true;
+    switch(e.key){
+      case "ArrowLeft": viewport.scrollLeft-=step; view.fitted=false; break;
+      case "ArrowRight": viewport.scrollLeft+=step; view.fitted=false; break;
+      case "ArrowUp": viewport.scrollTop-=step; view.fitted=false; break;
+      case "ArrowDown": viewport.scrollTop+=step; view.fitted=false; break;
+      case "+": case "=": setZoom(view.z*ZSTEP); break;
+      case "-": case "_": setZoom(view.z/ZSTEP); break;
+      case "0": fitView(); break;
+      case "1": zoomActual(); break;
+      default: done=false;
+    }
+    if(done) e.preventDefault();
+  });
+  viewport.addEventListener("dblclick",e=>{ if(!onScrollbar(e)) fitView(); });
+  let pending=false;
+  viewport.addEventListener("scroll",()=>{
+    if(pending) return;
+    pending=true;
+    requestAnimationFrame(()=>{ pending=false; saveView(); });
+  });
+  $("#v-fit").addEventListener("click",fitView);
+  $("#v-100").addEventListener("click",zoomActual);
+  $("#v-in").addEventListener("click",()=>setZoom(view.z*ZSTEP));
+  $("#v-out").addEventListener("click",()=>setZoom(view.z/ZSTEP));
+  if(typeof ResizeObserver!=="undefined")
+    new ResizeObserver(()=>{ if(view.fitted) fitView(); else applyView(); })
+      .observe(viewport);
+})();
 
 function persist(){
   try{ localStorage.setItem("sld-sketchpad", JSON.stringify(state)); }catch(e){}
@@ -2342,14 +2523,16 @@ $("#preset").addEventListener("change",e=>{
   const p=PRESETS[e.target.value]; e.target.value="";
   if(!p) return;
   state=JSON.parse(JSON.stringify(p));
+  view.fitted=true;
   writeInfoInputs(); rebuildTable(); redraw(); persist();
 });
 $("#clear").addEventListener("click",()=>{
   state={info:{site:"",date:"",by:"",notes:""},rows:[R("","","","","","","")]};
+  view.fitted=true;
   writeInfoInputs(); rebuildTable(); redraw(); persist();
 });
 $("#copysvg").addEventListener("click",async ()=>{
-  const el=$("#sheet").innerHTML, out=$("#copystate");
+  const svgEl=$("#sheet svg"), el=svgEl?svgEl.outerHTML:"", out=$("#copystate");
   if(!el){ out.textContent="Nothing to copy yet."; return; }
   try{
     await navigator.clipboard.writeText(el);
@@ -2371,6 +2554,7 @@ $("#copysvg").addEventListener("click",async ()=>{
     }
   }catch(e){}
   state=restored||JSON.parse(JSON.stringify(PRESETS["1"]));
+  loadView();
   writeInfoInputs(); rebuildTable(); redraw();
 })();
 </script>

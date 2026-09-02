@@ -20,7 +20,10 @@ Open the SVG in any browser. To start a new survey, copy
 **No Python at hand?** Open `sld_sketchpad.html` in a browser — the same layout
 engine ported to JavaScript, with an editable equipment table instead of Excel
 and the drawing rebuilding live as you type. The six example configurations are
-built in, and your table is kept in the browser between visits.
+built in, and your table is kept in the browser between visits. The drawing
+sits in a window of its own with scrollbars on both axes: drag it to pan,
+Fit / 100 % / − / + (or ctrl+wheel, the keys 0, 1, −, +) to zoom, so a
+2500 px site stays reachable end to end.
 
 ## The spreadsheet
 
