@@ -1746,8 +1746,6 @@ def render(info, items, order, width, canvas=None):
         for x_e, other in ring_entries.get(rmu.id, []):
             in_way(x_e, prot_for(rmu, other)[1]
                    if other in rmu.parents else None)
-            if no_toward(rmu, items[other]):
-                svg.text(x_e + 8, rt + 24, "N.O.", size=9, anchor="start")
         # outgoing ways from the bus to the bottom edge (default
         # fuse-switch, overridden by the fed item's Protection)
         for t in ways_out:
@@ -1801,6 +1799,8 @@ def render(info, items, order, width, canvas=None):
         _, a_right, _, a_bus_r = rmu_box[a.id]
         b_left, _, b_bus_l, _ = rmu_box[b.id]
         svg.line(a_right, y_link, b_left, y_link, w=2)  # cable between boxes
+        if no_toward(a, b) or no_toward(b, a):   # the ring's open point
+            svg.text((a_right + b_left) / 2, y_link + 12, "N.O.", size=9)
         # the way switch inside each box, between the wall and the bus
         # (default LBS; the fed RMU's Protection entry can override it)
         for xe, xc, owner, other in ((a_right, a_bus_r, a, b),
@@ -1812,13 +1812,13 @@ def render(info, items, order, width, canvas=None):
             lo, hi = min(xe, xc), max(xe, xc)
             svg.line(lo, y_link, xm - gap, y_link, w=2)
             svg.line(xm + gap, y_link, hi, y_link, w=2)
-            if no_toward(owner, other):
-                svg.text(xm, y_link + 22, "N.O.", size=9)
-    for xa, xb, r_top, _ in ring_links:  # loop over the boxes in between
+    for xa, xb, r_top, (ia, ib) in ring_links:  # loop over the boxes between
         y_ring = r_top - 26
         svg.line(xa, r_top, xa, y_ring)
         svg.line(xa, y_ring, xb, y_ring)
         svg.line(xb, y_ring, xb, r_top)
+        if no_toward(items[ia], items[ib]) or no_toward(items[ib], items[ia]):
+            svg.text((xa + xb) / 2, y_ring + 11, "N.O.", size=9)
     # an RMU hung below its ring RMU: from the tee-off in the enclosure
     # down to a lane, across to the box below, and in through its top
     hang_runs = []

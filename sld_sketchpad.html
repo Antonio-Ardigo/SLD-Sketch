@@ -1496,7 +1496,6 @@ function render(info, items, order, width, warnings, canvas){
       inWay((b.id in rmu.land)?rmu.land[b.id]:rmu.x, protFor(rmu,b.id)[1]);
     for(const [xe,other] of ringEntries[rmu.id]||[]){
       inWay(xe, rmu.parents.includes(other)?protFor(rmu,other)[1]:null);
-      if(noToward(rmu,items[other])) svg.text(xe+8,rt+24,"N.O.",{size:9,anchor:"start"});
     }
     for(const t of waysOut){  /* default fuse-switch, per fed item's row */
       let kind=protFor(t,rmu.id)[1];
@@ -1541,6 +1540,7 @@ function render(info, items, order, width, warnings, canvas){
     const aR=rmuBox[a.id][1], aBusR=rmuBox[a.id][3];
     const bL=rmuBox[b.id][0], bBusL=rmuBox[b.id][2];
     svg.line(aR,ymid,bL,ymid,2);  /* cable between boxes */
+    if(noToward(a,b)||noToward(b,a)) svg.text((aR+bL)/2,ymid+12,"N.O.",{size:9});  /* the ring's open point */
     /* the way switch inside each box, between the wall and the bus
        (default LBS; the fed RMU's Protection entry can override it) */
     for(const [xe,xc,owner,other] of [[aR,aBusR,a,b],[bL,bBusL,b,a]]){
@@ -1550,14 +1550,16 @@ function render(info, items, order, width, warnings, canvas){
       const lo=Math.min(xe,xc), hi=Math.max(xe,xc);
       svg.line(lo,ymid,xm-gap,ymid,2);
       svg.line(xm+gap,ymid,hi,ymid,2);
-      if(noToward(owner,other)) svg.text(xm,ymid+22,"N.O.",{size:9});
     }
   }
-  for(const [xa,xb,rTop] of ringLinks){
+  for(const [xa,xb,rTop,key] of ringLinks){
     const yRing=rTop-26;
     svg.line(xa,rTop,xa,yRing);
     svg.line(xa,yRing,xb,yRing);
     svg.line(xb,yRing,xb,rTop);
+    const [ia,ib]=key.split("|");
+    if(noToward(items[ia],items[ib])||noToward(items[ib],items[ia]))
+      svg.text((xa+xb)/2,yRing+11,"N.O.",{size:9});
   }
   /* an RMU hung below its ring RMU: from the tee-off in the enclosure
      down to a lane, across to the box below, and in through its top */

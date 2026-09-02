@@ -115,9 +115,9 @@ not defined" stub.
 **Notes that change the symbol.** *VSD* (or *VFD*, *drive*) in a motor's
 Description or Notes puts a drive box on its drop; Notes starting with
 *spare*, *future* or *out of service* dash the way's conductor; *N.O.* or
-*normally open* in an RMU's Notes marks the open point of a ring on the way
-to the RMU it names (`N.O. towards RMU2`), or under the box when no way is
-named. Nothing else in Notes is read.
+*normally open* in an RMU's Notes marks the open point of a ring with an
+"N.O." on the cable to the RMU it names (`N.O. towards RMU2`), or under the
+box when no way is named. Nothing else in Notes is read.
 
 **Motors.** A `Pump` on an MV Busbar or RMU is an MV motor drawn in the
 transformer row. A `Pump` on an **LV Busbar** is an LV motor drawn in the
