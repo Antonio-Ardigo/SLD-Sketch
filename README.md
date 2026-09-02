@@ -81,6 +81,11 @@ you have not entered yet is drawn where it belongs, with an **open terminal**
 on the missing side ("supply not defined" / "outgoing not defined") and a
 warning saying so — rather than floating unconnected or vanishing. The board
 under such a transformer still gets a bar sized from its own feeders.
+Any other row with an empty `Feeds From`, a row whose supply cannot feed it
+(a feeder off a pump, a pump off an MV incomer, anything off a bus coupler or
+a terminal item), and rows that feed from each other round a loop no supply
+reaches, are drawn floating and warned about by ID, so a survey sheet never
+loses a row silently.
 
 A transformer can also sit between **two LV boards**: a 400/690 V unit for
 drives, say. Fed from one LV board and feeding another, it is drawn in the

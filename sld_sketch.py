@@ -98,7 +98,7 @@ TYPE_ALIASES = {
     "earthing resistor": EARTHING,
     "earthing transformer": EARTHING,
     "earthing tx": EARTHING,
-    "grounding transformer": EARTHING,
+    "grounding transformer": EARTHING, "earthing/ner": EARTHING,
     ARRESTER: ARRESTER,
     "arrester": ARRESTER,
     "lightning arrester": ARRESTER,
@@ -307,6 +307,30 @@ def read_workbook(path):
                           f"'{raw}', the default symbol is drawn",
                           file=sys.stderr)
 
+    # rows that feed from each other round a loop that no supply reaches
+    # (a ring of RMUs is a loop too, but an incomer feeds it)
+    anc = {}
+    for it in items.values():
+        seen, stack = set(), list(it.parents)
+        while stack:
+            q = stack.pop()
+            if q in seen or q not in items:
+                continue
+            seen.add(q)
+            stack.extend(items[q].parents)
+        anc[it.id] = seen
+    seen_loops = set()
+    for it in items.values():
+        if it.id not in anc[it.id]:
+            continue                  # not on a loop
+        if any(not items[a].parents for a in anc[it.id]):
+            continue                  # a root feeds the loop
+        loop = frozenset(x for x in anc[it.id] if it.id in anc[x])
+        if loop not in seen_loops:
+            seen_loops.add(loop)
+            names = ", ".join(f"'{n}'" for n in sorted(loop))
+            print(f"warning: {names} feed from each other - the loop has "
+                  f"no supply; drawn floating", file=sys.stderr)
     for it in items.values():
         if it.type in (TRANSFORMER,):
             up = [c for c in items.values()
@@ -319,6 +343,21 @@ def read_workbook(path):
         if it.type in (TRANSFORMER,) and not it.parents:
             print(f"warning: '{it.id}' has no Feeds From - drawn with an "
                   f"open supply terminal", file=sys.stderr)
+        elif not it.parents and it.type not in (MV_INCOMER, GENERATOR):
+            print(f"warning: '{it.id}' has no Feeds From - drawn without "
+                  f"a supply", file=sys.stderr)
+        # a supply that cannot feed this row: the row draws floating
+        for p in it.parents:
+            if p not in items:
+                continue
+            pt = items[p].type
+            if (pt in (PUMP, BUS_COUPLER) + TERMINALS
+                    or (pt == FEEDER and it.type not in (LV_BUSBAR, MCC))
+                    or (pt == MV_INCOMER and it.type in
+                        (PUMP, FEEDER, MCC, LV_BUSBAR) + TERMINALS)):
+                print(f"warning: '{it.id}' feeds from '{p}' ({pt}) - a "
+                      f"{pt} cannot supply a {it.type}; drawn floating",
+                      file=sys.stderr)
         if it.type in (MCC, PUMP):
             for p in it.parents:
                 if p in items and items[p].type == TRANSFORMER \

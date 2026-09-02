@@ -316,11 +316,16 @@ class Drawing:
                 any(r["x"] <= t["x"] <= r["x"] + r["w"]
                     and r["y"] <= t["y"] <= r["y"] + r["h"] for r in self.mccs)
 
+        by_len = sorted(ids, key=len, reverse=True)
         for t in self.texts:
             if inside_symbol(t):
                 continue
-            first = re.split(r"\s+|\s·\s", t["s"].strip())[0]
-            if first in ids:
+            txt = t["s"].strip()
+            # the label starts with the ID (IDs may contain spaces:
+            # longest match first), followed by the end or a separator
+            first = next((i for i in by_len if txt == i
+                          or txt.startswith(i + " ")), None)
+            if first is not None:
                 self.labels[first].append((t["x"], t["y"], t))
 
     # -- bind each symbol to the nearest compatible label ------------------
@@ -363,16 +368,22 @@ class Drawing:
             cands.append((dict(kind="arrow", **a), {S.FEEDER},
                           a["x"], a["top"] + 11))
         for r in self.mccs:
-            cands.append((dict(kind="mcc", rect=r), {S.MCC},
-                          r["x"] + 14, r["y"] + 26))
+            anchors = [(r["x"] + 14, r["y"] + 26)]
+            for e in self.mcc_encl:      # its bus label sits at the
+                if e["x"] <= r["x"] and r["x"] + r["w"] <= e["x"] + e["w"] \
+                        and e["y"] <= r["y"] <= e["y"] + e["h"]:
+                    anchors.append((e["x"] + 10, e["y"] + e["h"] - 22))
+            cands.append((dict(kind="mcc", rect=r), {S.MCC}, anchors, None))
         for sym, types, ax, ay in cands:
             best, bd = None, 1e9
             for oid in self.order:
                 if it[oid].type not in types:
                     continue
                 for lx, ly, t in self.labels.get(oid, []):
-                    d = min(math.hypot(lx - x, ly - ay)
-                            for x in (ax if isinstance(ax, list) else [ax]))
+                    pts = ax if isinstance(ax, list) else [ax]
+                    d = min(math.hypot(lx - q[0], ly - q[1])
+                            if isinstance(q, tuple)
+                            else math.hypot(lx - q, ly - ay) for q in pts)
                     if d < bd:
                         best, bd = oid, d
             if best is not None and bd < 260:

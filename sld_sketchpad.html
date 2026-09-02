@@ -922,6 +922,29 @@ function buildModel(rows){
       else if(hasWord(w,EARTH_WORDS)) it.type=EARTHING;
     }
   }
+  /* rows that feed from each other round a loop that no supply reaches
+     (a ring of RMUs is a loop too, but an incomer feeds it) */
+  const anc={};
+  for(const id of order){
+    const seen=new Set(), stack=[...items[id].parents];
+    while(stack.length){
+      const q=stack.pop();
+      if(seen.has(q) || !items[q]) continue;
+      seen.add(q); stack.push(...items[q].parents);
+    }
+    anc[id]=seen;
+  }
+  const seenLoops=new Set();
+  for(const id of order){
+    if(!anc[id].has(id)) continue;                       /* not on a loop */
+    if([...anc[id]].some(a=>!items[a].parents.length)) continue;  /* a root feeds it */
+    const loop=[...anc[id]].filter(x=>anc[x].has(id)).sort();
+    const key=loop.join("|");
+    if(!seenLoops.has(key)){
+      seenLoops.add(key);
+      warnings.push(loop.map(n=>`"${n}"`).join(", ")+` feed from each other — the loop has no supply; drawn floating.`);
+    }
+  }
   for(const id of order){
     const it=items[id];
     for(const p of it.parents)
@@ -936,6 +959,17 @@ function buildModel(rows){
     }
     if([TRANSFORMER].includes(it.type) && !it.parents.length)
       warnings.push(`"${id}" has no Feeds From — drawn with an open supply terminal.`);
+    else if(!it.parents.length && ![MV_INCOMER,GENERATOR].includes(it.type))
+      warnings.push(`"${id}" has no Feeds From — drawn without a supply.`);
+    /* a supply that cannot feed this row: the row draws floating */
+    for(const p of it.parents){
+      if(!items[p]) continue;
+      const pt=items[p].type;
+      if([PUMP,BUS_COUPLER].concat(TERMINALS).includes(pt)
+         || (pt===FEEDER && ![LV_BUSBAR,MCC].includes(it.type))
+         || (pt===MV_INCOMER && [PUMP,FEEDER,MCC,LV_BUSBAR].concat(TERMINALS).includes(it.type)))
+        warnings.push(`"${id}" feeds from "${p}" (${pt}) — a ${pt} cannot supply a ${it.type}; drawn floating.`);
+    }
     if(it.type===MCC || it.type===PUMP)
       for(const p of it.parents)
         if(items[p] && items[p].type===TRANSFORMER && txBoard(items,items[p]))

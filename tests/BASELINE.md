@@ -37,6 +37,7 @@ MCC enclosure and scores clean from the start: 16/16 items, 15/15 edges.
 | motors and feeders under an MCC: its own bus on the row below, incomer, box and bus in a dashed outline (`tests/features/f6_mcc.xlsx`) | 31/31 | 27/27 | 26/26 | 37/37 | 21/21 | 0 |
 | a transformer off an LV board feeding a motor hangs under the board (`tests/features/f7_board_tx.xlsx`); the checker now reports a transformer whose supply and load meet on one terminal (`bypassed`) | 31/31 | 27/27 | 26/26 | 37/37 | 21/21 | 0 |
 | loads on a transformer: an MCC or motor fed straight from a transformer with no board hangs under it (the MCC as the board); named on a transformer that feeds a board, it is a way of that board (`tests/features/f8_tx_loads.xlsx`); board-fed transformers each land on their own point of the bar, farthest outermost, and a no-load board-fed transformer hangs under its board like a motor one (F7 gains an LV/LV transformer with a sub-board and a motor) | 31/31 | 27/27 | 26/26 | 37/37 | 21/21 | 0 |
+| tester pass, batch A: `Earthing/NER` alias added to the Python reader (engines' alias tables now identical); checker binds IDs containing spaces and MCC boxes inside wide enclosures (two false positives gone); the reader warns on empty Feeds From, impossible supplies and unsupplied loops | 31/31 | 27/27 | 26/26 | 37/37 | 21/21 | 0 |
 
 The first change removed every `rmu-entry` failure (C1 2, C4 2, nine
 probes) and changed nothing else: the six examples are byte-identical and
