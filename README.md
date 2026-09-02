@@ -123,7 +123,10 @@ box when no way is named. Nothing else in Notes is read.
 transformer row. A `Pump` on an **LV Busbar** is an LV motor drawn in the
 feeder band below the board, and a `Pump` fed straight from a **Transformer**
 hangs under that transformer (a dedicated motor supply). An `MCC` belongs on an
-LV Busbar; putting one on MV gear warns.
+LV Busbar; putting one on MV gear warns. A `Pump` or `Feeder` can feed from
+an **MCC**: the MCC then gets a bus of its own on the row below the board,
+and its motors hang off that bus with their starters (a contactor unless the
+row's Protection says otherwise).
 
 Either type can also hang off an **RMU**: it takes a proper way inside the
 enclosure, with its device on the tee-off. A generation **LV board** under an

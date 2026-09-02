@@ -391,11 +391,12 @@ function labelClearance(items, order, lvY){
       lbl=[f.id,f.desc,f.rating].filter(Boolean).join(" · ");
       const h={[CAPACITOR]:24,[EARTHING]:46,[ARRESTER]:44}[f.type];
       if([MV_BUSBAR,RMU].includes(par.type)) y0=(h===undefined)?Y_PUMP+14:Y_PUMP-24+h+12;
-      else if(par.type===LV_BUSBAR){
+      else if(par.type===LV_BUSBAR||par.type===MCC){
         if(f.type===FEEDER && subBoardsOf(items,order,f).length) continue;
+        if(f.type===MCC && mccLoads(items,order,f).length) continue;
         const yb=lvY(par); y0=(h===undefined)?yb+106:yb+64+h+12;
       } else continue;
-    } else if(f.type===PUMP && par.type===LV_BUSBAR){
+    } else if(f.type===PUMP && (par.type===LV_BUSBAR||par.type===MCC)){
       lbl=[f.id,f.desc,f.rating].filter(Boolean).join(" · ");
       y0=lvY(par)+102;
     } else continue;
@@ -828,9 +829,14 @@ function buildModel(rows){
 }
 
 /* ------------------------------------------------ layout */
+function mccLoads(items, order, m){   /* an MCC's motor ways and feeders */
+  return childrenOf(items,order,m.id,[PUMP,FEEDER].concat(TERMINALS));
+}
 function lvKids(items, order, bb){
   /* the ways of an LV board: feeders, MCCs, motors, terminal items and
-     sub-boards fed straight from it, each taking a slot on the bar */
+     sub-boards fed straight from it, each taking a slot on the bar; an MCC
+     with loads is a little board of its own: its ways are its kids */
+  if(bb.type===MCC) return mccLoads(items,order,bb);
   return childrenOf(items,order,bb.id,LV_LOADS.concat([LV_BUSBAR]));
 }
 function subBoardsOf(items, order, f){ return childrenOf(items,order,f.id,[LV_BUSBAR]); }
@@ -847,7 +853,7 @@ function lvLevel(items, bb, seen){
   for(const p of bb.parents){
     const par=items[p];
     if(!par) continue;
-    if(par.type===LV_BUSBAR) return lvLevel(items,par,seen)+1;
+    if(par.type===LV_BUSBAR||par.type===MCC) return lvLevel(items,par,seen)+1;
     if(par.type===FEEDER)
       for(const q of par.parents)
         if(items[q] && items[q].type===LV_BUSBAR) return lvLevel(items,items[q],seen)+1;
@@ -856,7 +862,8 @@ function lvLevel(items, bb, seen){
 }
 function lvKidWidth(items, order, k){
   /* slot width of one way: a plain way, or the sub-board(s) under it */
-  if(k.type===LV_BUSBAR) return lvBoardWidth(items,order,k)+2*SUB_PAD;
+  if(k.type===LV_BUSBAR || (k.type===MCC && mccLoads(items,order,k).length))
+    return lvBoardWidth(items,order,k)+2*SUB_PAD;
   const subs=k.type===FEEDER?subBoardsOf(items,order,k):[];
   if(subs.length)
     return Math.max(FEEDER_SPACING,
@@ -878,7 +885,8 @@ function placeLvBoard(items, order, bb, cx){
   kids.forEach((k,i)=>{
     const w=widths[i];
     k.x=cur+w/2;
-    if(k.type===LV_BUSBAR) placeLvBoard(items,order,k,k.x);
+    if(k.type===LV_BUSBAR || (k.type===MCC && mccLoads(items,order,k).length))
+      placeLvBoard(items,order,k,k.x);
     else if(k.type===FEEDER){
       const subs=subBoardsOf(items,order,k);
       if(subs.length===1) placeLvBoard(items,order,subs[0],k.x);
@@ -895,7 +903,8 @@ function placeLvBoard(items, order, bb, cx){
   return width;
 }
 function subLevels(items, order){
-  return Math.max(0,...order.filter(i=>items[i].type===LV_BUSBAR)
+  return Math.max(0,...order.filter(i=>items[i].type===LV_BUSBAR
+      || (items[i].type===MCC && mccLoads(items,order,items[i]).length))
     .map(i=>lvLevel(items,items[i])));
 }
 function slotWidth(items, order, item){
@@ -1659,9 +1668,9 @@ function render(info, items, order, width, warnings, canvas){
     /* an MV motor sits in the transformer row; a motor fed from an LV
        board or its own transformer hangs in the feeder band below it */
     const lvPar=p.parents.map(q=>items[q])
-      .filter(o=>[LV_BUSBAR,TRANSFORMER].includes(o.type));
+      .filter(o=>[LV_BUSBAR,TRANSFORMER,MCC].includes(o.type));
     let yc=lvPar.length?Y_ARROW-14:Y_PUMP; const r=lvPar.length?14:PUMP_R;
-    if(lvPar.length && lvPar[0].type===LV_BUSBAR) yc=lvY(lvPar[0])+88-14;
+    if(lvPar.length && [LV_BUSBAR,MCC].includes(lvPar[0].type)) yc=lvY(lvPar[0])+88-14;
     const vsd=stateWords(p).has("vsd");
     for(const q of p.parents){
       const par=items[q];
@@ -1670,10 +1679,11 @@ function render(info, items, order, width, warnings, canvas){
         svg.dot(p.x,yBus(par));
       } else if(par.type===RMU){  /* way device is inside the enclosure */
         svg.line(p.x,yRmu(par)[1],p.x,Y_PUMP-PUMP_R);
-      } else if(par.type===LV_BUSBAR){       /* LV motor off the board */
+      } else if(par.type===LV_BUSBAR||par.type===MCC){
+        /* LV motor off the board, or a starter in an MCC */
         const yb=lvY(par);
         svg.dot(p.x,yb);
-        svg.drop(p.x,yb,yc-r,protFor(p,par.id)[1]||"cb",yb+30);
+        svg.drop(p.x,yb,yc-r,protFor(p,par.id)[1]||(par.type===MCC?"contactor":"cb"),yb+30);
       } else if(par.type===TRANSFORMER){     /* motor on its own transformer */
         svg.drop(p.x,Y_TX_C2+TX_R,yc-r,protFor(p,par.id)[1]||"cb");
       }
@@ -2181,13 +2191,21 @@ function render(info, items, order, width, warnings, canvas){
       }
       continue;
     }
-    const yb=(par && par.type===LV_BUSBAR)?lvY(par):Y_BUS;
+    const yb=(par && (par.type===LV_BUSBAR||par.type===MCC))?lvY(par):Y_BUS;
     const yDev=yb+30, yArrow=yb+88; let yLbl=yb+106;
     svg.dot(f.x,yb);
     if(f.type===MCC){
       svg.drop(f.x,yb,yArrow-26,kind,yDev,dash);
       svg.rect(f.x-14,yArrow-26,28,26,2);
       svg.text(f.x,yArrow-8,"MCC",{size:8});
+      if(mccLoads(items,order,f).length && f.xLeft!==null){
+        /* its own bus on the row below, the motor ways hang off it */
+        const yM=lvY(f);
+        svg.line(f.x,yArrow,f.x,yM);
+        svg.line(f.xLeft,yM,f.xRight,yM,5.5);
+        svg.text(f.xLeft,yM-12,[f.id,f.desc,f.rating].filter(Boolean).join(" "),{size:11.5,anchor:"start",bold:true});
+        continue;
+      }
     } else if(TERMINALS.includes(f.type)){
       svg.drop(f.x,yb,yArrow-24,kind,yDev,dash);
       const h=svg.terminal(f.type,f.x,yArrow-24);

@@ -410,14 +410,16 @@ def label_clearance(items, order, lv_y):
             h = {CAPACITOR: 24, EARTHING: 46, ARRESTER: 44}.get(f.type)
             if par.type in (MV_BUSBAR, RMU):
                 y0 = Y_PUMP + 14 if h is None else Y_PUMP - 24 + h + 12
-            elif par.type == LV_BUSBAR:
+            elif par.type in (LV_BUSBAR, MCC):
                 if f.type == FEEDER and sub_boards_of(items, order, f):
                     continue          # written beside the way, not down
+                if f.type == MCC and mcc_loads(items, order, f):
+                    continue          # labelled by its own bus below
                 yb = lv_y(par)
                 y0 = yb + 106 if h is None else yb + 64 + h + 12
             else:
                 continue
-        elif f.type == PUMP and par.type == LV_BUSBAR:
+        elif f.type == PUMP and par.type in (LV_BUSBAR, MCC):
             lbl = " · ".join(v for v in (f.id, f.desc, f.rating) if v)
             y0 = lv_y(par) + 102
         else:
@@ -672,9 +674,17 @@ def children_of(items, order, pid, types=None):
     return out
 
 
+def mcc_loads(items, order, m):
+    """What hangs off an MCC: its motor ways and outgoing feeders."""
+    return children_of(items, order, m.id, {PUMP, FEEDER} | set(TERMINALS))
+
+
 def lv_kids(items, order, bb):
     """The ways of an LV board: feeders, MCCs, motors, terminal items and
-    sub-boards fed straight from it, each taking a slot on the bar."""
+    sub-boards fed straight from it, each taking a slot on the bar.  An
+    MCC with loads is a little board of its own: its ways are its kids."""
+    if bb.type == MCC:
+        return mcc_loads(items, order, bb)
     return children_of(items, order, bb.id, set(LV_LOADS) | {LV_BUSBAR})
 
 
@@ -698,7 +708,7 @@ def lv_level(items, bb, _seen=None):
     seen.add(bb.id)
     for p in bb.parents:
         par = items[p]
-        if par.type == LV_BUSBAR:
+        if par.type in (LV_BUSBAR, MCC):
             return lv_level(items, par, seen) + 1
         if par.type == FEEDER:
             for q in par.parents:
@@ -709,7 +719,7 @@ def lv_level(items, bb, _seen=None):
 
 def lv_kid_width(items, order, k):
     """Slot width of one way: a plain way, or the sub-board(s) under it."""
-    if k.type == LV_BUSBAR:
+    if k.type == LV_BUSBAR or (k.type == MCC and mcc_loads(items, order, k)):
         return lv_board_width(items, order, k) + 2 * SUB_PAD
     subs = sub_boards_of(items, order, k) if k.type == FEEDER else []
     if subs:
@@ -736,7 +746,8 @@ def place_lv_board(items, order, bb, center_x):
     cur = bb.x_left + (width - sum(widths)) / 2
     for k, w in zip(kids, widths):
         k.x = cur + w / 2
-        if k.type == LV_BUSBAR:
+        if k.type == LV_BUSBAR or (k.type == MCC
+                                   and mcc_loads(items, order, k)):
             place_lv_board(items, order, k, k.x)
         elif k.type == FEEDER:
             subs = sub_boards_of(items, order, k)
@@ -1172,7 +1183,9 @@ def layout_mv_boards(items, order):
 
 def sub_levels(items, order):
     return max([lv_level(items, items[i]) for i in order
-                if items[i].type == LV_BUSBAR] + [0])
+                if items[i].type == LV_BUSBAR
+                or (items[i].type == MCC
+                    and mcc_loads(items, order, items[i]))] + [0])
 
 
 def layout(items, order):
@@ -1924,9 +1937,9 @@ def render(info, items, order, width, canvas=None):
         # an MV motor sits in the transformer row; a motor fed from an LV
         # board or its own transformer hangs in the feeder band below it
         lv_par = [items[q] for q in p.parents
-                  if items[q].type in (LV_BUSBAR, TRANSFORMER)]
+                  if items[q].type in (LV_BUSBAR, TRANSFORMER, MCC)]
         yc, r = ((Y_ARROW - 14, 14) if lv_par else (Y_PUMP, PUMP_R))
-        if lv_par and lv_par[0].type == LV_BUSBAR:
+        if lv_par and lv_par[0].type in (LV_BUSBAR, MCC):
             yc = lv_y(lv_par[0]) + 88 - 14
         vsd = "vsd" in state_words(p)
         for par in (items[q] for q in p.parents):
@@ -1936,11 +1949,12 @@ def render(info, items, order, width, canvas=None):
                 svg.dot(p.x, y_bus(par))
             elif par.type == RMU:   # the way device is inside the enclosure
                 svg.line(p.x, y_rmu(par)[1], p.x, Y_PUMP - PUMP_R)
-            elif par.type == LV_BUSBAR:          # LV motor off the board
-                yb = lv_y(par)
+            elif par.type in (LV_BUSBAR, MCC):   # LV motor off the board,
+                yb = lv_y(par)                   # or a starter in an MCC
                 svg.dot(p.x, yb)
-                svg.drop(p.x, yb, yc - r,
-                         prot_for(p, par.id)[1] or "cb", ydev=yb + 30)
+                svg.drop(p.x, yb, yc - r, prot_for(p, par.id)[1]
+                         or ("contactor" if par.type == MCC else "cb"),
+                         ydev=yb + 30)
             elif par.type == TRANSFORMER:        # motor on its own transformer
                 svg.drop(p.x, Y_TX_C2 + TX_R, yc - r,
                          prot_for(p, par.id)[1] or "cb")
@@ -2540,7 +2554,7 @@ def render(info, items, order, width, canvas=None):
                 svg.text(f.x + 4, y_tip - 24 + h + 12, lbl, size=11,
                          anchor="start", rotate=90)
             continue
-        yb = lv_y(par) if par is not None and par.type == LV_BUSBAR \
+        yb = lv_y(par) if par is not None and par.type in (LV_BUSBAR, MCC) \
             else Y_BUS
         y_dev, y_arrow, y_lbl = yb + 30, yb + 88, yb + 106
         svg.dot(f.x, yb)
@@ -2548,6 +2562,15 @@ def render(info, items, order, width, canvas=None):
             svg.drop(f.x, yb, y_arrow - 26, kind, ydev=y_dev, dash=dash)
             svg.rect(f.x - 14, y_arrow - 26, 28, 26, sw=2)
             svg.text(f.x, y_arrow - 8, "MCC", size=8)
+            if mcc_loads(items, order, f) and f.x_left is not None:
+                # its own bus on the row below, the motor ways hang off it
+                y_m = lv_y(f)
+                svg.line(f.x, y_arrow, f.x, y_m)
+                svg.line(f.x_left, y_m, f.x_right, y_m, w=5.5)
+                svg.text(f.x_left, y_m - 12, " ".join(
+                    v for v in (f.id, f.desc, f.rating) if v),
+                    size=11.5, anchor="start", bold=True)
+                continue
         elif f.type in TERMINALS:
             svg.drop(f.x, yb, y_arrow - 24, kind, ydev=y_dev, dash=dash)
             h = svg.terminal(f.type, f.x, y_arrow - 24)

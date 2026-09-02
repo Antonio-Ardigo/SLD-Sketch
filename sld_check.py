@@ -329,7 +329,8 @@ class Drawing:
             typ = {S.PUMP} if m["tag"] == "M" else {S.GENERATOR}
             cands.append((dict(kind="machine", **m), typ, m["x"], m["y"]))
         for b in self.busbars:
-            cands.append((dict(kind="bar", seg=b), {S.LV_BUSBAR, S.MV_BUSBAR},
+            cands.append((dict(kind="bar", seg=b),
+                          {S.LV_BUSBAR, S.MV_BUSBAR, S.MCC},
                           min(b["x1"], b["x2"]), b["y1"]))
         for r in self.rmus:
             bar = next((s for s in self.rmubars
@@ -371,6 +372,9 @@ class Drawing:
                 self.sym.setdefault(best, []).append(sym)
         for oid, syms in self.sym.items():
             if len(syms) > 1 and it[oid].type not in (S.LV_BUSBAR,):
+                kinds = sorted(sy["kind"] for sy in syms)
+                if it[oid].type == S.MCC and kinds == ["bar", "mcc"]:
+                    continue               # an MCC with its own bus below
                 self.duplicates.append(oid)
 
     # -- conductor graph ----------------------------------------------------
