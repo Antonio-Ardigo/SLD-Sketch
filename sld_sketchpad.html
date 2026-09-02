@@ -1107,9 +1107,17 @@ function lvKidWidth(items, order, k){
   }
   return FEEDER_SPACING;
 }
+function barLabel(bb){
+  /* the text over a bar: id, description, rating (and voltage) */
+  const parts=bb.type===MCC?[bb.id,bb.desc,bb.rating]:[bb.id,bb.desc,bb.rating,bb.voltage];
+  return parts.filter(Boolean).join(" ");
+}
 function lvBoardWidth(items, order, bb){
+  /* wide enough for its ways, and for its label to fit on one side of a
+     centred incomer */
   return Math.max(MIN_BUS_WIDTH,
-    lvKids(items,order,bb).reduce((a,k)=>a+lvKidWidth(items,order,k),0));
+    lvKids(items,order,bb).reduce((a,k)=>a+lvKidWidth(items,order,k),0),
+    2*(barLabel(bb).length*6.9+12));
 }
 function placeLvBoard(items, order, bb, cx){
   /* an LV busbar on cx with its ways in their slots, and the sub-boards
@@ -1978,6 +1986,45 @@ function render(info, items, order, width, warnings, canvas){
   const cTop=Y_TX_C1-TX_R;
   const highLane=allocLanes(highRuns,[cTop-22,cTop-34,cTop-88,cTop-100]);
 
+  const landsAbove=bb=>{           /* x of every conductor landing on this bar from above */
+    const xs=[];
+    for(const p of bb.parents){
+      const par=items[p];
+      if(!par || par.x===null) continue;
+      if(par.type===TRANSFORMER){
+        if(routes[par.id+"|"+bb.id]) xs.push(routes[par.id+"|"+bb.id][0]);
+        else {
+          const fed=childrenOf(items,order,par.id,[LV_BUSBAR]);
+          const rest=fed.filter(b=>!routes[par.id+"|"+b.id]);
+          xs.push(rest.length===1 && Math.abs(rest[0].x-par.x)<1?par.x:bb.x);
+        }
+      } else if(par.type===LV_BUSBAR) xs.push(bb.x);
+      else if(par.type===FEEDER){
+        const fsup=bb.parents.filter(q=>items[q] && items[q].type===FEEDER && items[q].x!==null);
+        const i=fsup.indexOf(p), n=fsup.length;
+        xs.push(n===1?bb.x:bb.xLeft+(bb.xRight-bb.xLeft)*(i+0.5)/n);
+      }
+    }
+    for(const i of order){
+      const g=items[i];
+      if(g.type===GENERATOR && g.x!==null && genFeeds(items,order,g).some(([b])=>b===bb)) xs.push(g.x);
+    }
+    for(const key of Object.keys(landX)) if(key.split("|")[1]===bb.id) xs.push(landX[key]);
+    for(const t of Object.keys(suLand)) if(lvsubMid[t][0]===bb) xs.push(suLand[t]);
+    return xs;
+  };
+  const labelX=(xLeft,xRight,xs,lbl)=>{
+    /* where a bar's label starts: at the left end unless a landing
+       conductor would cross it; then after the last landing, or in the
+       widest gap between landings, when the text fits there */
+    const w=lbl.length*6.9;
+    if(!xs.length || Math.min(...xs)-xLeft>=w+6) return xLeft;
+    if(xRight-Math.max(...xs)>=w+6) return Math.max(...xs)+8;
+    const s=[...xs].sort((a,b)=>a-b);
+    for(let i=0;i+1<s.length;i++) if(s[i+1]-s[i]>=w+16) return s[i]+8;
+    return xLeft;
+  };
+
   /* pumps */
   for(const p of pumps){
     if(p.x===null) continue;
@@ -2060,7 +2107,7 @@ function render(info, items, order, width, warnings, canvas){
         const [craw,ck]=protFor(cpl);
         const extra=(craw && !ck)?craw:"";
         svg.text(g.x+16,ym-2,[cpl.id,cpl.rating,extra].filter(Boolean).join(" "),{size:11,anchor:"start"});
-        svg.text(g.x+16,ym+12,cpl.notes,{size:10,anchor:"start"});
+        svg.text(g.x+16,ym+12,cpl.notes.trim().toLowerCase()===cpl.id.trim().toLowerCase()?"":cpl.notes,{size:10,anchor:"start"});
       }
     }
   }
@@ -2092,7 +2139,7 @@ function render(info, items, order, width, warnings, canvas){
         if(cpl){
           const ym=(yGen+20+yTo)/2;
           svg.text(g.x+16,ym-2,[cpl.id,cpl.rating].filter(Boolean).join(" "),{size:11,anchor:"start"});
-          svg.text(g.x+16,ym+12,cpl.notes,{size:10,anchor:"start"});
+          svg.text(g.x+16,ym+12,cpl.notes.trim().toLowerCase()===cpl.id.trim().toLowerCase()?"":cpl.notes,{size:10,anchor:"start"});
         }
       } else svg.line(g.x,yGen+20,g.x,yRmu(b)[0]);   /* the RMU draws its way in */
     }
@@ -2332,7 +2379,8 @@ function render(info, items, order, width, warnings, canvas){
     svg.line(bb.xLeft,yb,bb.xRight,yb,5.5);
     const [praw,pkind]=protFor(bb);
     const zone=(praw && !pkind)?(" · "+praw):"";  /* e.g. 87B differential */
-    svg.text(bb.xLeft,yb-12,[bb.id,bb.desc,bb.rating,bb.voltage].filter(Boolean).join(" ")+zone,
+    const blbl=barLabel(bb)+zone;
+    svg.text(labelX(bb.xLeft,bb.xRight,landsAbove(bb),blbl),yb-12,blbl,
              {size:11.5,anchor:"start",bold:true});
   }
 
@@ -2521,7 +2569,8 @@ function render(info, items, order, width, warnings, canvas){
         svg.rect(f.xLeft-10,yDev-18,f.xRight-f.xLeft+20,yM+10-(yDev-18),1.6,"7 5");
         svg.line(f.x,yArrow,f.x,yM);
         svg.line(f.xLeft,yM,f.xRight,yM,5.5);
-        svg.text(f.xLeft,yM-12,[f.id,f.desc,f.rating].filter(Boolean).join(" "),{size:11.5,anchor:"start",bold:true});
+        const mLbl=barLabel(f);
+        svg.text(labelX(f.xLeft,f.xRight,[f.x],mLbl),yM-12,mLbl,{size:11.5,anchor:"start",bold:true});
         continue;
       }
     } else if(TERMINALS.includes(f.type)){

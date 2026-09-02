@@ -878,10 +878,20 @@ def lv_kid_width(items, order, k):
     return FEEDER_SPACING
 
 
+def bar_label(bb):
+    """The text over a bar: id, description, rating (and voltage)."""
+    parts = (bb.id, bb.desc, bb.rating) if bb.type == MCC \
+        else (bb.id, bb.desc, bb.rating, bb.voltage)
+    return " ".join(v for v in parts if v)
+
+
 def lv_board_width(items, order, bb):
+    """Wide enough for its ways, and for its label to fit on one side of
+    a centred incomer."""
     kids = lv_kids(items, order, bb)
     return max(MIN_BUS_WIDTH, sum(lv_kid_width(items, order, k)
-                                  for k in kids))
+                                  for k in kids),
+               2 * (len(bar_label(bb)) * 6.9 + 12))
 
 
 def place_lv_board(items, order, bb, center_x):
@@ -2171,6 +2181,53 @@ def render(info, items, order, width, canvas=None):
     high_lane = alloc_lanes(high_runs, [c_top - 22, c_top - 34,
                                         c_top - 88, c_top - 100])
 
+    def lands_above(bb):
+        """x of every conductor landing on this bar from above."""
+        xs = []
+        for p in bb.parents:
+            par = items[p]
+            if par.x is None:
+                continue
+            if par.type == TRANSFORMER:
+                if (par.id, bb.id) in routes:
+                    xs.append(routes[(par.id, bb.id)][0])
+                else:
+                    fed = children_of(items, order, par.id, {LV_BUSBAR})
+                    rest = [b for b in fed if (par.id, b.id) not in routes]
+                    xs.append(par.x if len(rest) == 1
+                              and abs(rest[0].x - par.x) < 1 else bb.x)
+            elif par.type == LV_BUSBAR:
+                xs.append(bb.x)
+            elif par.type == FEEDER:
+                fsup = [q for q in bb.parents if items[q].type == FEEDER
+                        and items[q].x is not None]
+                i, n = fsup.index(p), len(fsup)
+                xs.append(bb.x if n == 1 else bb.x_left
+                          + (bb.x_right - bb.x_left) * (i + 0.5) / n)
+        for i in order:
+            g = items[i]
+            if g.type == GENERATOR and g.x is not None and any(
+                    b is bb for b, _, _ in gen_feeds(items, order, g)):
+                xs.append(g.x)
+        xs += [x for (_, b), x in land_x.items() if b == bb.id]
+        xs += [x for t, x in su_land.items() if lvsub_mid[t][0] is bb]
+        return xs
+
+    def label_x(x_left, x_right, xs, lbl):
+        """Where a bar's label starts: at the left end unless a landing
+        conductor would cross it; then after the last landing, or in the
+        widest gap between landings, when the text fits there."""
+        w = len(lbl) * 6.9
+        if not xs or min(xs) - x_left >= w + 6:
+            return x_left
+        if x_right - max(xs) >= w + 6:
+            return max(xs) + 8
+        xs = sorted(xs)
+        for a, b in zip(xs, xs[1:]):
+            if b - a >= w + 16:
+                return a + 8
+        return x_left
+
     # --- pumps / motor loads --------------------------------------------
     for p in pumps:
         if p.x is None:
@@ -2271,7 +2328,9 @@ def render(info, items, order, width, canvas=None):
                 svg.text(g.x + 16, ym - 2,
                          " ".join(v for v in (cpl.id, cpl.rating, extra)
                                   if v), size=11, anchor="start")
-                svg.text(g.x + 16, ym + 12, cpl.notes, size=10,
+                svg.text(g.x + 16, ym + 12,
+                         "" if cpl.notes.strip().lower()
+                         == cpl.id.strip().lower() else cpl.notes, size=10,
                          anchor="start")
 
     # --- generators standing over MV gear as a supply --------------------
@@ -2311,7 +2370,9 @@ def render(info, items, order, width, canvas=None):
                     svg.text(g.x + 16, ym - 2,
                              " ".join(v for v in (cpl.id, cpl.rating) if v),
                              size=11, anchor="start")
-                    svg.text(g.x + 16, ym + 12, cpl.notes, size=10,
+                    svg.text(g.x + 16, ym + 12,
+                         "" if cpl.notes.strip().lower()
+                         == cpl.id.strip().lower() else cpl.notes, size=10,
                              anchor="start")
             else:                     # the RMU draws its incoming way
                 svg.line(g.x, y_gen + 20, g.x, y_rmu(b)[0])
@@ -2592,11 +2653,11 @@ def render(info, items, order, width, canvas=None):
         svg.line(bb.x_left, yb, bb.x_right, yb, w=5.5)
         raw, kind = prot_for(bb)
         zone = raw if raw and kind is None else ""  # e.g. 87B differential
-        lbl = " ".join(v for v in (bb.id, bb.desc, bb.rating, bb.voltage) if v)
+        lbl = bar_label(bb)
         if zone:
             lbl += " · " + zone
-        svg.text(bb.x_left, yb - 12, lbl, size=11.5, anchor="start",
-                 bold=True)
+        svg.text(label_x(bb.x_left, bb.x_right, lands_above(bb), lbl),
+                 yb - 12, lbl, size=11.5, anchor="start", bold=True)
 
     # --- sub-boards: fed from a feeder or straight from the board above --
     def two_devices(x, y0, y1, k0, k1, dash=None):
@@ -2821,9 +2882,10 @@ def render(info, items, order, width, canvas=None):
                          sw=1.6, dash="7 5")
                 svg.line(f.x, y_arrow, f.x, y_m)
                 svg.line(f.x_left, y_m, f.x_right, y_m, w=5.5)
-                svg.text(f.x_left, y_m - 12, " ".join(
-                    v for v in (f.id, f.desc, f.rating) if v),
-                    size=11.5, anchor="start", bold=True)
+                m_lbl = bar_label(f)
+                svg.text(label_x(f.x_left, f.x_right, [f.x], m_lbl),
+                         y_m - 12, m_lbl, size=11.5, anchor="start",
+                         bold=True)
                 continue
         elif f.type in TERMINALS:
             svg.drop(f.x, yb, y_arrow - 24, kind, ydev=y_dev, dash=dash)
