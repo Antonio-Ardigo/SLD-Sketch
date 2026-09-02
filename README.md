@@ -107,6 +107,12 @@ draw the same way, and a 3.3 kV board can hang off an RMU. A board with no
 voltage takes its supplier's level (or the far side of the transformer
 feeding it).
 
+Every sideways run (a board fed from two transformers, a step-up taking
+supply from an LV board, a transformer fed from a board with no load entered
+yet, a sub-board or RMU offset from its feeder) gets a lane of its own, so no
+two connections ever share a line; the protection device always sits at the
+board end of the run, where the cubicle is.
+
 That's all the connectivity the tool needs: everything hangs off `Feeds From`.
 A bus coupler feeds from its two busbars (`BB1, BB2`); an RMU on a ring feeds
 from both ring incomers (`MV1, MV2`). A coupler between boards on **different

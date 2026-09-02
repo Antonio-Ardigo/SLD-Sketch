@@ -292,6 +292,25 @@ let STEPUP_SHIFT=0;
    or RMUs are fed from another MV board */
 let Y_PUMP=352, Y_TX_C1=342, Y_TX_C2=Y_TX_C1+27, Y_BUS=486,
     Y_FEED_BRK=516, Y_ARROW=574, Y_FEED_LBL=592, DIAG_H=780;
+function allocLanes(runs, slots){
+  /* every sideways run its own lane, longest first so nested elbows never
+     cross; runs that do not overlap in x may share one. runs: [[key,x0,x1]].
+     slots list the lane heights in order of preference, clear of the device
+     zones of the drops a lane crosses; more lanes than slots spread out. */
+  runs=runs.slice().sort((a,b)=>Math.abs(b[2]-b[1])-Math.abs(a[2]-a[1]));
+  const lanes=[], idx={};
+  for(const [key,x0,x1] of runs){
+    const lo=Math.min(x0,x1)-8, hi=Math.max(x0,x1)+8;
+    let k=lanes.findIndex(occ=>occ.every(([a,b])=>hi<a||lo>b));
+    if(k<0){ lanes.push([]); k=lanes.length-1; }
+    lanes[k].push([lo,hi]); idx[key]=k;
+  }
+  const n=lanes.length;
+  const ys=(n<=slots.length)?slots
+    :Array.from({length:n},(_,k)=>slots[0]+(slots[slots.length-1]-slots[0])*k/(n-1));
+  const out={}; for(const key of Object.keys(idx)) out[key]=ys[idx[key]];
+  return out;
+}
 function setTiers(extra, top){
   STEPUP_SHIFT=top||0; extra=extra+STEPUP_SHIFT;
   Y_PUMP=352+extra; Y_TX_C1=342+extra; Y_TX_C2=Y_TX_C1+27;
@@ -1233,25 +1252,37 @@ function render(info, items, order, width, warnings){
   }
 
   /* feeds from an MV board down to a sub-board or an RMU */
+  const mvFeeds=[];
   for(const oid of order){
     const it=items[oid];
     if(![MV_BUSBAR,RMU].includes(it.type) || it.x===null) continue;
     for(const p of it.parents){
       const par=items[p];
       if(par.type!==MV_BUSBAR) continue;
-      const kind=(it.type===RMU)?"cb":(protFor(it,par.id)[1]||"cb");
       const yFrom=yBus(par);
       const yTo=(it.type===MV_BUSBAR)?yBus(it):yRmu(it)[0];
       const xFrom=Math.min(Math.max(it.x,par.xLeft),par.xRight);
-      svg.dot(xFrom,yFrom);
-      if(Math.abs(xFrom-it.x)<1){
-        svg.drop(it.x,yFrom,yTo,kind);
-      } else {                      /* sub-board offset from the way */
-        const yMid=(yFrom+yTo)/2;
-        svg.drop(xFrom,yFrom,yMid,kind);
-        svg.line(xFrom,yMid,it.x,yMid);
-        svg.line(it.x,yMid,it.x,yTo);
-      }
+      mvFeeds.push([it,par,xFrom,yFrom,yTo]);
+    }
+  }
+  const mvLane={};
+  for(const band of new Set(mvFeeds.map(f=>f[3]+"|"+f[4]))){
+    const [yFrom,yTo]=band.split("|").map(Number);
+    const runs=mvFeeds.filter(([it,par,xFrom,yf,yt])=>yf===yFrom && yt===yTo
+                                && Math.abs(xFrom-it.x)>=1)
+      .map(([it,par,xFrom])=>[it.id+"|"+par.id,xFrom,it.x]);
+    Object.assign(mvLane,allocLanes(runs,[yTo-30,yTo-43,yTo-56]));
+  }
+  for(const [it,par,xFrom,yFrom,yTo] of mvFeeds){
+    const kind=(it.type===RMU)?"cb":(protFor(it,par.id)[1]||"cb");
+    svg.dot(xFrom,yFrom);
+    if(Math.abs(xFrom-it.x)<1){
+      svg.drop(it.x,yFrom,yTo,kind);
+    } else {                        /* sub-board offset from the way */
+      const yMid=mvLane[it.id+"|"+par.id];
+      svg.drop(xFrom,yFrom,yMid,kind);
+      svg.line(xFrom,yMid,it.x,yMid);
+      svg.line(it.x,yMid,it.x,yTo);
     }
   }
 
@@ -1315,17 +1346,37 @@ function render(info, items, order, width, warnings){
       const w=bb.xRight-bb.xLeft;
       const xLand=bb.xLeft+w*(i+0.5)/sup.length;
       routes[tx.id+"|"+bb.id]=[xLand,null];
-      if(Math.abs(xLand-tx.x)>1) elbows.push([tx.id,bb.id]);
+      if(Math.abs(xLand-tx.x)>1) elbows.push([tx.id+"|"+bb.id,tx.x,xLand]);
     }
   }
-  elbows.sort((a,b)=>Math.abs(routes[b[0]+"|"+b[1]][0]-items[b[0]].x)
-                    -Math.abs(routes[a[0]+"|"+a[1]][0]-items[a[0]].x));
-  if(elbows.length){
-    const top=ytopTx+14;
-    const step=elbows.length>1
-      ? Math.min(13,((Y_BUS-42)-top)/(elbows.length-1)) : 0;
-    elbows.forEach(([t,b],i)=>{ routes[t+"|"+b][1]=top+step*i; });
+  /* every other run between the transformer row and the LV bar joins the
+     same allocation: LV-fed step-ups, and board-fed transformers with no
+     output entered */
+  const suLand={};
+  for(const txId of Object.keys(lvsubMid)){
+    const tx=items[txId], src=lvsubMid[txId][0];
+    if(tx.x===null || src.xLeft===null) continue;
+    const xLand=Math.min(Math.max(tx.x,src.xLeft+25),src.xRight-25);
+    suLand[txId]=xLand;
+    if(Math.abs(xLand-tx.x)>=1) elbows.push(["su|"+txId,tx.x,xLand]);
   }
+  const highRuns=[];
+  for(const tx of txs){
+    if(tx.x===null || (tx.id in sus) || (tx.id in lvsubMid) || ltx.has(tx.id)
+       || genBelow(items,order,tx)) continue;
+    const fedLv=childrenOf(items,order,tx.id,[LV_BUSBAR]);
+    for(const p of tx.parents){
+      const par=items[p];
+      if(par.type!==LV_BUSBAR || par.xLeft===null) continue;
+      const xLand=tx.x>par.x?par.xRight-25:par.xLeft+25;
+      if(fedLv.length) highRuns.push(["lvlv|"+tx.id+"|"+par.id,xLand,tx.x]);
+      else elbows.push(["lvsrc|"+tx.id+"|"+par.id,tx.x,xLand]);
+    }
+  }
+  const lowLane=allocLanes(elbows,[ytopTx+14,ytopTx+23,ytopTx+32]);
+  for(const key of Object.keys(lowLane)) if(key in routes) routes[key][1]=lowLane[key];
+  const cTop=Y_TX_C1-TX_R;
+  const highLane=allocLanes(highRuns,[cTop-22,cTop-34,cTop-88,cTop-100]);
 
   /* generation sources feeding an LV board directly */
   const suSrcIds=Object.values(sus).filter(Boolean).map(o=>o.id);
@@ -1419,14 +1470,14 @@ function render(info, items, order, width, warnings){
       svg.text(tx.x+TX_R+10,ty,t,{anchor:"start"}); ty+=15;
     }
     const kind=protFor(tx,src.id)[1]||"cb";
-    const xLand=Math.min(Math.max(tx.x,src.xLeft+25),src.xRight-25);
+    const xLand=(txId in suLand)?suLand[txId]:tx.x;
     if(Math.abs(xLand-tx.x)<1){
       svg.drop(tx.x,Y_TX_C2+TX_R,Y_BUS,kind);
-    } else {
-      const yLane=Y_BUS-34;
-      svg.drop(tx.x,Y_TX_C2+TX_R,yLane,kind);
+    } else {                        /* the device is the board's, by the bar */
+      const yLane=lowLane["su|"+txId];
+      svg.line(tx.x,Y_TX_C2+TX_R,tx.x,yLane);
       svg.line(tx.x,yLane,xLand,yLane);
-      svg.line(xLand,yLane,xLand,Y_BUS);
+      svg.drop(xLand,yLane,Y_BUS,kind);
     }
     svg.dot(xLand,Y_BUS);
     if(up.type===MV_BUSBAR){
@@ -1497,15 +1548,15 @@ function render(info, items, order, width, warnings){
         const kind=protFor(tx,par.id)[1]||"cb";
         const xLand=tx.x>par.x?par.xRight-25:par.xLeft+25;
         if(fed.length){         /* LV/LV: supply in at the top */
-          const yLane=Y_TX_C1-TX_R-22;
+          const yLane=highLane["lvlv|"+tx.id+"|"+par.id];
           svg.drop(xLand,yLane,Y_BUS,kind);
           svg.line(xLand,yLane,tx.x,yLane);
           svg.line(tx.x,yLane,tx.x,Y_TX_C1-TX_R);
-        } else {                /* source below: keep the run by the bar */
-          const yLane=Y_BUS-34;
-          svg.drop(tx.x,Y_TX_C2+TX_R,yLane,kind);
+        } else {                /* source below: the device is the board's */
+          const yLane=lowLane["lvsrc|"+tx.id+"|"+par.id];
+          svg.line(tx.x,Y_TX_C2+TX_R,tx.x,yLane);
           svg.line(tx.x,yLane,xLand,yLane);
-          svg.line(xLand,yLane,xLand,Y_BUS);
+          svg.drop(xLand,yLane,Y_BUS,kind);
         }
         svg.dot(xLand,Y_BUS);
       }

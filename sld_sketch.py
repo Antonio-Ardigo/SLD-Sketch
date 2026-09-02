@@ -301,6 +301,34 @@ Y_FEED_LBL = 592
 DIAG_H = 780
 
 
+def alloc_lanes(runs, slots):
+    """Give every sideways run its own horizontal lane, longest run first
+    so nested elbows never cross; runs that do not overlap in x may share a
+    lane.  `slots` lists the lane heights in order of preference, chosen so
+    no lane passes through the device zone of a drop it crosses; more lanes
+    than slots are spread evenly between the first and last slot.
+    runs: [(key, x0, x1)].  Returns {key: y}."""
+    runs = sorted(runs, key=lambda r: -abs(r[2] - r[1]))
+    lanes, idx = [], {}
+    for key, x0, x1 in runs:
+        lo, hi = min(x0, x1) - 8, max(x0, x1) + 8
+        for k, occ in enumerate(lanes):
+            if all(hi < a or lo > b for a, b in occ):
+                occ.append((lo, hi))
+                idx[key] = k
+                break
+        else:
+            lanes.append([(lo, hi)])
+            idx[key] = len(lanes) - 1
+    n = len(lanes)
+    if n <= len(slots):
+        ys = list(slots)
+    else:
+        ys = [slots[0] + (slots[-1] - slots[0]) * k / (n - 1)
+              for k in range(n)]
+    return {key: ys[k] for key, k in idx.items()}
+
+
 def set_tiers(extra, top=0):
     """Push the transformer/LV rows down by `extra` px; `top` is extra
     headroom above the MV rows for a step-up column."""
@@ -1405,6 +1433,7 @@ def render(info, items, order, width):
                  bold=True)
 
     # --- feeds from an MV board down to a sub-board or an RMU -----------
+    mv_feeds = []
     for oid in order:
         it = items[oid]
         if it.type not in (MV_BUSBAR, RMU) or it.x is None:
@@ -1413,19 +1442,28 @@ def render(info, items, order, width):
             par = items[p]
             if par.type != MV_BUSBAR:
                 continue
-            kind = ("cb" if it.type == RMU
-                    else prot_for(it, par.id)[1] or "cb")
             y_from = y_bus(par)
             y_to = y_bus(it) if it.type == MV_BUSBAR else y_rmu(it)[0]
             x_from = min(max(it.x, par.x_left), par.x_right)
-            svg.dot(x_from, y_from)
-            if abs(x_from - it.x) < 1:
-                svg.drop(it.x, y_from, y_to, kind)
-            else:                       # sub-board offset from the way
-                y_mid = (y_from + y_to) / 2
-                svg.drop(x_from, y_from, y_mid, kind)
-                svg.line(x_from, y_mid, it.x, y_mid)
-                svg.line(it.x, y_mid, it.x, y_to)
+            mv_feeds.append((it, par, x_from, y_from, y_to))
+    mv_lane = {}
+    for band in {(f[3], f[4]) for f in mv_feeds}:
+        runs = [((it.id, par.id), x_from, it.x)
+                for it, par, x_from, y_from, y_to in mv_feeds
+                if (y_from, y_to) == band and abs(x_from - it.x) >= 1]
+        y_to = band[1]
+        mv_lane.update(alloc_lanes(runs, [y_to - 30, y_to - 43, y_to - 56]))
+    for it, par, x_from, y_from, y_to in mv_feeds:
+        kind = ("cb" if it.type == RMU
+                else prot_for(it, par.id)[1] or "cb")
+        svg.dot(x_from, y_from)
+        if abs(x_from - it.x) < 1:
+            svg.drop(it.x, y_from, y_to, kind)
+        else:                       # sub-board offset from the way
+            y_mid = mv_lane[(it.id, par.id)]
+            svg.drop(x_from, y_from, y_mid, kind)
+            svg.line(x_from, y_mid, it.x, y_mid)
+            svg.line(it.x, y_mid, it.x, y_to)
 
     # --- pumps / motor loads --------------------------------------------
     for p in pumps:
@@ -1498,14 +1536,41 @@ def render(info, items, order, width):
             x_land = bb.x_left + w * (i + 0.5) / len(sup)
             routes[(tx.id, bb.id)] = [x_land, None]
             if abs(x_land - tx.x) > 1:
-                elbows.append((tx.id, bb.id))
-    elbows.sort(key=lambda k: -abs(routes[k][0] - items[k[0]].x))
-    if elbows:
-        top = ytop_tx + 14
-        step = (min(13.0, ((Y_BUS - 42) - top) / (len(elbows) - 1))
-                if len(elbows) > 1 else 0)
-        for i, k in enumerate(elbows):
-            routes[k][1] = top + step * i
+                elbows.append(((tx.id, bb.id), tx.x, x_land))
+    # every other run in the band between the transformer row and the LV
+    # bar joins the same allocation: LV-fed step-ups taking supply from a
+    # board, and transformers fed from a board with no output entered
+    su_land = {}
+    for tx_id, (src, up) in lvsub_mid.items():
+        tx = items[tx_id]
+        if tx.x is None or src.x_left is None:
+            continue
+        x_land = min(max(tx.x, src.x_left + 25), src.x_right - 25)
+        su_land[tx_id] = x_land
+        if abs(x_land - tx.x) >= 1:
+            elbows.append((("su", tx_id), tx.x, x_land))
+    high_runs = []
+    for tx in txs:
+        if (tx.x is None or tx.id in sus or tx.id in lvsub_mid
+                or tx.id in ltx or gen_below(items, order, tx)):
+            continue
+        fed_lv = children_of(items, order, tx.id, {LV_BUSBAR})
+        for p in tx.parents:
+            par = items[p]
+            if par.type != LV_BUSBAR or par.x_left is None:
+                continue
+            x_land = (par.x_right - 25 if tx.x > par.x else par.x_left + 25)
+            if fed_lv:
+                high_runs.append((("lvlv", tx.id, par.id), x_land, tx.x))
+            else:
+                elbows.append((("lvsrc", tx.id, par.id), tx.x, x_land))
+    low_lane = alloc_lanes(elbows, [ytop_tx + 14, ytop_tx + 23, ytop_tx + 32])
+    for key, y in low_lane.items():
+        if key in routes:
+            routes[key][1] = y
+    c_top = Y_TX_C1 - TX_R
+    high_lane = alloc_lanes(high_runs, [c_top - 22, c_top - 34,
+                                        c_top - 88, c_top - 100])
 
     # --- generation sources feeding an LV board directly -----------------
     for g in (items[i] for i in order if items[i].type == GENERATOR):
@@ -1624,14 +1689,14 @@ def render(info, items, order, width):
             ty += 15
         # down to the LV board that supplies it, routed onto its bar
         kind = prot_for(tx, src.id)[1] or "cb"
-        x_land = min(max(tx.x, src.x_left + 25), src.x_right - 25)
+        x_land = su_land.get(tx_id, tx.x)
         if abs(x_land - tx.x) < 1:
             svg.drop(tx.x, Y_TX_C2 + TX_R, Y_BUS, kind)
-        else:
-            y_lane = Y_BUS - 34
-            svg.drop(tx.x, Y_TX_C2 + TX_R, y_lane, kind)
+        else:                         # the device is the board's, by the bar
+            y_lane = low_lane[("su", tx_id)]
+            svg.line(tx.x, Y_TX_C2 + TX_R, tx.x, y_lane)
             svg.line(tx.x, y_lane, x_land, y_lane)
-            svg.line(x_land, y_lane, x_land, Y_BUS)
+            svg.drop(x_land, y_lane, Y_BUS, kind)
         svg.dot(x_land, Y_BUS)
         # up to the MV board / RMU it feeds
         if up.type == MV_BUSBAR:
@@ -1718,15 +1783,15 @@ def render(info, items, order, width):
                 x_land = (par.x_right - 25 if tx.x > par.x
                           else par.x_left + 25)
                 if fed:      # LV/LV: supply in at the top, output below
-                    y_lane = Y_TX_C1 - TX_R - 22
+                    y_lane = high_lane[("lvlv", tx.id, par.id)]
                     svg.drop(x_land, y_lane, Y_BUS, kind)
                     svg.line(x_land, y_lane, tx.x, y_lane)
                     svg.line(tx.x, y_lane, tx.x, Y_TX_C1 - TX_R)
-                else:        # source below: keep the run down by the bar
-                    y_lane = Y_BUS - 34
-                    svg.drop(tx.x, Y_TX_C2 + TX_R, y_lane, kind)
+                else:        # source below: the device is the board's
+                    y_lane = low_lane[("lvsrc", tx.id, par.id)]
+                    svg.line(tx.x, Y_TX_C2 + TX_R, tx.x, y_lane)
                     svg.line(tx.x, y_lane, x_land, y_lane)
-                    svg.line(x_land, y_lane, x_land, Y_BUS)
+                    svg.drop(x_land, y_lane, Y_BUS, kind)
                 svg.dot(x_land, Y_BUS)
         if not any(items[p].type in (RMU, MV_BUSBAR, LV_BUSBAR)
                    and items[p].x is not None for p in tx.parents):
@@ -1751,7 +1816,7 @@ def render(info, items, order, width):
             x_land, y_lane = routes[(tx.id, bb.id)]
             if y_lane is None:
                 svg.drop(tx.x, ytop, Y_BUS, kind)
-            else:
+            else:                     # the device is the board's, by the bar
                 svg.line(tx.x, ytop, tx.x, y_lane)
                 svg.line(tx.x, y_lane, x_land, y_lane)
                 svg.drop(x_land, y_lane, Y_BUS, kind)

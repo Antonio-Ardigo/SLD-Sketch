@@ -30,7 +30,7 @@ PV and gensets), voltages filled in on every row.
 | L2 | 12 of 14, 13 of 15 | clean |
 | L3 | 9 of 10, 8 of 9 | clean |
 | L4 | 9 of 10, 8 of 9 | clean |
-| L5 | connected, phantom stub, shared lane | connected, no stub; the two step-ups still share one lane (`lane-overlap`) |
+| L5 | connected, phantom stub, shared lane | clean (the two step-ups got their own lanes with the lane allocator) |
 | L6 | clean | clean, byte-identical |
 | L7 | 13 of 14, 12 of 13 | clean |
 | L8 | 11 of 12, 10 of 11 | clean |
