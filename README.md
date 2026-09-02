@@ -19,7 +19,7 @@ Open the SVG in any browser. To start a new survey, copy
 
 **No Python at hand?** Open `sld_sketchpad.html` in a browser — the same layout
 engine ported to JavaScript, with an editable equipment table instead of Excel
-and the drawing rebuilding live as you type. The six example configurations are
+and the drawing rebuilding live as you type. The seven example configurations are
 built in, and your table is kept in the browser between visits. The drawing
 sits in a window of its own with scrollbars on both axes: drag it to pan,
 Fit / 100 % / − / + (or ctrl+wheel, the keys 0, 1, −, +) to zoom, so a
@@ -181,6 +181,7 @@ warns instead of drawing, and a duplicate coupler on a pair warns too.
 | `examples/config4_dual_mv_boards.xlsx` | 2 utility incomers → 2 MV switchboards (6 riser feeders each, N.O. bus tie) → 3 transformers + 3 MV pumps per board; each transformer → LV board with 2–3 MCCs | `output/config4.svg` |
 | `examples/config5_cascaded_rmus.xlsx` | Utility incomer → RMU1, which feeds RMU2 and RMU3 by interconnecting cables; each of those feeds a 1000 kVA transformer, and each transformer feeds two LV panels | `output/config5.svg` |
 | `examples/config6_closed_ring.xlsx` | Same as config 5 but with the RMU2–RMU3 cable in place, closing the ring RMU1–RMU2–RMU3–RMU1 (RMU3 feeds from `RMU1, RMU2`) | `output/config6.svg` |
+| `examples/config7_mcc_motors.xlsx` | Pump station: utility incomer → RMU → 1000 kVA transformer → LV board with three MCCs; the pump MCC feeds four motors (one on a VSD) and an auxiliaries feeder, the blower MCC two VSD motors, each MCC in its own dashed enclosure | `output/config7.svg` |
 
 Regenerate the workbooks with `python make_examples.py`, and the sketches with
 `python sld_sketch.py <workbook> -o <out.svg>`.

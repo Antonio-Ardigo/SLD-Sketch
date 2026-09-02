@@ -16,11 +16,13 @@ change and diff against this file; the History table records each step.
   (one merged lane joining six boards counts once)
 - **crossings**, **labels**, **off-sheet** — cosmetic; reported, not scored
 
-## The six shipped examples
+## The seven shipped examples
 
 All clean: every item drawn once, every edge connected, no overlaps, no
 false nets, nothing off the sheet (the legend now wraps on narrow sheets,
 and the sheet grows so downward feeder labels clear the title line).
+Config 7 (a pump station with MCCs feeding the motors) was added with the
+MCC enclosure and scores clean from the start: 16/16 items, 15/15 edges.
 
 ## History
 

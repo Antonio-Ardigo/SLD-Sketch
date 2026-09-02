@@ -30,5 +30,5 @@ diff to measure a change.
 python sld_check.py examples/config*.xlsx tests/levels/*.xlsx tests/features/*.xlsx tests/sites/*.xlsx
 ```
 
-The six `examples/` workbooks must always score clean: all items drawn, all
+The seven `examples/` workbooks must always score clean: all items drawn, all
 edges connected, no overlaps, no false nets.

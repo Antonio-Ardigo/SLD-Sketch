@@ -2,7 +2,7 @@
 """Generate the example site-survey workbooks (and a blank template).
 
 Run:  python make_examples.py
-Writes examples/config1..6 workbooks and template.xlsx.
+Writes examples/config1..7 workbooks and template.xlsx.
 """
 
 import os
@@ -371,6 +371,41 @@ CONFIG6 = dict(
           ("Notes", "Config 6 - closed ring: RMU1-RMU2-RMU3-RMU1")],
     rows=_c56_rows(ring_closed=True))
 
+CONFIG7 = dict(
+    path="examples/config7_mcc_motors.xlsx",
+    info=[("Site", "Example Site G"),
+          ("Date", "2026-09-02"),
+          ("Surveyed by", "A. Ardigo"),
+          ("Notes", "Config 7 - pump station, MCCs feed the motors")],
+    rows=[
+        ("MV1", "MV Incomer", "Utility supply", "", "11 kV", "", "", ""),
+        ("RMU1", "RMU", "3-way ring main unit", "630 A", "11 kV", "LBS",
+         "MV1", ""),
+        ("TX1", "Transformer", "Oil-immersed, Dyn11", "1000 kVA",
+         "11/0.4 kV", "Fuse-switch", "RMU1", ""),
+        ("MSB", "LV Busbar", "Main LV board", "1600 A", "400 V", "CB",
+         "TX1", ""),
+        ("MCC1", "MCC", "Pump MCC", "630 A", "400 V", "CB", "MSB", ""),
+        ("P1", "Pump", "Raw water pump 1", "55 kW", "400 V", "", "MCC1",
+         "Duty"),
+        ("P2", "Pump", "Raw water pump 2", "55 kW", "400 V", "", "MCC1",
+         "Standby"),
+        ("P3", "Pump", "Booster pump", "30 kW", "400 V", "", "MCC1",
+         "VSD"),
+        ("P4", "Pump", "Sump pump", "5.5 kW", "400 V", "Fused contactor",
+         "MCC1", ""),
+        ("F5", "Feeder", "MCC auxiliaries", "32 A", "400 V", "MCB",
+         "MCC1", ""),
+        ("MCC2", "MCC", "Blower MCC", "250 A", "400 V", "CB", "MSB", ""),
+        ("B1", "Pump", "Blower 1", "22 kW", "400 V", "", "MCC2", "VSD"),
+        ("B2", "Pump", "Blower 2", "22 kW", "400 V", "", "MCC2", "VSD"),
+        ("MCC3", "MCC", "Dosing MCC", "100 A", "400 V", "CB", "MSB",
+         "Small motors, not surveyed"),
+        ("F1", "Feeder", "Lighting and small power", "100 A", "400 V",
+         "CB", "MSB", ""),
+        ("F2", "Feeder", "Spare", "250 A", "400 V", "CB", "MSB", "Spare"),
+    ])
+
 TEMPLATE = dict(
     path="examples/template.xlsx",
     info=[("Site", ""), ("Date", ""), ("Surveyed by", ""), ("Notes", "")],
@@ -385,7 +420,7 @@ TEMPLATE = dict(
 def main():
     os.makedirs("examples", exist_ok=True)
     for cfg in (CONFIG1, CONFIG2, CONFIG3, CONFIG4, CONFIG5, CONFIG6,
-                TEMPLATE):
+                CONFIG7, TEMPLATE):
         build_workbook(**cfg)
 
 
