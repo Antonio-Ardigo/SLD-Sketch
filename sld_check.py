@@ -572,6 +572,8 @@ def classify_edge(items, parent, child, via, mvset=frozenset(),
     p, c = items[parent], items[child]
     if via and c.type == S.RMU and any(items[v].type == S.RMU for v in via):
         return "ring-group"
+    if p.id in mvset or c.id in mvset:
+        return "multi-voltage"       # a third level breaks whatever it touches
     if p.type == S.RMU and c.type == S.RMU:
         return "ring-group"
     if (p.type == S.RMU and p.id in broken) or \
@@ -579,8 +581,6 @@ def classify_edge(items, parent, child, via, mvset=frozenset(),
         return "ring-group"
     if c.type == S.RMU and p.type == S.MV_BUSBAR and not via:
         return "rmu-entry"
-    if p.id in mvset or c.id in mvset:
-        return "multi-voltage"
     if c.type == S.BUS_COUPLER or p.type == S.BUS_COUPLER:
         ends = [items[q] for q in c.parents] if c.type == S.BUS_COUPLER else []
         if any(e.type == S.GENERATOR for e in ends):
