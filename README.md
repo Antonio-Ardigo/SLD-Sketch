@@ -181,6 +181,19 @@ warns instead of drawing, and a duplicate coupler on a pair warns too.
 Regenerate the workbooks with `python make_examples.py`, and the sketches with
 `python sld_sketch.py <workbook> -o <out.svg>`.
 
+**DXF export.** `python sld_sketch.py <workbook> --dxf` writes the SVG and
+a `.dxf` beside it (or `python sld_dxf.py <workbook> -o out.dxf` for the DXF
+alone). The file is R12 DXF, the dialect every CAD package and viewer opens:
+the sketch exactly as the SVG draws it, built from the same symbol
+primitives, with the equipment table that produced it laid out under the
+sheet. One drawing unit is one sketch pixel, meant as 1 mm. Entities are
+sorted onto layers so a CAD user can switch parts off: `SLD_DRAWING`
+(conductors and symbols), `SLD_BUSBAR` (the thick bars, as polylines with
+width), `SLD_TEXT`, `SLD_ENCLOSURE` (RMU boxes, dashed), `SLD_FRAME` (title
+and title block), `SLD_LEGEND` and `SLD_TABLE`. The Sketchpad page has the
+same exporter behind its **Download DXF** button, and **Copy DXF** puts the
+file text on the clipboard for places where downloads are blocked.
+
 **Checking a drawing against its table.** `python sld_check.py <workbook>`
 renders the sheet, reads the SVG back as raw geometry and verifies that every
 item is drawn once and every `Feeds From` edge is a continuous conductor

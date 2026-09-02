@@ -236,6 +236,8 @@
     <div class="sheet-bar">
       <h2>Drawing</h2>
       <button id="copysvg">Copy SVG</button>
+      <button id="dxf" title="Download a DXF of the sketch with the equipment table under it">Download DXF</button>
+      <button id="copydxf" title="Copy the DXF text, to paste into a .dxf file where downloads are blocked">Copy DXF</button>
       <span class="copystate" id="copystate"></span>
       <span class="viewtools">
         <button id="v-fit" title="Fit the whole drawing (0)">Fit</button>
@@ -1139,7 +1141,13 @@ function layout(items, order){
 
 /* ------------------------------------------------ SVG builder */
 class SVG {
-  constructor(){ this.parts=[]; }
+  /* the drawing surface: every symbol is built from these primitives, so
+     the DXF writer only overrides them; `layer` is a hint the render sets
+     while drawing the frame and the legend */
+  constructor(){ this.parts=[]; this.layer="drawing"; }
+  document(width,height){
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width)}" height="${height}" viewBox="0 0 ${Math.round(width)} ${height}"><rect width="100%" height="100%" fill="white"/>${this.parts.join("")}</svg>`;
+  }
   line(x1,y1,x2,y2,w=2,dash=null){
     this.parts.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#111" stroke-width="${w}"${dash?` stroke-dasharray="${dash}"`:""} stroke-linecap="round"/>`);
   }
@@ -1349,8 +1357,8 @@ function drawLegend(svg, extra){
   });
 }
 
-function render(info, items, order, width, warnings){
-  const svg=new SVG();
+function render(info, items, order, width, warnings, canvas){
+  const svg=canvas||new SVG();
   const depth=mvDepth(items,order);
   const sus=stepUps(items,order);
   const gens=mvGens(items,order);
@@ -1381,7 +1389,9 @@ function render(info, items, order, width, warnings){
         couplers=by([BUS_COUPLER]), feeders=by([FEEDER,MCC].concat(TERMINALS));
 
   const title=(info.site?info.site+" — ":"")+"Single Line Diagram (sketch)";
+  svg.layer="frame";
   svg.text(24,DIAG_H-26,title,{size:16,anchor:"start",bold:true});
+  svg.layer="drawing";
 
   /* RMU link topology */
   const sideLinks=[], ringLinks=[], ringEntries={};
@@ -2154,6 +2164,7 @@ function render(info, items, order, width, warnings){
   }
 
   /* title block */
+  svg.layer="frame";
   const tbW=288,tbH=96,tbX=width-tbW-24,tbY=DIAG_H-tbH-20;
   svg.rect(tbX,tbY,tbW,tbH,1.5);
   svg.line(tbX,tbY+24,tbX+tbW,tbY+24,1.5);
@@ -2167,10 +2178,154 @@ function render(info, items, order, width, warnings){
 
   const used=new Set(order.map(i=>items[i].type));
   if(order.some(i=>earthBelow(items,items[i]))) used.add(EARTHING);
+  svg.layer="legend";
   drawLegend(svg,used);
+  svg.layer="drawing";
 
-  const h=DIAG_H+LEGEND_H;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width)}" height="${h}" viewBox="0 0 ${Math.round(width)} ${h}"><rect width="100%" height="100%" fill="white"/>${svg.parts.join("")}</svg>`;
+  return svg.document(width,DIAG_H+LEGEND_H);
+}
+
+/* ------------------------------------------------ DXF export */
+/* An R12 (AC1009) DXF: the sketch exactly as drawn (the same symbol
+   primitives, y negated because DXF grows upward) and the equipment table
+   under it. One unit is one sketch pixel; take it as 1 mm. */
+const DXF_LAYERS=[["SLD_DRAWING",7],["SLD_BUSBAR",7],["SLD_TEXT",7],
+  ["SLD_ENCLOSURE",8],["SLD_FRAME",8],["SLD_LEGEND",8],["SLD_TABLE",7]];
+const DXF_TEXT_H=0.72, DXF_CHAR_W=0.6;
+const DXF_SUBST={"\u2014":"-","\u2013":"-","\u00b7":"-","\u00d7":"x","\u2192":"->",
+  "\u2190":"<-","\u00b1":"+/-","\u2026":"..."};
+function dnum(v){
+  let t=v.toFixed(2).replace(/0+$/,"").replace(/\.$/,"");
+  return (t==="-0"||t==="")?"0":t;
+}
+function dclean(s){ return String(s).replace(/[\u2014\u2013\u00b7\u00d7\u2192\u2190\u00b1\u2026]/g,c=>DXF_SUBST[c]); }
+class DXF extends SVG {
+  constructor(table){ super(); this.ents=[]; this.table=table||null; this.count=0; }
+  _layer(kind){
+    if(this.layer==="frame") return "SLD_FRAME";
+    if(this.layer==="legend") return "SLD_LEGEND";
+    if(this.layer==="table") return "SLD_TABLE";
+    return {text:"SLD_TEXT",busbar:"SLD_BUSBAR",enclosure:"SLD_ENCLOSURE"}[kind]||"SLD_DRAWING";
+  }
+  _e(...pairs){ this.ents.push(pairs.map(([c,v])=>c+"\n"+v).join("\n")); this.count++; }
+  line(x1,y1,x2,y2,w=2,dash=null){
+    if(w>=3){                       /* a bar: a polyline with width */
+      const lay=this._layer("busbar");
+      this._e([0,"POLYLINE"],[8,lay],[66,1],[70,0],[40,dnum(w)],[41,dnum(w)],[10,0],[20,0],[30,0]);
+      this._e([0,"VERTEX"],[8,lay],[10,dnum(x1)],[20,dnum(-y1)],[30,0]);
+      this._e([0,"VERTEX"],[8,lay],[10,dnum(x2)],[20,dnum(-y2)],[30,0]);
+      this._e([0,"SEQEND"],[8,lay]);
+      return;
+    }
+    const pairs=[[0,"LINE"],[8,this._layer()]];
+    if(dash) pairs.push([6,"DASHED"]);
+    pairs.push([10,dnum(x1)],[20,dnum(-y1)],[30,0],[11,dnum(x2)],[21,dnum(-y2)],[31,0]);
+    this._e(...pairs);
+  }
+  rect(x,y,w,h,sw=2,dash=null,fill="none"){
+    const lay=this._layer(dash?"enclosure":"drawing");
+    const pairs=[[0,"POLYLINE"],[8,lay]];
+    if(dash) pairs.push([6,"DASHED"]);
+    pairs.push([66,1],[70,1],[10,0],[20,0],[30,0]);
+    this._e(...pairs);
+    for(const [px,py] of [[x,y],[x+w,y],[x+w,y+h],[x,y+h]])
+      this._e([0,"VERTEX"],[8,lay],[10,dnum(px)],[20,dnum(-py)],[30,0]);
+    this._e([0,"SEQEND"],[8,lay]);
+  }
+  circle(x,y,r,sw=2){
+    this._e([0,"CIRCLE"],[8,this._layer()],[10,dnum(x)],[20,dnum(-y)],[30,0],[40,dnum(r)]);
+  }
+  dot(x,y,r=3.2){                   /* a filled dot: the classic donut */
+    const lay=this._layer();
+    this._e([0,"POLYLINE"],[8,lay],[66,1],[70,1],[40,dnum(r)],[41,dnum(r)],[10,0],[20,0],[30,0]);
+    for(const px of [x-r/2,x+r/2])
+      this._e([0,"VERTEX"],[8,lay],[10,dnum(px)],[20,dnum(-y)],[30,0],[42,1]);
+    this._e([0,"SEQEND"],[8,lay]);
+  }
+  poly(pts,fill="#111"){
+    pts=pts.slice();
+    if(pts.length<3) return;
+    while(pts.length<4) pts.push(pts[pts.length-1]);
+    const pairs=[[0,"SOLID"],[8,this._layer()]];
+    [0,1,3,2].forEach((k,i)=>{     /* a SOLID's corners run 1-2-4-3 */
+      const [px,py]=pts[i];
+      pairs.push([10+k,dnum(px)],[20+k,dnum(-py)],[30+k,0]);
+    });
+    this._e(...pairs);
+  }
+  text(x,y,s,{size=12,anchor="middle",bold=false,rotate=null}={}){
+    if(!s) return;
+    const pairs=[[0,"TEXT"],[8,this._layer("text")],[7,"STANDARD"],
+      [10,dnum(x)],[20,dnum(-y)],[30,0],[40,dnum(size*DXF_TEXT_H)],[1,dclean(s)]];
+    if(rotate) pairs.push([50,dnum(-rotate)]);     /* SVG rotates clockwise */
+    if(anchor!=="start") pairs.push([72,anchor==="middle"?1:2],[11,dnum(x)],[21,dnum(-y)],[31,0]);
+    this._e(...pairs);
+  }
+  path(d,sw=2){                     /* the contactor's hinge arc: a semicircle */
+    const m=d.match(/M\s*([-\d.]+),([-\d.]+)\s+A\s*([-\d.]+),[-\d.]+\s+[-\d.]+\s+(\d)\s+(\d)\s+([-\d.]+),([-\d.]+)/);
+    if(!m) return;
+    const [x1,y1,r,,sweep,x2,y2]=m.slice(1).map(Number);
+    const cx=(x1+x2)/2, cy=-(y1+y2)/2;
+    const deg=(a)=>((a*180/Math.PI)%360+360)%360;
+    const a1=deg(Math.atan2(-y1-cy,x1-cx)), a2=deg(Math.atan2(-y2-cy,x2-cx));
+    const [start,end]=(sweep===1)?[a2,a1]:[a1,a2];   /* DXF arcs run anticlockwise */
+    this._e([0,"ARC"],[8,this._layer()],[10,dnum(cx)],[20,dnum(cy)],[30,0],[40,dnum(r)],[50,dnum(start)],[51,dnum(end)]);
+  }
+  drawTable(yTop){
+    const [info,items,order]=this.table;
+    this.layer="table";
+    const size=11, rowH=18, pad=8, x0=24; let y=yTop;
+    this.text(x0,y+14,info.site?("EQUIPMENT TABLE - "+info.site):"EQUIPMENT TABLE",{size:14,anchor:"start",bold:true});
+    y+=24;
+    for(const [k,v] of [["Site",info.site],["Date",info.date],["By",info.by],["Notes",info.notes]])
+      if(v){ this.text(x0,y+12,k+": "+v,{size:11,anchor:"start"}); y+=15; }
+    y+=6;
+    const heads=["ID","Type","Description","Rating","Voltage","Protection","Feeds From","Notes"];
+    const labels={[CAPACITOR]:"Capacitor Bank",[EARTHING]:"Earthing/NER",[ARRESTER]:"Surge Arrester"};
+    const rows=order.map(i=>{ const it=items[i];
+      const typ=labels[it.type]||it.type.replace(/\b\w/g,c=>c.toUpperCase()).replace("Mv ","MV ").replace("Lv ","LV ").replace("Rmu","RMU").replace("Mcc","MCC");
+      return [it.id,typ,it.desc,it.rating,it.voltage,it.prots.join(", "),it.parents.join(", "),it.notes]; });
+    const cols=heads.map((h,i)=>Math.max(h.length,...rows.map(r=>r[i].length))*size*DXF_CHAR_W+2*pad);
+    const x1=x0+cols.reduce((a,b)=>a+b,0);
+    this.line(x0,y,x1,y,1.2);
+    let cx=x0;
+    heads.forEach((h,i)=>{ this.text(cx+pad,y+13,h,{size,anchor:"start",bold:true}); cx+=cols[i]; });
+    y+=rowH;
+    this.line(x0,y,x1,y,1.2);
+    for(const r of rows){
+      cx=x0;
+      r.forEach((v,i)=>{ if(v) this.text(cx+pad,y+13,v,{size,anchor:"start"}); cx+=cols[i]; });
+      y+=rowH;
+      this.line(x0,y,x1,y,1);
+    }
+    cx=x0;
+    const yHead=y-rowH*rows.length-rowH;
+    for(const cw of cols.concat([0])){ this.line(cx,yHead,cx,y,1); cx+=cw; }
+    this.layer="drawing";
+    return y;
+  }
+  document(width,height){
+    let h=height;
+    if(this.table) h=this.drawTable(height+40)+24;
+    const out=["0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009",
+      `9\n$EXTMIN\n10\n0\n20\n${dnum(-h)}\n30\n0`,
+      `9\n$EXTMAX\n10\n${dnum(width)}\n20\n0\n30\n0`,
+      "0\nENDSEC","0\nSECTION\n2\nTABLES",
+      "0\nTABLE\n2\nLTYPE\n70\n2",
+      "0\nLTYPE\n2\nCONTINUOUS\n70\n0\n3\nSolid line\n72\n65\n73\n0\n40\n0",
+      "0\nLTYPE\n2\nDASHED\n70\n0\n3\n__ __ __\n72\n65\n73\n2\n40\n9\n49\n6\n49\n-3",
+      "0\nENDTAB",`0\nTABLE\n2\nLAYER\n70\n${DXF_LAYERS.length}`];
+    for(const [name,col] of DXF_LAYERS) out.push(`0\nLAYER\n2\n${name}\n70\n0\n62\n${col}\n6\nCONTINUOUS`);
+    out.push("0\nENDTAB","0\nTABLE\n2\nSTYLE\n70\n1",
+      "0\nSTYLE\n2\nSTANDARD\n70\n0\n40\n0\n41\n1\n50\n0\n71\n0\n42\n2.5\n3\ntxt\n4\n",
+      "0\nENDTAB","0\nENDSEC","0\nSECTION\n2\nBLOCKS\n0\nENDSEC","0\nSECTION\n2\nENTITIES");
+    out.push(...this.ents);
+    out.push("0\nENDSEC","0\nEOF","");
+    return out.join("\n");
+  }
+}
+function renderDxf(info, items, order, width){
+  return render(info,items,order,width,[],new DXF([info,items,order]));
 }
 
 /* ------------------------------------------------ presets (mirror examples/) */
@@ -2541,6 +2696,37 @@ $("#copysvg").addEventListener("click",async ()=>{
     out.textContent="Copying is blocked here — select the drawing and use the browser's copy instead.";
   }
   setTimeout(()=>{ out.textContent=""; },5000);
+});
+
+function currentDxf(){
+  const {items,order,errors}=buildModel(state.rows);
+  if(!order.length || errors.length) return null;
+  const width=layout(items,order);
+  return renderDxf(state.info,items,order,width);
+}
+function dxfName(){
+  return ((state.info.site||"sld-sketch").replace(/[^\w.-]+/g,"_").replace(/^_+|_+$/g,"")||"sld-sketch")+".dxf";
+}
+$("#dxf").addEventListener("click",()=>{
+  const out=$("#copystate"), text=currentDxf();
+  if(!text){ out.textContent="Nothing to export yet — fix the table first."; return; }
+  const url=URL.createObjectURL(new Blob([text],{type:"application/dxf"}));
+  const a=document.createElement("a"); a.href=url; a.download=dxfName();
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+  out.textContent=`${dxfName()} — R12 DXF, sketch and equipment table, 1 unit = 1 mm.`;
+  setTimeout(()=>{ out.textContent=""; },6000);
+});
+$("#copydxf").addEventListener("click",async ()=>{
+  const out=$("#copystate"), text=currentDxf();
+  if(!text){ out.textContent="Nothing to export yet — fix the table first."; return; }
+  try{
+    await navigator.clipboard.writeText(text);
+    out.textContent="DXF copied — paste it into a new file and save it as .dxf.";
+  }catch(e){
+    out.textContent="Copying is blocked here — use Download DXF instead.";
+  }
+  setTimeout(()=>{ out.textContent=""; },6000);
 });
 
 /* boot: restore last session, else start on example 1 */

@@ -1231,8 +1231,20 @@ def layout(items, order):
 # ---------------------------------------------------------------- SVG symbols
 
 class SVG:
+    """The drawing surface: every symbol is built from these primitives,
+    so another back-end (the DXF writer) only overrides them.  `layer`
+    is a hint the render sets while drawing the frame and the legend."""
+
     def __init__(self):
         self.parts = []
+        self.layer = "drawing"
+
+    def document(self, width, height):
+        body = "\n".join(self.parts)
+        return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width:.0f}" '
+                f'height="{height}" viewBox="0 0 {width:.0f} {height}">\n'
+                f'<rect width="100%" height="100%" fill="white"/>\n'
+                f'{body}\n</svg>\n')
 
     def line(self, x1, y1, x2, y2, w=2, dash=None):
         d = f' stroke-dasharray="{dash}"' if dash else ""
@@ -1528,8 +1540,10 @@ def draw_legend(svg, extra=()):
             ty += 10
 
 
-def render(info, items, order, width):
-    svg = SVG()
+def render(info, items, order, width, canvas=None):
+    """Draw the sheet onto `canvas` (an SVG by default, or any object with
+    the same primitives) and return its document."""
+    svg = canvas if canvas is not None else SVG()
     depth = mv_depth(items, order)
     sus = step_ups(items, order)
     gens = mv_gens(items, order)
@@ -1580,7 +1594,9 @@ def render(info, items, order, width):
     site = info.get("site", "")
     title = f"{site} — Single Line Diagram (sketch)" if site \
         else "Single Line Diagram (sketch)"
+    svg.layer = "frame"
     svg.text(24, DIAG_H - 26, title, size=16, anchor="start", bold=True)
+    svg.layer = "drawing"
 
     # --- RMU-to-RMU link topology ----------------------------------------
     # straight cable between neighbouring boxes; when another RMU sits in
@@ -2487,6 +2503,7 @@ def render(info, items, order, width):
         svg.text(f.x + 4, y_lbl, lbl, size=11, anchor="start", rotate=90)
 
     # --- title block -----------------------------------------------------
+    svg.layer = "frame"
     tb_w, tb_h = 288, 96
     tb_x, tb_y = width - tb_w - 24, DIAG_H - tb_h - 20
     svg.rect(tb_x, tb_y, tb_w, tb_h, sw=1.5)
@@ -2506,14 +2523,11 @@ def render(info, items, order, width):
     used = {items[i].type for i in order}
     if any(earth_below(items, items[i]) for i in order):
         used.add(EARTHING)
+    svg.layer = "legend"
     draw_legend(svg, used)
+    svg.layer = "drawing"
 
-    body = "\n".join(svg.parts)
-    h = DIAG_H + LEGEND_H
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width:.0f}" '
-            f'height="{h}" viewBox="0 0 {width:.0f} {h}">\n'
-            f'<rect width="100%" height="100%" fill="white"/>\n'
-            f'{body}\n</svg>\n')
+    return svg.document(width, DIAG_H + LEGEND_H)
 
 
 # ---------------------------------------------------------------- main
@@ -2524,6 +2538,9 @@ def main():
     ap.add_argument("workbook", help="input .xlsx file")
     ap.add_argument("-o", "--output",
                     help="output .svg file (default: <workbook>.svg)")
+    ap.add_argument("--dxf", nargs="?", const="", metavar="FILE",
+                    help="also write a DXF (R12) of the sketch with the "
+                         "equipment table under it (default: <workbook>.dxf)")
     args = ap.parse_args()
 
     out = args.output or (args.workbook.rsplit(".", 1)[0] + ".svg")
@@ -2533,6 +2550,11 @@ def main():
     with open(out, "w", encoding="utf-8") as fh:
         fh.write(svg)
     print(f"wrote {out}  ({len(items)} items)")
+    if args.dxf is not None:
+        import sld_dxf
+        dxf_out = args.dxf or (args.workbook.rsplit(".", 1)[0] + ".dxf")
+        n = sld_dxf.write_dxf(dxf_out, info, items, order, width)
+        print(f"wrote {dxf_out}  ({n} entities)")
 
 
 if __name__ == "__main__":
