@@ -285,7 +285,7 @@ function protFor(item, parentId){
 const MARGIN=90, FEEDER_SPACING=95, BUS_GAP=110, MIN_BUS_WIDTH=170,
       SLOT_GAP=30, PUMP_SLOT=115, TX_LABEL_W=150,
       Y_LABEL=34, Y_MV_TOP=62, Y_RMU_TOP=150, Y_RMU_BOT=268, Y_MVBUS=208,
-      PUMP_R=20, TX_R=19, TIER_H=150, STEPUP_H=170,
+      PUMP_R=20, TX_R=19, TIER_H=150, TIER_LINK_H=200, STEPUP_H=170,
       Y_GEN=96, Y_SU_C1=196, Y_SU_C2=196+27;
 let STEPUP_SHIFT=0;
 /* rows below the MV distribution - re-based by setTiers() when MV boards
@@ -350,6 +350,8 @@ function stepUps(items, order){
     if(!childrenOf(items,order,tx.id,[MV_BUSBAR,RMU]).length) continue;
     if(tx.parents.some(p=>items[p].type===LV_BUSBAR && items[p].parents.length))
       continue;                     /* drawn in the transformer row instead */
+    if(tx.parents.some(p=>[MV_BUSBAR,RMU].includes(items[p].type)))
+      continue;                     /* joins two boards: drawn between tiers */
     out[tx.id]=tx.parents.length?items[tx.parents[0]]:null;
   }
   return out;
@@ -467,22 +469,106 @@ function placeStepUps(items, order){
   }
 }
 
-function mvDepth(items, order){
-  const depth={};
-  for(const i of order)
-    if([MV_BUSBAR,RMU].includes(items[i].type)) depth[i]=0;
-  for(let pass=0; pass<=Object.keys(depth).length; pass++){
+function parseVolts(text){
+  /* '33 kV' -> 33000, '3.3 kV' -> 3300, '400 V' -> 400,
+     '11/0.4 kV' -> [11000, 400]; null when nothing parses */
+  const t=(text||"").toLowerCase().replace(/,/g,".");
+  const nums=t.match(/\d+(?:\.\d+)?/g);
+  if(!nums) return null;
+  const scale=t.includes("kv")?1000:1;
+  let vals=nums.map(n=>parseFloat(n)*scale);
+  if(scale===1 && vals.every(v=>v<100)) vals=vals.map(v=>v*1000);
+  return vals.length>1?vals:vals[0];
+}
+function boardLevels(items, order){
+  /* voltage level of every MV busbar / RMU: from the Voltage column, else
+     inferred from what feeds it; a root with no clue takes the top level */
+  const boards=order.filter(i=>[MV_BUSBAR,RMU].includes(items[i].type));
+  const lvl={};
+  for(const b of boards){
+    let v=parseVolts(items[b].voltage);
+    if(Array.isArray(v)) v=v[0];
+    if(v) lvl[b]=v;
+  }
+  for(let pass=0; pass<=boards.length; pass++){
     let changed=false;
-    for(const oid of Object.keys(depth))
-      for(const p of items[oid].parents){
+    for(const b of boards){
+      if(b in lvl) continue;
+      for(const p of items[b].parents){
         const par=items[p];
-        if(!(par.id in depth)) continue;
-        const d=depth[par.id]+(par.type===MV_BUSBAR?1:0);
-        if(d>depth[oid]){ depth[oid]=d; changed=true; }
+        if(par.id in lvl){ lvl[b]=lvl[par.id]; changed=true; break; }
+        if(par.type===TRANSFORMER){
+          const pp=par.parents.find(q=>q in lvl);
+          if(pp===undefined) continue;
+          const tv=parseVolts(par.voltage);
+          let other=null;
+          if(Array.isArray(tv)) other=tv.find(v=>Math.abs(v-lvl[pp])>1e-6)||null;
+          lvl[b]=other||lvl[pp]*0.5; changed=true; break;
+        }
+      }
+    }
+    if(!changed) break;
+  }
+  const known=Object.values(lvl);
+  const top=known.length?Math.max(...known):11000;
+  for(const b of boards) if(!(b in lvl)) lvl[b]=top;
+  return lvl;
+}
+function mvDepth(items, order){
+  /* one tier per voltage level, highest on top; within a level one
+     sub-tier per cascade (board or RMU fed from a board of the same level);
+     a transformer joining two boards puts the lower-voltage one a tier down */
+  const boards=order.filter(i=>[MV_BUSBAR,RMU].includes(items[i].type));
+  if(!boards.length) return {};
+  const lvl=boardLevels(items,order);
+  const ranks=[...new Set(Object.values(lvl))].sort((a,b)=>b-a);
+  const rank={}; for(const b of boards) rank[b]=ranks.indexOf(lvl[b]);
+  const casc={}; for(const b of boards) casc[b]=0;
+  for(let pass=0; pass<=boards.length; pass++){
+    let changed=false;
+    for(const b of boards)
+      for(const p of items[b].parents){
+        const par=items[p]; let d;
+        if(par.id in casc && rank[par.id]===rank[b])
+          d=casc[par.id]+(par.type===MV_BUSBAR?1:0);
+        else if(par.type===TRANSFORMER){
+          const pp=par.parents.find(q=>q in casc);
+          if(pp===undefined || rank[pp]!==rank[b]) continue;
+          d=casc[pp]+1;
+        } else continue;
+        if(d>casc[b]){ casc[b]=d; changed=true; }
       }
     if(!changed) break;
   }
+  const keys=[...new Set(boards.map(b=>rank[b]*1000+casc[b]))].sort((a,b)=>a-b);
+  const depth={};
+  for(const b of boards) depth[b]=keys.indexOf(rank[b]*1000+casc[b]);
   return depth;
+}
+function levelLinks(items, order, depth){
+  /* transformers joining two MV boards / RMUs, as [upper, tx, lower] */
+  depth=depth||mvDepth(items,order);
+  const out=[];
+  for(const oid of order){
+    const tx=items[oid];
+    if(tx.type!==TRANSFORMER) continue;
+    const ups=tx.parents.filter(p=>p in depth).map(p=>items[p]);
+    const downs=childrenOf(items,order,tx.id,[MV_BUSBAR,RMU]);
+    for(const a of ups) for(const b of downs){
+      if(a===b) continue;
+      out.push(depth[a.id]<=depth[b.id]?[a,tx,b]:[b,tx,a]);
+    }
+  }
+  return out;
+}
+function tierOffsets(depth, links){
+  /* y offset of each tier: 150 px per cascade step, 200 px where a
+     transformer sits between the tiers */
+  const n=Math.max(0,...Object.values(depth));
+  const crossed=new Set(links.map(([,,l])=>depth[l.id]));
+  const off=[0]; let y=0;
+  for(let d=1; d<=n; d++){ y+=crossed.has(d)?TIER_LINK_H:TIER_H; off.push(y); }
+  return off;
 }
 
 /* ------------------------------------------------ model helpers */
@@ -601,10 +687,16 @@ function mvChildren(items, order, node){
   const types=(node.type===MV_BUSBAR)
     ? [TRANSFORMER,PUMP,MV_BUSBAR,RMU]
     : [TRANSFORMER,PUMP];
-  const kids=childrenOf(items,order,node.id,types);
+  const links=levelLinks(items,order);
+  const ltx=new Set(links.map(([,tx])=>tx.id));
+  const kids=childrenOf(items,order,node.id,types).filter(k=>!ltx.has(k.id));
   const mid=suMid(items,order);
   for(const t of Object.keys(mid))
     if(mid[t][1].id===node.id && !kids.includes(items[t])) kids.push(items[t]);
+  const seen=new Set();
+  for(const [u,tx,l] of links)      /* the board on the far side of a
+                                       transformer hangs beneath this one */
+    if(u.id===node.id && !kids.includes(l) && !seen.has(l.id)){ kids.push(l); seen.add(l.id); }
   return kids;
 }
 function mvOwnWidth(items, order, node, depth){
@@ -661,10 +753,26 @@ function layoutMvBoards(items, order){
   const mvs=order.map(i=>items[i]).filter(t=>t.type===MV_INCOMER);
   const depth=mvDepth(items,order);
   let x=MARGIN;
-  /* roots are the boards not fed from another MV board */
-  for(const mvb of mvbs.filter(b=>!b.parents.some(p=>items[p].type===MV_BUSBAR))){
-    placeMvNode(items,order,mvb,x,mvWidth(items,order,mvb,depth),depth);
-    x=mvb.xRight+BUS_GAP;
+  /* roots are the boards not fed from another MV board, nor through a
+     transformer from one; an RMU tree of its own is a root too */
+  const links=levelLinks(items,order,depth);
+  const lowers=new Set(links.map(([,,l])=>l.id));
+  const rmus=order.map(i=>items[i]).filter(t=>t.type===RMU);
+  const roots=mvbs.filter(b=>!b.parents.some(p=>items[p].type===MV_BUSBAR)
+                             && !lowers.has(b.id))
+    .concat(rmus.filter(r=>!r.parents.some(p=>[MV_BUSBAR,RMU].includes(items[p].type))
+                           && !lowers.has(r.id) && r.x===null));
+  for(const mvb of roots){
+    const w=mvWidth(items,order,mvb,depth);
+    placeMvNode(items,order,mvb,x,w,depth);
+    x=(mvb.xRight!==null?mvb.xRight:mvb.x+w/2)+BUS_GAP;
+  }
+  const seenL={};
+  for(const [u,tx,l] of links){     /* a level transformer stands over
+                                       the board it joins from above */
+    if(l.x===null) continue;
+    const k=seenL[l.id]||0;
+    tx.x=l.x+70*k; seenL[l.id]=k+1;
   }
   /* LV boards centred under their supply transformer(s) - the mean of
      the supplies when a board has two incomers */
@@ -686,7 +794,7 @@ function layoutMvBoards(items, order){
   /* incomers share the supply spread with any step-up columns */
   const sus=stepUps(items,order);
   for(const m of mvs){
-    for(const mvb of mvbs){
+    for(const mvb of mvbs.concat(rmus.filter(r=>r.x!==null))){
       const feeds=suppliesOf(items,order,mvb,sus);
       if(feeds.includes(m)){
         m.x=mvb.x+(feeds.indexOf(m)-(feeds.length-1)/2)*90; break;
@@ -910,9 +1018,10 @@ class SVG {
     this.line(x,ytop,x,y-gap);
     this.line(x,y+gap,x,ybot);
   }
-  transformer(x,lines,side){
-    this.circle(x,Y_TX_C1,TX_R,2.2); this.circle(x,Y_TX_C2,TX_R,2.2);
-    let ty=Y_TX_C1-6;
+  transformer(x,lines,side,y){
+    const c1=(y===undefined)?Y_TX_C1:y;
+    this.circle(x,c1,TX_R,2.2); this.circle(x,c1+27,TX_R,2.2);
+    let ty=c1-6;
     for(const s of lines){
       if(side==="left") this.text(x-TX_R-10,ty,s,{anchor:"end"});
       else this.text(x+TX_R+10,ty,s,{anchor:"start"});
@@ -965,9 +1074,12 @@ function render(info, items, order, width, warnings){
   const svg=new SVG();
   const depth=mvDepth(items,order);
   const sus=stepUps(items,order);
-  setTiers(Math.max(0,...Object.values(depth))*TIER_H,
+  const links=levelLinks(items,order,depth);
+  const ltx=new Set(links.map(([,tx])=>tx.id));
+  const tierOff=tierOffsets(depth,links);
+  setTiers(tierOff.length?tierOff[tierOff.length-1]:0,
            Object.keys(sus).length?STEPUP_H:0);
-  const dy=it=>(depth[it.id]||0)*TIER_H;
+  const dy=it=>tierOff.length?tierOff[depth[it.id]||0]:0;
   const yRmu=r=>{ const o=dy(r)+STEPUP_SHIFT;
     return [Y_RMU_TOP+o, Y_RMU_BOT+o, (Y_RMU_TOP+Y_RMU_BOT)/2+o]; };
   const yBus=b=>Y_MVBUS+dy(b)+STEPUP_SHIFT;
@@ -1010,6 +1122,8 @@ function render(info, items, order, width, warnings){
     const waysIn=mvs.filter(m=>childrenOf(items,order,m.id).some(k=>k.id===rmu.id))
       .concat(Object.keys(sus).map(t=>items[t])
         .filter(t=>childrenOf(items,order,t.id).some(k=>k.id===rmu.id)));
+    for(const [u,tx,l] of links)               /* from a higher tier */
+      if(l.id===rmu.id && !waysIn.includes(tx)) waysIn.push(tx);
     const boardsIn=rmu.parents.map(p=>items[p])
       .filter(p=>p.type===MV_BUSBAR);          /* board-fed RMU */
     const midAll=suMid(items,order);
@@ -1231,6 +1345,29 @@ function render(info, items, order, width, warnings){
     }
   }
 
+  /* transformers between two MV tiers */
+  for(const [u,tx,l] of links){
+    if(tx.x===null) continue;
+    const yU=(u.type===MV_BUSBAR)?yBus(u):yRmu(u)[1];
+    const yL=(l.type===MV_BUSBAR)?yBus(l):yRmu(l)[0];
+    const c1=Math.floor((yU+yL)/2)-13;   /* integer: both engines round alike */
+    svg.transformer(tx.x,[tx.id,tx.desc,[tx.rating,tx.voltage].filter(Boolean).join(" ")].filter(Boolean),"right",c1);
+    const kindU=(tx.parents.includes(u.id)?protFor(tx,u.id)[1]:protFor(u,tx.id)[1])||"cb";
+    if(u.type===MV_BUSBAR){
+      if(Math.abs(tx.x-l.x)<1 || (u.xLeft<=tx.x && tx.x<=u.xRight)){
+        svg.drop(tx.x,yU,c1-TX_R,kindU); svg.dot(tx.x,yU);
+      } else {                      /* a second link: dog-leg off the bar */
+        const xFrom=Math.min(Math.max(tx.x,u.xLeft+20),u.xRight-20);
+        const yLane=yU+40;
+        svg.drop(xFrom,yU,yLane,kindU); svg.dot(xFrom,yU);
+        svg.line(xFrom,yLane,tx.x,yLane); svg.line(tx.x,yLane,tx.x,c1-TX_R);
+      }
+    } else svg.line(tx.x,yU,tx.x,c1-TX_R);   /* the RMU drew its tee-off */
+    const kindL=(l.parents.includes(tx.id)?protFor(l,tx.id)[1]:protFor(tx,l.id)[1])||"cb";
+    if(l.type===MV_BUSBAR){ svg.drop(tx.x,c1+27+TX_R,yL,kindL); svg.dot(tx.x,yL); }
+    else svg.line(tx.x,c1+27+TX_R,tx.x,yL);      /* the RMU draws its way in */
+  }
+
   /* step-up columns: source -> transformer -> MV busbar / RMU */
   for(const txId of Object.keys(sus)){
     const tx=items[txId], src=sus[txId];
@@ -1342,7 +1479,7 @@ function render(info, items, order, width, warnings){
 
   /* transformers */
   for(const tx of txs){
-    if(tx.x===null || (tx.id in sus) || (tx.id in lvsubMid)
+    if(tx.x===null || (tx.id in sus) || (tx.id in lvsubMid) || ltx.has(tx.id)
        || genBelow(items,order,tx)) continue;   /* drawn as its own column */
     const fed=childrenOf(items,order,tx.id,[LV_BUSBAR]);
     /* transformers sharing a board label away from each other */

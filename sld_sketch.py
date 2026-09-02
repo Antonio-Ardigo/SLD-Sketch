@@ -17,6 +17,7 @@ Only dependency: openpyxl.
 """
 
 import argparse
+import re
 import sys
 from xml.sax.saxutils import escape
 
@@ -281,6 +282,7 @@ PUMP_R = 20
 TX_R = 19
 LEGEND_H = 100         # symbol legend strip below the drawing
 TIER_H = 150           # vertical pitch of a cascaded MV level
+TIER_LINK_H = 200      # pitch when a transformer sits between two tiers
 STEPUP_H = 170         # headroom above the MV rows for a step-up column
 STEPUP_SHIFT = 0       # set per drawing by set_tiers()
 Y_GEN = 96             # generation source symbol, step-up column
@@ -364,32 +366,141 @@ def step_ups(items, order):
         if any(items[p].type == LV_BUSBAR and items[p].parents
                for p in tx.parents):
             continue                  # drawn in the transformer row instead
+        if any(items[p].type in (MV_BUSBAR, RMU) for p in tx.parents):
+            continue                  # joins two boards: drawn between tiers
         src = next((items[p] for p in tx.parents), None)
         out[tx.id] = src
     return out
 
 
-def mv_depth(items, order):
-    """MV distribution level of each busbar/RMU.
+def parse_volts(text):
+    """'33 kV' -> 33000, '3.3 kV' -> 3300, '400 V' -> 400, '11/0.4 kV' ->
+    (11000, 400). None when nothing parses."""
+    t = (text or "").lower().replace(",", ".")
+    nums = re.findall(r"\d+(?:\.\d+)?", t)
+    if not nums:
+        return None
+    scale = 1000.0 if "kv" in t else 1.0
+    vals = tuple(float(n) * scale for n in nums)
+    if scale == 1.0 and all(v < 100 for v in vals):
+        vals = tuple(v * 1000 for v in vals)   # bare "11" means kV
+    return vals if len(vals) > 1 else vals[0]
 
-    A board or RMU fed from an MV busbar sits one level below it; RMUs
-    linked to each other (a ring) stay on their parent's level.
-    """
-    depth = {i: 0 for i in order if items[i].type in (MV_BUSBAR, RMU)}
-    for _ in range(len(depth) + 1):          # relax along the chains
+
+def board_levels(items, order):
+    """Voltage level of every MV busbar / RMU, from the Voltage column,
+    else inferred from what feeds it: the far side of a transformer from a
+    known board, or the same level as a board/RMU that feeds it directly.
+    A root with no clue takes the highest level on the sheet."""
+    boards = [i for i in order if items[i].type in (MV_BUSBAR, RMU)]
+    lvl = {}
+    for b in boards:
+        v = parse_volts(items[b].voltage)
+        if isinstance(v, tuple):
+            v = v[0]
+        if v:
+            lvl[b] = v
+    for _ in range(len(boards) + 1):
         changed = False
-        for oid in depth:
-            for p in items[oid].parents:
+        for b in boards:
+            if b in lvl:
+                continue
+            for p in items[b].parents:
                 par = items[p]
-                if par.id not in depth:
+                if par.id in lvl:
+                    lvl[b] = lvl[par.id]
+                    changed = True
+                    break
+                if par.type == TRANSFORMER:
+                    pp = next((q for q in par.parents if q in lvl), None)
+                    if pp is None:
+                        continue
+                    tv = parse_volts(par.voltage)
+                    other = None
+                    if isinstance(tv, tuple):
+                        other = next((v for v in tv
+                                      if abs(v - lvl[pp]) > 1e-6), None)
+                    lvl[b] = other if other else lvl[pp] * 0.5
+                    changed = True
+                    break
+        if not changed:
+            break
+    top = max(lvl.values(), default=11000.0)
+    for b in boards:
+        lvl.setdefault(b, top)
+    return lvl
+
+
+def mv_depth(items, order):
+    """Vertical tier of each MV busbar / RMU: one tier per voltage level,
+    highest on top, and within a level one sub-tier per cascade (a board
+    or RMU fed from a board of the same level sits below it; RMUs linked
+    to each other stay level). A transformer joining two boards puts the
+    lower-voltage one a tier down."""
+    boards = [i for i in order if items[i].type in (MV_BUSBAR, RMU)]
+    if not boards:
+        return {}
+    lvl = board_levels(items, order)
+    ranks = sorted(set(lvl.values()), reverse=True)
+    rank = {b: ranks.index(lvl[b]) for b in boards}
+    casc = {b: 0 for b in boards}
+    for _ in range(len(boards) + 1):        # relax along same-level chains
+        changed = False
+        for b in boards:
+            for p in items[b].parents:
+                par = items[p]
+                if par.id in casc and rank[par.id] == rank[b]:
+                    d = casc[par.id] + (1 if par.type == MV_BUSBAR else 0)
+                elif par.type == TRANSFORMER:
+                    pp = next((q for q in par.parents if q in casc), None)
+                    if pp is None or rank[pp] != rank[b]:
+                        continue
+                    d = casc[pp] + 1            # same-voltage transformer
+                else:
                     continue
-                d = depth[par.id] + (1 if par.type == MV_BUSBAR else 0)
-                if d > depth[oid]:
-                    depth[oid] = d
+                if d > casc[b]:
+                    casc[b] = d
                     changed = True
         if not changed:
             break
-    return depth
+    keys = sorted({(rank[b], casc[b]) for b in boards})
+    return {b: keys.index((rank[b], casc[b])) for b in boards}
+
+
+def level_links(items, order, depth=None):
+    """Transformers joining two MV boards / RMUs, as (upper, tx, lower)
+    with the shallower board first whichever way the row was written."""
+    depth = depth if depth is not None else mv_depth(items, order)
+    out = []
+    for oid in order:
+        tx = items[oid]
+        if tx.type != TRANSFORMER:
+            continue
+        ups = [items[p] for p in tx.parents if p in depth]
+        downs = children_of(items, order, tx.id, {MV_BUSBAR, RMU})
+        for a in ups:
+            for b in downs:
+                if a is b:
+                    continue
+                u, l = (a, b) if depth[a.id] <= depth[b.id] else (b, a)
+                out.append((u, tx, l))
+    return out
+
+
+def level_tx_ids(items, order):
+    return {tx.id for _, tx, _ in level_links(items, order)}
+
+
+def tier_offsets(depth, links):
+    """y offset of each tier: 150 px per cascade step, 200 px where a
+    transformer sits between the tiers."""
+    n = max(depth.values(), default=0)
+    crossed = {depth[l.id] for _, _, l in links}
+    off, y = [0], 0
+    for d in range(1, n + 1):
+        y += TIER_LINK_H if d in crossed else TIER_H
+        off.append(y)
+    return off
 
 
 def children_of(items, order, pid, types=None):
@@ -530,9 +641,17 @@ def mv_children(items, order, node):
     An LV-fed step-up is a parent in the graph but a way in the drawing."""
     types = ({TRANSFORMER, PUMP, MV_BUSBAR, RMU}
              if node.type == MV_BUSBAR else {TRANSFORMER, PUMP})
-    kids = children_of(items, order, node.id, types)
+    links = level_links(items, order)
+    ltx = {tx.id for _, tx, _ in links}
+    kids = [k for k in children_of(items, order, node.id, types)
+            if k.id not in ltx]
     kids += [items[t] for t, (_, up) in su_mid(items, order).items()
              if up.id == node.id and items[t] not in kids]
+    seen = set()
+    for u, tx, l in links:            # the board on the far side of a
+        if u.id == node.id and l not in kids and l.id not in seen:
+            kids.append(l)            # transformer hangs beneath this one
+            seen.add(l.id)
     return kids
 
 
@@ -675,13 +794,30 @@ def layout_mv_boards(items, order):
 
     # roots are the boards not fed from another MV board
     depth = mv_depth(items, order)
+    links = level_links(items, order, depth)
+    lowers = {l.id for _, _, l in links}
     roots = [b for b in mvbs
-             if not any(items[p].type == MV_BUSBAR for p in b.parents)]
+             if not any(items[p].type == MV_BUSBAR for p in b.parents)
+             and b.id not in lowers]
+    # an RMU tree of its own (fed by an incomer, not by a board) is a root
+    # too, so its ways and any lower-tier board beneath it get slots
+    rmus = [items[i] for i in order if items[i].type == RMU]
+    roots += [r for r in rmus
+              if not any(items[p].type in (MV_BUSBAR, RMU) for p in r.parents)
+              and r.id not in lowers and r.x is None]
     x = MARGIN
     for mvb in roots:
         w = mv_width(items, order, mvb, depth)
         place_mv_node(items, order, mvb, x, w, depth)
-        x = mvb.x_right + BUS_GAP
+        x = (mvb.x_right if mvb.x_right is not None else mvb.x + w / 2) \
+            + BUS_GAP
+    seen = {}
+    for u, tx, l in links:            # a level transformer stands over
+        if l.x is None:               # the board it joins from above
+            continue
+        k = seen.get(l.id, 0)
+        tx.x = l.x + 70 * k
+        seen[l.id] = k + 1
 
     # LV boards centred under their supply transformer(s) - the mean of
     # the supplies when a board has two incomers
@@ -705,7 +841,7 @@ def layout_mv_boards(items, order):
     # incomers share the supply spread with any step-up columns
     sus = step_ups(items, order)
     for m in mvs:
-        for mvb in mvbs:
+        for mvb in mvbs + [r for r in rmus if r.x is not None]:
             feeds = supplies_of(items, order, mvb, sus)
             if m in feeds:
                 n = len(feeds)
@@ -991,10 +1127,11 @@ class SVG:
         self.line(x, ytop, x, y - gap)
         self.line(x, y + gap, x, ybot)
 
-    def transformer(self, x, label_lines, side="right"):
-        self.circle(x, Y_TX_C1, TX_R, sw=2.2)
-        self.circle(x, Y_TX_C2, TX_R, sw=2.2)
-        ty = Y_TX_C1 - 6
+    def transformer(self, x, label_lines, side="right", y=None):
+        c1 = Y_TX_C1 if y is None else y
+        self.circle(x, c1, TX_R, sw=2.2)
+        self.circle(x, c1 + 27, TX_R, sw=2.2)
+        ty = c1 - 6
         for s in label_lines:
             if side == "left":
                 self.text(x - TX_R - 10, ty, s, anchor="end")
@@ -1067,11 +1204,13 @@ def render(info, items, order, width):
     svg = SVG()
     depth = mv_depth(items, order)
     sus = step_ups(items, order)
-    set_tiers(max(depth.values(), default=0) * TIER_H,
-              STEPUP_H if sus else 0)
+    links = level_links(items, order, depth)
+    ltx = {tx.id for _, tx, _ in links}
+    tier_off = tier_offsets(depth, links)
+    set_tiers(tier_off[-1] if tier_off else 0, STEPUP_H if sus else 0)
 
-    def dy(it):                       # vertical offset of an MV level
-        return depth.get(it.id, 0) * TIER_H
+    def dy(it):                       # vertical offset of an MV tier
+        return tier_off[depth.get(it.id, 0)] if tier_off else 0
 
     def y_rmu(r):                     # (top, bottom, bus) of an RMU box
         o = dy(r) + STEPUP_SHIFT
@@ -1135,6 +1274,8 @@ def render(info, items, order, width):
         ways_in += [items[t] for t in sus            # step-up columns
                     if any(rmu.id == k.id
                            for k in children_of(items, order, t))]
+        ways_in += [tx for u, tx, l in links          # from a higher tier
+                    if l.id == rmu.id and tx not in ways_in]
         boards_in = [items[p] for p in rmu.parents
                      if items[p].type == MV_BUSBAR]   # board-fed RMU
         ways_out = children_of(items, order, rmu.id,
@@ -1384,6 +1525,41 @@ def render(info, items, order, width):
             svg.drop(g.x, Y_TX_C1 + 33, Y_BUS, prot_for(bb, g.id)[1] or "cb")
             svg.dot(g.x, Y_BUS)
 
+    # --- transformers between two MV tiers -------------------------------
+    for u, tx, l in links:
+        if tx.x is None:
+            continue
+        y_u = y_bus(u) if u.type == MV_BUSBAR else y_rmu(u)[1]
+        y_l = y_bus(l) if l.type == MV_BUSBAR else y_rmu(l)[0]
+        c1 = (y_u + y_l) // 2 - 13     # integer: both engines round alike
+        lbl = [tx.id, tx.desc,
+               " ".join(v for v in (tx.rating, tx.voltage) if v)]
+        svg.transformer(tx.x, [t for t in lbl if t], y=c1)
+        # upper side: the board's outgoing way, whichever row named it
+        kind_u = ((prot_for(tx, u.id)[1] if u.id in tx.parents
+                   else prot_for(u, tx.id)[1]) or "cb")
+        if u.type == MV_BUSBAR:
+            if abs(tx.x - l.x) < 1 or u.x_left <= tx.x <= u.x_right:
+                svg.drop(tx.x, y_u, c1 - TX_R, kind_u)
+                svg.dot(tx.x, y_u)
+            else:                     # a second link: dog-leg off the bar
+                x_from = min(max(tx.x, u.x_left + 20), u.x_right - 20)
+                y_lane = y_u + 40
+                svg.drop(x_from, y_u, y_lane, kind_u)
+                svg.dot(x_from, y_u)
+                svg.line(x_from, y_lane, tx.x, y_lane)
+                svg.line(tx.x, y_lane, tx.x, c1 - TX_R)
+        else:                         # the RMU drew its tee-off to rb
+            svg.line(tx.x, y_u, tx.x, c1 - TX_R)
+        # lower side: the fed board's incomer
+        kind_l = ((prot_for(l, tx.id)[1] if tx.id in l.parents
+                   else prot_for(tx, l.id)[1]) or "cb")
+        if l.type == MV_BUSBAR:
+            svg.drop(tx.x, c1 + 27 + TX_R, y_l, kind_l)
+            svg.dot(tx.x, y_l)
+        else:                         # the RMU draws its incoming way
+            svg.line(tx.x, c1 + 27 + TX_R, tx.x, y_l)
+
     # --- step-up columns: source -> transformer -> MV busbar / RMU -------
     for tx_id, src in sus.items():
         tx = items[tx_id]
@@ -1519,7 +1695,7 @@ def render(info, items, order, width):
     # --- transformers ----------------------------------------------------
     for tx in txs:
         if (tx.x is None or tx.id in sus or tx.id in lvsub_mid
-                or gen_below(items, order, tx)):
+                or tx.id in ltx or gen_below(items, order, tx)):
             continue                  # drawn as a column of its own
         fed = children_of(items, order, tx.id, {LV_BUSBAR})
         lbl = [tx.id, tx.desc,

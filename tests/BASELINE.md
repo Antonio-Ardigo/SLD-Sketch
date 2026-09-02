@@ -27,7 +27,8 @@ overflowing an 870 px drawing.)
 | engine state | C1 edges | C2 | C3 | C4 | C5 | rmu-entry failures |
 |---|---|---|---|---|---|---|
 | before any change (`75ec1a5`) | 26/31 | 25/29 | 25/26 | 31/37 | 18/21 | 4 sites + 9 probes |
-| board-fed RMU entry drawn through (this commit) | 27/31 | 25/29 | 25/26 | 33/37 | 18/21 | 0 |
+| board-fed RMU entry drawn through | 27/31 | 25/29 | 25/26 | 33/37 | 18/21 | 0 |
+| voltage tiers: a transformer between two boards draws between their tiers | 29/31 (items 29/29) | 25/29 | 25/26 | 33/37 | 19/21 (items 22/22) | 0 |
 
 The first change removed every `rmu-entry` failure (C1 2, C4 2, nine
 probes) and changed nothing else: the six examples are byte-identical and
@@ -96,7 +97,6 @@ false nets and overlaps.
 
 | change | failures removed (5 sites) | sites affected |
 |---|---|---|
-| tiers by voltage level | 22 | C1, C5 |
 | ring groups headed by an RMU | 14 | C1, C4 |
 | one lane allocator for every sideways run | 8 | C1, C2, C4, C5 |
 | sources as first-class supplies / changeover | 4 | C1, C2, C5 |
@@ -104,3 +104,4 @@ false nets and overlaps.
 | MV outgoing ways and terminal items | 1 | C3 |
 | terminal item types (NER, capacitor bank, arrester) | 1 | C3 |
 | ~~board-fed RMU: incoming way drawn through to its bar~~ | done | — |
+| ~~tiers by voltage level~~ | done (22 removed, plus 53 on `tests/levels`) | — |

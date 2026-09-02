@@ -97,6 +97,16 @@ RMU is then drawn on its own tier below its source, with the feed through its
 Protection device. Cascades can be any depth (main MV board -> sub-board ->
 sub-sub-board), and the transformer and LV rows move down to suit.
 
+**Several voltage levels.** Fill the Voltage column and each level gets a
+tier, highest on top: a 33 kV board, an 11 kV board and a 3.3 kV pump board
+draw as three rows, and a transformer that joins two boards is drawn between
+their tiers with the upper board's breaker above it and the fed board's
+incomer below, whichever way round the rows were written. So 33/11 kV
+step-downs, 11/3.3 kV pump transformers and an 11/33 kV export step-up all
+draw the same way, and a 3.3 kV board can hang off an RMU. A board with no
+voltage takes its supplier's level (or the far side of the transformer
+feeding it).
+
 That's all the connectivity the tool needs: everything hangs off `Feeds From`.
 A bus coupler feeds from its two busbars (`BB1, BB2`); an RMU on a ring feeds
 from both ring incomers (`MV1, MV2`). A coupler between boards on **different

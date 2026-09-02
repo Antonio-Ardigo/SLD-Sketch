@@ -1,9 +1,9 @@
 # Multi-level boards with step-up and step-down transformers
 
 Ten workbooks probing every arrangement of boards at different voltage
-levels joined by transformers. Built with today's vocabulary (`MV Busbar`
+levels joined by transformers. Built with the ordinary vocabulary (`MV Busbar`
 for every MV level, `Transformer` for both directions, `Generator` for
-PV and gensets), voltages filled in on every row. Engine unchanged.
+PV and gensets), voltages filled in on every row.
 
 `python sld_check.py tests/levels/*.xlsx`
 
@@ -22,87 +22,52 @@ PV and gensets), voltages filled in on every row. Engine unchanged.
 | L9 | RMU ring → RMU 1 → 11/3.3 → 3.3 kV board with pumps | **fails** worst — the 3.3 kV bar is drawn on the RMU row, straight through both enclosures, superimposed on their inner buses; RMU 1 loses its symbol, RMU 2 is bound twice |
 | L10 | one 11 kV board with a step-down, a reversed step-up and a step-up column | **clean** |
 
-## Checker output
+## Result after the voltage-tier layout
+
+| # | before | after |
+|---|---|---|
+| L1 | 7 of 8 items, 6 of 7 edges | clean |
+| L2 | 12 of 14, 13 of 15 | clean |
+| L3 | 9 of 10, 8 of 9 | clean |
+| L4 | 9 of 10, 8 of 9 | clean |
+| L5 | connected, phantom stub, shared lane | connected, no stub; the two step-ups still share one lane (`lane-overlap`) |
+| L6 | clean | clean, byte-identical |
+| L7 | 13 of 14, 12 of 13 | clean |
+| L8 | 11 of 12, 10 of 11 | clean |
+| L9 | 9 of 10, 3 of 9 | clean |
+| L10 | clean | clean, byte-identical |
+
+`multi-voltage` failures on this suite: 53 → 0.
 
 ```
-l1_chain.xlsx              items 7/8  edges 6/7 (1 disconnected, 0 via-other)  overlaps 3  false nets 1  crossings 1  labels 7  off-sheet 2
-    missing symbols: U
-    drawn twice: HV
-    disconnected  U>HV                   [multi-voltage]
-    drawn as one net, table says no: HV ~ MV
-l2_sections.xlsx           items 12/14  edges 13/15 (2 disconnected, 0 via-other)  overlaps 6  false nets 2  crossings 2  labels 14  off-sheet 0
-    missing symbols: U1, U2
-    drawn twice: HVA, HVB
-    disconnected  U1>HVA                 [multi-voltage]
-    disconnected  U2>HVB                 [multi-voltage]
-    drawn as one net, table says no: HVA ~ MVA
-    drawn as one net, table says no: HVB ~ MVB
-l3_two_down.xlsx           items 9/10  edges 8/9 (1 disconnected, 0 via-other)  overlaps 3  false nets 1  crossings 1  labels 7  off-sheet 0
-    missing symbols: U
-    drawn twice: MV
-    disconnected  U>MV                   [multi-voltage]
-    drawn as one net, table says no: MV ~ PB
-l4_mid_two_supplies.xlsx   items 9/10  edges 8/9 (1 disconnected, 0 via-other)  overlaps 3  false nets 1  crossings 1  labels 9  off-sheet 0
-    missing symbols: U
-    drawn twice: HV
-    disconnected  U>HV                   [multi-voltage]
-    drawn as one net, table says no: HV ~ MV
-l5_two_up.xlsx             items 13/13  edges 12/12  overlaps 1  false nets 1  crossings 1  labels 7  off-sheet 0
-    drawn twice: MV
+l1_chain.xlsx              items 8/8  edges 7/7  overlaps 0  false nets 0  crossings 0  labels 3  off-sheet 2
+l2_sections.xlsx           items 14/14  edges 15/15  overlaps 0  false nets 0  crossings 0  labels 6  off-sheet 0
+l3_two_down.xlsx           items 10/10  edges 9/9  overlaps 0  false nets 0  crossings 0  labels 2  off-sheet 0
+l4_mid_two_supplies.xlsx   items 10/10  edges 9/9  overlaps 0  false nets 0  crossings 0  labels 4  off-sheet 0
+l5_two_up.xlsx             items 13/13  edges 12/12  overlaps 1  false nets 1  crossings 1  labels 5  off-sheet 0
     drawn as one net, table says no: PVB1 ~ PVB2 ~ SU1 ~ SU2
 l6_loop.xlsx               items 8/8  edges 8/8  overlaps 0  false nets 0  crossings 0  labels 4  off-sheet 0
-l7_three_tier.xlsx         items 13/14  edges 12/13 (1 disconnected, 0 via-other)  overlaps 3  false nets 1  crossings 1  labels 8  off-sheet 0
-    missing symbols: U
-    drawn twice: HV, MV
-    disconnected  U>HV                   [multi-voltage]
-    drawn as one net, table says no: HV ~ MV
-l8_mixed_cascade.xlsx      items 11/12  edges 10/11 (1 disconnected, 0 via-other)  overlaps 3  false nets 1  crossings 1  labels 9  off-sheet 0
-    missing symbols: U
-    drawn twice: MV
-    disconnected  U>MV                   [multi-voltage]
-    drawn as one net, table says no: MV ~ PB
-l9_rmu_down.xlsx           items 9/10  edges 6/9 (3 disconnected, 0 via-other)  overlaps 0  false nets 1  crossings 1  labels 3  off-sheet 0
-    missing symbols: R1
-    drawn twice: R2
-    disconnected  U>R1                   [multi-voltage]
-    disconnected  R1>R2                  [multi-voltage]
-    disconnected  R1>PT                  [multi-voltage]
-    drawn as one net, table says no: P2 ~ PB ~ PT ~ R2 ~ U
+l7_three_tier.xlsx         items 14/14  edges 13/13  overlaps 0  false nets 0  crossings 0  labels 2  off-sheet 0
+l8_mixed_cascade.xlsx      items 12/12  edges 11/11  overlaps 0  false nets 0  crossings 0  labels 4  off-sheet 0
+l9_rmu_down.xlsx           items 10/10  edges 9/9  overlaps 0  false nets 0  crossings 0  labels 1  off-sheet 2
 l10_both_under_board.xlsx  items 10/10  edges 9/9  overlaps 0  false nets 0  crossings 0  labels 3  off-sheet 0
 
 modification                                     l1_chain l2_section l3_two_dow l4_mid_two  l5_two_up    l6_loop l7_three_t l8_mixed_c l9_rmu_dow l10_both_u   total
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------
-tiers by voltage level                                  7         14          7          7          1          0          8          7          5          0      56
 one lane allocator for every sideways run               0          0          0          0          2          0          0          0          0          0       2
-ring groups headed by an RMU                            0          0          0          0          0          0          0          0          1          0       1
 ```
 
-## The pattern
+## How the layout works now
 
-Every failure is one mechanism. A transformer whose *child* is an MV
-Busbar is treated as a step-up column: its parent is drawn above it as a
-"source" and the fed board is placed on the single MV row like any other
-board. When that parent is itself an MV Busbar rather than a generator, the
-column paints the parent's *label* on a stub and the parent's real bar is
-left as an orphan somewhere else on the row. So:
-
-- a step-up **into** a board that also has a utility supply works (L4's
-  genset side, L5, L10, the SU matrix);
-- a same-voltage cascade works (L8's sub-board, `mv_depth` tiers);
-- any board reached **only through a transformer from another MV board**
-  is broken, regardless of direction (33 → 11 in L1/L2/L4/L7, 11 → 3.3 in
-  L3/L7/L8/L9), and the breakage compounds per level (L7 has two).
-
-The two clean sheets are exactly the two with a single MV voltage.
-
-Score on this suite: 56 failures, 53 of them `multi-voltage`; the rest are
-the shared step-up lane (L5) and one RMU consequence in L9.
-
-## What this says about the fix
-
-The row model has one MV row and one LV row. Anything else needs a tier
-per voltage level, with a transformer drawn between the two tiers it
-bridges; `mv_depth()` already does this for same-voltage cascades and is
-the mechanism to generalise. These ten workbooks are the acceptance test:
-after the change, L1–L9 must score every item drawn once and every edge
-connected, and L6/L10 must stay byte-identical.
+Every MV busbar and RMU gets a **tier**: one per voltage level present on
+the sheet (from the Voltage column, highest on top; a board with no voltage
+takes its supplier's level, or the far side of the transformer that feeds
+it), and within a level one sub-tier per same-voltage cascade, as before.
+A transformer that joins two boards is drawn **between the two tiers**,
+with the board's outgoing breaker above it and the fed board's incomer
+below, whichever way the rows were written — so 33 → 11 kV, 11 → 3.3 kV
+and an 11 → 33 kV export step-up all draw the same way. Tiers crossed by a
+transformer are 200 px apart, plain cascades 150 px. The lower board takes
+a slot beneath the upper one exactly as a same-voltage sub-board does, and
+an RMU tree fed by an incomer is placed by the same machinery, so a 3.3 kV
+board can hang off an RMU.
