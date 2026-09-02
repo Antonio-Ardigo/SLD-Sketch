@@ -30,7 +30,7 @@ PV and gensets), voltages filled in on every row.
 | L2 | 12 of 14, 13 of 15 | clean |
 | L3 | 9 of 10, 8 of 9 | clean |
 | L4 | 9 of 10, 8 of 9 | clean |
-| L5 | connected, phantom stub, shared lane | clean (the two step-ups got their own lanes with the lane allocator) |
+| L5 | connected, phantom stub, shared lane | clean; the export board draws below the collector (row direction), incomer beside the export transformer |
 | L6 | clean | clean, byte-identical |
 | L7 | 13 of 14, 12 of 13 | clean |
 | L8 | 11 of 12, 10 of 11 | clean |
@@ -59,15 +59,19 @@ one lane allocator for every sideways run               0          0          0 
 
 ## How the layout works now
 
-Every MV busbar and RMU gets a **tier**: one per voltage level present on
-the sheet (from the Voltage column, highest on top; a board with no voltage
-takes its supplier's level, or the far side of the transformer that feeds
-it), and within a level one sub-tier per same-voltage cascade, as before.
-A transformer that joins two boards is drawn **between the two tiers**,
-with the board's outgoing breaker above it and the fed board's incomer
-below, whichever way the rows were written — so 33 → 11 kV, 11 → 3.3 kV
-and an 11 → 33 kV export step-up all draw the same way. Tiers crossed by a
-transformer are 200 px apart, plain cascades 150 px. The lower board takes
-a slot beneath the upper one exactly as a same-voltage sub-board does, and
-an RMU tree fed by an incomer is placed by the same machinery, so a 3.3 kV
-board can hang off an RMU.
+Every MV busbar and RMU gets a **tier** from `Feeds From` alone: whatever
+feeds a board is drawn above it. A board or RMU fed from a board, directly
+or through a transformer, sits one tier below; RMUs linked to each other stay
+level; a board nothing feeds from above is a root on the top tier. A
+transformer joining two boards is drawn **between the two tiers**, with the
+upper board's breaker above it and the fed board's incomer below. Tiers
+crossed by a transformer are 200 px apart, plain cascades 150 px. The lower
+board takes a slot beneath the upper one exactly as a same-voltage sub-board
+does, and an RMU tree fed by an incomer is placed by the same machinery, so
+a 3.3 kV board can hang off an RMU.
+
+Voltage is a label the surveyor types and is never read for layout: two
+boards of the same voltage can sit at different heights, and the row
+direction decides. L5's export board (`HV ← ET ← MV`) therefore draws below
+the collector with its utility incomer beside the export transformer; write
+`MV ← ET ← HV ← U` to put the grid on top.

@@ -97,15 +97,16 @@ RMU is then drawn on its own tier below its source, with the feed through its
 Protection device. Cascades can be any depth (main MV board -> sub-board ->
 sub-sub-board), and the transformer and LV rows move down to suit.
 
-**Several voltage levels.** Fill the Voltage column and each level gets a
-tier, highest on top: a 33 kV board, an 11 kV board and a 3.3 kV pump board
-draw as three rows, and a transformer that joins two boards is drawn between
-their tiers with the upper board's breaker above it and the fed board's
-incomer below, whichever way round the rows were written. So 33/11 kV
-step-downs, 11/3.3 kV pump transformers and an 11/33 kV export step-up all
-draw the same way, and a 3.3 kV board can hang off an RMU. A board with no
-voltage takes its supplier's level (or the far side of the transformer
-feeding it).
+**Several voltage levels.** Whatever feeds a board is drawn above it. A board
+fed from another board, directly or through a transformer, sits one tier
+below it, so a 33 kV board, the 11 kV board its grid transformer feeds and a
+3.3 kV pump board under that draw as three rows, with each transformer drawn
+between the two tiers it joins: the upper board's breaker above it, the fed
+board's incomer below. The Voltage column is printed but never read for
+layout, so two boards of the same voltage can sit at different heights, and
+the row direction is the one lever: write `MV ← ET ← HV ← U` to put the grid
+on top, or `HV ← ET ← MV` to show an export board below the collector with
+its utility incomer beside it.
 
 Every sideways run (a board fed from two transformers, a step-up taking
 supply from an LV board, a transformer fed from a board with no load entered
