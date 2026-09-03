@@ -797,7 +797,8 @@ function placeTxMotors(items, order){
   for(const oid of order){
     const t=items[oid];
     if(t.type===TRANSFORMER && t.x!==null)
-      for(const m of childrenOf(items,order,t.id,[PUMP])) if(m.x===null) m.x=t.x;
+      for(const m of childrenOf(items,order,t.id,[PUMP].concat(TERMINALS)))
+        if(m.x===null) m.x=t.x;
   }
 }
 function placeStepUps(items, order){
@@ -1738,7 +1739,16 @@ function render(info, items, order, width, warnings, canvas){
 
   const title=(info.site?info.site+" — ":"")+"Single Line Diagram (sketch)";
   svg.layer="frame";
-  svg.text(24,DIAG_H-26,title,{size:16,anchor:"start",bold:true});
+  /* the title runs along the bottom to the left of the title block; a long
+     site name wraps rather than running into it */
+  const room=width-288-48-24;
+  let head=title, tail="";
+  if(title.length*8.6>room && title.includes(" ")){
+    const cut=title.lastIndexOf(" ",Math.max(1,Math.floor(room/8.6)));
+    if(cut>0){ head=title.slice(0,cut); tail=title.slice(cut+1); }
+  }
+  svg.text(24,DIAG_H-26-(tail?16:0),head,{size:16,anchor:"start",bold:true});
+  if(tail) svg.text(24,DIAG_H-26,tail,{size:16,anchor:"start",bold:true});
   svg.layer="drawing";
 
   /* RMU link topology */
@@ -1911,7 +1921,18 @@ function render(info, items, order, width, warnings, canvas){
         svg.drop(m.x,yTop,yBus(k),protFor(k,m.id)[1]||"cb");
         svg.dot(m.x,yBus(k));
       }
-      else if(k.type===TRANSFORMER) svg.line(m.x,yTop,m.x,Y_TX_C1-TX_R);
+    }
+    /* transformers fed straight from the utility, with no MV gear between:
+       one drop each, split from the incomer when they differ */
+    const direct=kids.filter(k=>k.type===TRANSFORMER && k.x!==null);
+    if(direct.length===1 && Math.abs(direct[0].x-m.x)<1)
+      svg.line(m.x,yTop,m.x,Y_TX_C1-TX_R);
+    else if(direct.length){
+      const ySplit=yTop+40;
+      svg.line(m.x,yTop,m.x,ySplit);
+      const xs=direct.map(t=>t.x).concat([m.x]);
+      svg.line(Math.min(...xs),ySplit,Math.max(...xs),ySplit);
+      for(const t of direct){ svg.dot(t.x,ySplit); svg.line(t.x,ySplit,t.x,Y_TX_C1-TX_R); }
     }
   }
 
@@ -2323,7 +2344,7 @@ function render(info, items, order, width, warnings, canvas){
         svg.dot(xLand,Y_BUS);
       }
     }
-    if(!tx.parents.some(p=>[RMU,MV_BUSBAR,LV_BUSBAR].includes(items[p].type)
+    if(!tx.parents.some(p=>[RMU,MV_BUSBAR,LV_BUSBAR,MV_INCOMER].includes(items[p].type)
                            && items[p].x!==null))
       svg.openEnd(tx.x,Y_TX_C1-TX_R,Y_TX_C1-TX_R-36,"supply not defined");
     if(earthBelow(items,tx)){       /* earthing transformer / NER */
@@ -2533,6 +2554,15 @@ function render(info, items, order, width, warnings, canvas){
     const kind=protFor(f,pid)[1]||"cb";
     const dash=stateWords(f).has("spare")?"5 4":null;
     const lbl=[f.id,f.desc,f.rating].filter(Boolean).join(" · ");
+    if(par && par.type===TRANSFORMER && TERMINALS.includes(f.type)){
+      /* hung on a transformer's secondary: an NER under an earthing
+         transformer, a capacitor on its own supply transformer */
+      const y0=Y_TX_C2+TX_R;
+      svg.drop(f.x,y0,y0+26,kind);
+      const h=svg.terminal(f.type,f.x,y0+26);
+      svg.text(f.x+4,y0+26+h+12,lbl,{size:11,anchor:"start",rotate:90});
+      continue;
+    }
     if(par && [MV_BUSBAR,RMU].includes(par.type)){
       /* an outgoing way of an MV board: arrow in the transformer row */
       const yTip=Y_PUMP;

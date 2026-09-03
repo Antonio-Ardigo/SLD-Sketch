@@ -138,6 +138,23 @@ inside the sheet. Two arrangements did not, and are now fixtures:
 | `tests/features/f11_rmu_cascade.xlsx` | an RMU feeding two RMUs put 18 items off the right edge: the sheet width followed the row cursor, which never saw a branch placed in a slot of its own |
 | `tests/features/f12_rmu_mv_loads.xlsx` | a capacitor and an arrester on ring RMUs, on a site with no MV busbar, got no slot and fell into the leftover row at the far right, dragging their RMU's enclosure across the sheet: one 476 px superimposed bus and a false net over five items |
 
+## Configuration sweep
+
+Thirty-two arrangements across sources, voltage tiers, transformer shapes,
+LV shapes and scale (one row to fifty items), on top of the fifteen RMU
+arrangements above. Twenty-eight drew clean; the four that did not are now
+fixtures:
+
+| workbook | was |
+|---|---|
+| `tests/features/f13_utility_direct.xlsx` | a transformer fed straight from the utility, with no MV board or RMU between, got an "supply not defined" stub drawn on top of the real conductor; with two transformers on one incomer neither connection was drawn at all |
+| `tests/features/f14_earthing_ner.xlsx` | an `Earthing/NER` row fed from a transformer got no slot and no conductor, drawn floating at the far right |
+| (same sheet) | a long Site name ran the drawing title into the title block |
+
+The first of these is the plainest sketch there is — utility, transformer,
+board — and it was broken because every example in the repository happened
+to put an RMU in between.
+
 ## Audit against the engine 15 commits earlier
 
 Both engines drawing the same 42 workbooks, read back by the same checker

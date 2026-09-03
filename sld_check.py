@@ -788,10 +788,11 @@ def check(path):
 
     # unexpected direct connections between items the table does not join
     exp_pairs = {frozenset((p, c)) for p, c, _ in expected}
-    # two panels off one transformer share its secondary split: one node
+    # ways off one supply share its split: two panels on a transformer
+    # secondary, two transformers tee'd off one incomer
     for oid in order:
         it = items[oid]
-        if it.type in (S.TRANSFORMER, S.GENERATOR, S.FEEDER):
+        if it.type in (S.TRANSFORMER, S.GENERATOR, S.FEEDER, S.MV_INCOMER):
             kids = [o for o in order if oid in items[o].parents]
             for i, a in enumerate(kids):
                 for b in kids[i + 1:]:

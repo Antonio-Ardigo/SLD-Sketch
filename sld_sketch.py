@@ -1237,11 +1237,14 @@ def spread_supplies(items, order, boards, sus, links):
 
 
 def place_tx_motors(items, order):
-    """A motor fed straight from a transformer hangs under it."""
+    """A motor or terminal item fed straight from a transformer hangs
+    under it: an NER on an earthing transformer, a motor on its own
+    supply transformer."""
     for oid in order:
         t = items[oid]
         if t.type == TRANSFORMER and t.x is not None:
-            for m in children_of(items, order, t.id, {PUMP}):
+            for m in children_of(items, order, t.id,
+                                 {PUMP} | set(TERMINALS)):
                 if m.x is None:
                     m.x = t.x
 
@@ -1893,7 +1896,19 @@ def render(info, items, order, width, canvas=None):
     title = f"{site} — Single Line Diagram (sketch)" if site \
         else "Single Line Diagram (sketch)"
     svg.layer = "frame"
-    svg.text(24, DIAG_H - 26, title, size=16, anchor="start", bold=True)
+    # the title runs along the bottom to the left of the title block; a
+    # long site name wraps rather than running into it
+    room = width - 288 - 48 - 24
+    if len(title) * 8.6 > room and " " in title:
+        cut = title.rfind(" ", 0, max(1, int(room / 8.6)))
+        head, tail = (title[:cut], title[cut + 1:]) if cut > 0 \
+            else (title, "")
+    else:
+        head, tail = title, ""
+    svg.text(24, DIAG_H - 26 - (16 if tail else 0), head, size=16,
+             anchor="start", bold=True)
+    if tail:
+        svg.text(24, DIAG_H - 26, tail, size=16, anchor="start", bold=True)
     svg.layer = "drawing"
 
     # --- RMU-to-RMU link topology ----------------------------------------
@@ -2101,8 +2116,19 @@ def render(info, items, order, width, canvas=None):
                 svg.drop(m.x, y_top, y_bus(k),
                          prot_for(k, m.id)[1] or "cb")
                 svg.dot(m.x, y_bus(k))
-            elif k.type == TRANSFORMER:  # direct feed, no RMU
-                svg.line(m.x, y_top, m.x, Y_TX_C1 - TX_R)
+        # transformers fed straight from the utility, with no MV gear
+        # between: one drop each, split from the incomer when they differ
+        direct = [k for k in kids if k.type == TRANSFORMER and k.x is not None]
+        if len(direct) == 1 and abs(direct[0].x - m.x) < 1:
+            svg.line(m.x, y_top, m.x, Y_TX_C1 - TX_R)
+        elif direct:
+            y_split = y_top + 40
+            svg.line(m.x, y_top, m.x, y_split)
+            xs = [t.x for t in direct] + [m.x]
+            svg.line(min(xs), y_split, max(xs), y_split)
+            for t in direct:
+                svg.dot(t.x, y_split)
+                svg.line(t.x, y_split, t.x, Y_TX_C1 - TX_R)
 
     # --- MV switchboards -------------------------------------------------
     for mvb in mvbs:
@@ -2594,7 +2620,7 @@ def render(info, items, order, width, canvas=None):
                     svg.line(tx.x, y_lane, x_land, y_lane)
                     svg.drop(x_land, y_lane, Y_BUS, kind)
                 svg.dot(x_land, Y_BUS)
-        if not any(items[p].type in (RMU, MV_BUSBAR, LV_BUSBAR)
+        if not any(items[p].type in (RMU, MV_BUSBAR, LV_BUSBAR, MV_INCOMER)
                    and items[p].x is not None for p in tx.parents):
             svg.open_end(tx.x, Y_TX_C1 - TX_R, Y_TX_C1 - TX_R - 36,
                          "supply not defined")
@@ -2834,6 +2860,16 @@ def render(info, items, order, width, canvas=None):
         kind = prot_for(f, pid)[1] or "cb"
         dash = "5 4" if "spare" in state_words(f) else None
         lbl = " · ".join(v for v in (f.id, f.desc, f.rating) if v)
+        if par is not None and par.type == TRANSFORMER \
+                and f.type in TERMINALS:
+            # hung on a transformer's secondary: an NER under an earthing
+            # transformer, a capacitor on its own supply transformer
+            y0 = Y_TX_C2 + TX_R
+            svg.drop(f.x, y0, y0 + 26, kind)
+            h = svg.terminal(f.type, f.x, y0 + 26)
+            svg.text(f.x + 4, y0 + 26 + h + 12, lbl, size=11,
+                     anchor="start", rotate=90)
+            continue
         if par is not None and par.type in (MV_BUSBAR, RMU):
             # an outgoing way of an MV board: arrow in the transformer row
             y_tip = Y_PUMP
