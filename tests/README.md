@@ -1,5 +1,11 @@
 # Topology test suite
 
+Both engines round a half-way coordinate the same way (`n1` / `n0` in
+`sld_sketch.py`, the same pair in the page): Python's `format` rounds
+half to even and JavaScript's `toFixed` does not, so a value like 501.25
+used to print 501.2 on one side and 501.3 on the other. The parity
+harnesses expect no differences at all.
+
 `sld_check.py` renders a workbook with the normal engine, reads the SVG back
 as raw geometry (no help from the drawing code), and compares it with the
 table: every item drawn once, every `Feeds From` edge a continuous conductor

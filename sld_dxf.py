@@ -35,8 +35,9 @@ SUBST = {"—": "-", "–": "-", "·": "-", "×": "x", "→": "->", "←": "<-",
 
 
 def num(v):
-    """A DXF number: two decimals, no trailing zeros, no negative zero."""
-    t = f"{v:.2f}".rstrip("0").rstrip(".")
+    """A DXF number: two decimals, no trailing zeros, no negative zero.
+    Rounded half up, so this and the page engine print the same string."""
+    t = ("%.2f" % (math.floor(v * 100 + 0.5) / 100)).rstrip("0").rstrip(".")
     return "0" if t in ("-0", "") else t
 
 

@@ -1505,6 +1505,19 @@ def layout(items, order):
 
 # ---------------------------------------------------------------- SVG symbols
 
+def n1(v):
+    """One decimal, rounded half up.  Python's format rounds a half-way
+    value to even and JavaScript's toFixed does not, so the two engines
+    disagreed on values like 501.25; rounding explicitly makes both print
+    the same string."""
+    return "%.1f" % (math.floor(v * 10 + 0.5) / 10)
+
+
+def n0(v):
+    """A whole number, rounded half up, for the same reason."""
+    return "%d" % math.floor(v + 0.5)
+
+
 class SVG:
     """The drawing surface: every symbol is built from these primitives,
     so another back-end (the DXF writer) only overrides them.  `layer`
@@ -1521,8 +1534,8 @@ class SVG:
 
     def document(self, width, height):
         body = "\n".join(self.parts)
-        return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width:.0f}" '
-                f'height="{height}" viewBox="0 0 {width:.0f} {height}">\n'
+        return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{n0(width)}" '
+                f'height="{height}" viewBox="0 0 {n0(width)} {height}">\n'
                 f'<rect width="100%" height="100%" fill="white"/>\n'
                 f'{body}\n</svg>\n')
 
@@ -1530,26 +1543,26 @@ class SVG:
         self._track(x1, y1, x2, y2)
         d = f' stroke-dasharray="{dash}"' if dash else ""
         self.parts.append(
-            f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
+            f'<line x1="{n1(x1)}" y1="{n1(y1)}" x2="{n1(x2)}" y2="{n1(y2)}" '
             f'stroke="#111" stroke-width="{w}"{d} stroke-linecap="round"/>')
 
     def rect(self, x, y, w, h, sw=2, dash=None, fill="none"):
         d = f' stroke-dasharray="{dash}"' if dash else ""
         self.parts.append(
-            f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" '
+            f'<rect x="{n1(x)}" y="{n1(y)}" width="{n1(w)}" height="{n1(h)}" '
             f'fill="{fill}" stroke="#111" stroke-width="{sw}"{d}/>')
 
     def circle(self, x, y, r, sw=2):
         self.parts.append(
-            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="none" '
+            f'<circle cx="{n1(x)}" cy="{n1(y)}" r="{r}" fill="none" '
             f'stroke="#111" stroke-width="{sw}"/>')
 
     def dot(self, x, y, r=3.2):
         self.parts.append(
-            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="#111"/>')
+            f'<circle cx="{n1(x)}" cy="{n1(y)}" r="{r}" fill="#111"/>')
 
     def poly(self, pts, fill="#111"):
-        p = " ".join(f"{a:.1f},{b:.1f}" for a, b in pts)
+        p = " ".join(f"{n1(a)},{n1(b)}" for a, b in pts)
         self.parts.append(f'<polygon points="{p}" fill="{fill}"/>')
 
     def text(self, x, y, s, size=12, anchor="middle", bold=False,
@@ -1557,9 +1570,9 @@ class SVG:
         if not s:
             return
         wgt = ' font-weight="bold"' if bold else ""
-        tr = (f' transform="translate({x:.1f},{y:.1f}) rotate({rotate})"'
+        tr = (f' transform="translate({n1(x)},{n1(y)}) rotate({rotate})"'
               if rotate is not None else "")
-        xy = 'x="0" y="0"' if rotate is not None else f'x="{x:.1f}" y="{y:.1f}"'
+        xy = 'x="0" y="0"' if rotate is not None else f'x="{n1(x)}" y="{n1(y)}"'
         self.parts.append(
             f'<text {xy}{tr} font-family="Arial, Helvetica, sans-serif" '
             f'font-size="{size}" fill="{color}" text-anchor="{anchor}"{wgt}>'
@@ -1605,8 +1618,8 @@ class SVG:
             # IEC: switch with the arc function symbol at the hinge,
             # open side facing the blade
             self.line(x, y - 13, x, y - 11)
-            self.path(f"M {x-4:.1f},{y-7:.1f} A 4,4 0 0 1 "
-                      f"{x+4:.1f},{y-7:.1f}")                    # hinge arc
+            self.path(f"M {n1(x-4)},{n1(y-7)} A 4,4 0 0 1 "
+                      f"{n1(x+4)},{n1(y-7)}")                    # hinge arc
             self.line(x + 2, y - 5, x + 8, y + 7)                # blade
             self.line(x, y + 9, x, y + 13)
             return 13
@@ -1614,8 +1627,8 @@ class SVG:
             # MV motor starter: back-up fuse in series with the contactor
             self.rect(x - 4, y - 16, 8, 12)                      # fuse
             self.line(x, y - 16, x, y - 4)
-            self.path(f"M {x-4:.1f},{y:.1f} A 4,4 0 0 1 "
-                      f"{x+4:.1f},{y:.1f}")                      # hinge arc
+            self.path(f"M {n1(x-4)},{n1(y)} A 4,4 0 0 1 "
+                      f"{n1(x+4)},{n1(y)}")                      # hinge arc
             self.line(x + 2, y + 2, x + 7, y + 11)               # blade
             self.line(x, y + 12, x, y + 16)
             return 16
@@ -1648,16 +1661,16 @@ class SVG:
         if kind == "contactor":
             # IEC: switch with the arc function symbol at the hinge
             self.line(x - 13, y, x - 11, y)
-            self.path(f"M {x-7:.1f},{y-4:.1f} A 4,4 0 0 0 "
-                      f"{x-7:.1f},{y+4:.1f}")                    # hinge arc
+            self.path(f"M {n1(x-7)},{n1(y-4)} A 4,4 0 0 0 "
+                      f"{n1(x-7)},{n1(y+4)}")                    # hinge arc
             self.line(x - 5, y - 2, x + 7, y - 8)                # blade
             self.line(x + 9, y, x + 13, y)
             return 13
         if kind == "fuse-contactor":
             self.rect(x - 16, y - 4, 12, 8)                      # fuse
             self.line(x - 16, y, x - 4, y)
-            self.path(f"M {x:.1f},{y-4:.1f} A 4,4 0 0 0 "
-                      f"{x:.1f},{y+4:.1f}")                      # hinge arc
+            self.path(f"M {n1(x)},{n1(y-4)} A 4,4 0 0 0 "
+                      f"{n1(x)},{n1(y+4)}")                      # hinge arc
             self.line(x + 2, y - 2, x + 11, y - 7)               # blade
             self.line(x + 12, y, x + 16, y)
             return 16

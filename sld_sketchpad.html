@@ -1471,6 +1471,11 @@ function layout(items, order){
 }
 
 /* ------------------------------------------------ SVG builder */
+/* one decimal, rounded half up: Python's format rounds a half-way value to
+   even and JavaScript's toFixed does not, so both engines round the same
+   way here */
+const n1=v=>(Math.floor(v*10+0.5)/10).toFixed(1);
+const n0=v=>Math.floor(v+0.5);
 class SVG {
   /* the drawing surface: every symbol is built from these primitives, so
      the DXF writer only overrides them; `layer` is a hint the render sets
@@ -1481,28 +1486,28 @@ class SVG {
       this.vlines.push([x1,Math.min(y1,y2),Math.max(y1,y2)]);
   }
   document(width,height){
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width)}" height="${height}" viewBox="0 0 ${Math.round(width)} ${height}"><rect width="100%" height="100%" fill="white"/>${this.parts.join("")}</svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${n0(width)}" height="${height}" viewBox="0 0 ${n0(width)} ${height}"><rect width="100%" height="100%" fill="white"/>${this.parts.join("")}</svg>`;
   }
   line(x1,y1,x2,y2,w=2,dash=null){
     this._track(x1,y1,x2,y2);
-    this.parts.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#111" stroke-width="${w}"${dash?` stroke-dasharray="${dash}"`:""} stroke-linecap="round"/>`);
+    this.parts.push(`<line x1="${n1(x1)}" y1="${n1(y1)}" x2="${n1(x2)}" y2="${n1(y2)}" stroke="#111" stroke-width="${w}"${dash?` stroke-dasharray="${dash}"`:""} stroke-linecap="round"/>`);
   }
   rect(x,y,w,h,sw=2,dash=null,fill="none"){
-    this.parts.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${fill}" stroke="#111" stroke-width="${sw}"${dash?` stroke-dasharray="${dash}"`:""}/>`);
+    this.parts.push(`<rect x="${n1(x)}" y="${n1(y)}" width="${n1(w)}" height="${n1(h)}" fill="${fill}" stroke="#111" stroke-width="${sw}"${dash?` stroke-dasharray="${dash}"`:""}/>`);
   }
   circle(x,y,r,sw=2){
-    this.parts.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="none" stroke="#111" stroke-width="${sw}"/>`);
+    this.parts.push(`<circle cx="${n1(x)}" cy="${n1(y)}" r="${r}" fill="none" stroke="#111" stroke-width="${sw}"/>`);
   }
   dot(x,y,r=3.2){
-    this.parts.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="#111"/>`);
+    this.parts.push(`<circle cx="${n1(x)}" cy="${n1(y)}" r="${r}" fill="#111"/>`);
   }
   poly(pts,fill="#111"){
-    this.parts.push(`<polygon points="${pts.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ")}" fill="${fill}"/>`);
+    this.parts.push(`<polygon points="${pts.map(p=>n1(p[0])+","+n1(p[1])).join(" ")}" fill="${fill}"/>`);
   }
   text(x,y,s,{size=12,anchor="middle",bold=false,rotate=null}={}){
     if(!s) return;
-    const tr=rotate!==null?` transform="translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${rotate})"`:"";
-    const xy=rotate!==null?'x="0" y="0"':`x="${x.toFixed(1)}" y="${y.toFixed(1)}"`;
+    const tr=rotate!==null?` transform="translate(${n1(x)},${n1(y)}) rotate(${rotate})"`:"";
+    const xy=rotate!==null?'x="0" y="0"':`x="${n1(x)}" y="${n1(y)}"`;
     this.parts.push(`<text ${xy}${tr} font-family="Arial, Helvetica, sans-serif" font-size="${size}" fill="#111" text-anchor="${anchor}"${bold?' font-weight="bold"':""}>${esc(s)}</text>`);
   }
   lbs(x,yt,yb){        /* IEC switch-disconnector: hinge circle + blade + bar */
@@ -1531,7 +1536,7 @@ class SVG {
     if(kind==="contactor"){
       /* IEC: switch with the arc function symbol at the hinge */
       this.line(x,y-13,x,y-11);
-      this.path(`M ${(x-4).toFixed(1)},${(y-7).toFixed(1)} A 4,4 0 0 1 ${(x+4).toFixed(1)},${(y-7).toFixed(1)}`);
+      this.path(`M ${n1(x-4)},${n1(y-7)} A 4,4 0 0 1 ${n1(x+4)},${n1(y-7)}`);
       this.line(x+2,y-5,x+8,y+7);
       this.line(x,y+9,x,y+13);
       return 13;
@@ -1540,7 +1545,7 @@ class SVG {
       /* MV motor starter: back-up fuse in series with the contactor */
       this.rect(x-4,y-16,8,12);
       this.line(x,y-16,x,y-4);
-      this.path(`M ${(x-4).toFixed(1)},${y.toFixed(1)} A 4,4 0 0 1 ${(x+4).toFixed(1)},${y.toFixed(1)}`);
+      this.path(`M ${n1(x-4)},${n1(y)} A 4,4 0 0 1 ${n1(x+4)},${n1(y)}`);
       this.line(x+2,y+2,x+7,y+11);
       this.line(x,y+12,x,y+16);
       return 16;
@@ -1570,7 +1575,7 @@ class SVG {
     if(kind==="contactor"){
       /* IEC: switch with the arc function symbol at the hinge */
       this.line(x-13,y,x-11,y);
-      this.path(`M ${(x-7).toFixed(1)},${(y-4).toFixed(1)} A 4,4 0 0 0 ${(x-7).toFixed(1)},${(y+4).toFixed(1)}`);
+      this.path(`M ${n1(x-7)},${n1(y-4)} A 4,4 0 0 0 ${n1(x-7)},${n1(y+4)}`);
       this.line(x-5,y-2,x+7,y-8);
       this.line(x+9,y,x+13,y);
       return 13;
@@ -1578,7 +1583,7 @@ class SVG {
     if(kind==="fuse-contactor"){
       this.rect(x-16,y-4,12,8);
       this.line(x-16,y,x-4,y);
-      this.path(`M ${x.toFixed(1)},${(y-4).toFixed(1)} A 4,4 0 0 0 ${x.toFixed(1)},${(y+4).toFixed(1)}`);
+      this.path(`M ${n1(x)},${n1(y-4)} A 4,4 0 0 0 ${n1(x)},${n1(y+4)}`);
       this.line(x+2,y-2,x+11,y-7);
       this.line(x+12,y,x+16,y);
       return 16;
@@ -2674,7 +2679,8 @@ const DXF_TEXT_H=0.72, DXF_WIDTH_F=0.8, DXF_CHAR_W=0.9*DXF_WIDTH_F, DXF_WRAP_AT=
 const DXF_SUBST={"\u2014":"-","\u2013":"-","\u00b7":"-","\u00d7":"x","\u2192":"->",
   "\u2190":"<-","\u00b1":"+/-","\u2026":"..."};
 function dnum(v){
-  let t=v.toFixed(2).replace(/0+$/,"").replace(/\.$/,"");
+  /* two decimals, rounded half up, matching the Python writer */
+  let t=(Math.floor(v*100+0.5)/100).toFixed(2).replace(/0+$/,"").replace(/\.$/,"");
   return (t==="-0"||t==="")?"0":t;
 }
 function dclean(s){ return String(s).replace(/[\u2014\u2013\u00b7\u00d7\u2192\u2190\u00b1\u2026]/g,c=>DXF_SUBST[c]); }
