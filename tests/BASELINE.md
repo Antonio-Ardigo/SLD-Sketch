@@ -138,6 +138,21 @@ inside the sheet. Two arrangements did not, and are now fixtures:
 | `tests/features/f11_rmu_cascade.xlsx` | an RMU feeding two RMUs put 18 items off the right edge: the sheet width followed the row cursor, which never saw a branch placed in a slot of its own |
 | `tests/features/f12_rmu_mv_loads.xlsx` | a capacitor and an arrester on ring RMUs, on a site with no MV busbar, got no slot and fell into the leftover row at the far right, dragging their RMU's enclosure across the sheet: one 476 px superimposed bus and a false net over five items |
 
+## Nothing outside the white sheet
+
+Measuring the true extent of every drawn element, rather than its anchor
+point, over 102 workbooks found two ways the drawing left the paper:
+
+| what | was |
+|---|---|
+| title block | values were cut at a fixed 44 characters, wider than the 220 px field, so a long `Notes` line ran 6 to 13 px past the right edge on 27 of the 94 workbooks then in the corpus |
+| side labels (`tests/features/f15_long_labels.xlsx`) | the sheet allowed a flat 230 px for labels beside the drawing, so a long RMU or transformer description on the rightmost symbol ran off the paper, up to 207 px |
+
+The sheet now grows to hold the labels actually drawn, and title-block
+values are cut to their field. `sld_check.py` counts `off-sheet` from an
+element's extent, so a label that starts inside the sheet and runs past the
+edge is caught: that is why this class went unreported for so long.
+
 ## Configuration sweep
 
 Thirty-two arrangements across sources, voltage tiers, transformer shapes,

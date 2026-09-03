@@ -166,6 +166,7 @@ class DXF(S.SVG):
              rotate=None, color="#111"):
         if not s:
             return
+        self._span(x, s, size, anchor, rotate)
         pairs = [(0, "TEXT"), (8, self._layer("text")), (7, "STANDARD"),
                  (10, x), (20, -y), (30, 0),
                  (40, num(size * TEXT_H)), (1, clean(s))]

@@ -1480,7 +1480,16 @@ class SVG {
   /* the drawing surface: every symbol is built from these primitives, so
      the DXF writer only overrides them; `layer` is a hint the render sets
      while drawing the frame and the legend */
-  constructor(){ this.parts=[]; this.layer="drawing"; this.vlines=[]; }
+  constructor(){ this.parts=[]; this.layer="drawing"; this.vlines=[]; this.maxX=0; }
+  _span(x,s,size,anchor,rotate){
+    /* how far right a label reaches, so the sheet can be widened to hold
+       it: an RMU or transformer description runs to the right of the
+       symbol it names */
+    const w=String(s).length*size*(LABEL_CHAR/11);
+    const right=rotate!==null&&rotate!==undefined ? x+size*0.3
+      : (anchor==="start"?x+w:anchor==="middle"?x+w/2:x);
+    this.maxX=Math.max(this.maxX,right);
+  }
   _track(x1,y1,x2,y2){   /* vertical conductors, so bar labels can dodge */
     if(Math.abs(x1-x2)<0.01 && Math.abs(y1-y2)>0.01)
       this.vlines.push([x1,Math.min(y1,y2),Math.max(y1,y2)]);
@@ -1506,6 +1515,7 @@ class SVG {
   }
   text(x,y,s,{size=12,anchor="middle",bold=false,rotate=null}={}){
     if(!s) return;
+    this._span(x,s,size,anchor,rotate);
     const tr=rotate!==null?` transform="translate(${n1(x)},${n1(y)}) rotate(${rotate})"`:"";
     const xy=rotate!==null?'x="0" y="0"':`x="${n1(x)}" y="${n1(y)}"`;
     this.parts.push(`<text ${xy}${tr} font-family="Arial, Helvetica, sans-serif" font-size="${size}" fill="#111" text-anchor="${anchor}"${bold?' font-weight="bold"':""}>${esc(s)}</text>`);
@@ -2646,16 +2656,25 @@ function render(info, items, order, width, warnings, canvas){
     svg.text(labelX(xLeft,xRight,crossingXs(svg,xLeft,xRight,y-11.5,y),lbl),y,lbl,
              {size:11.5,anchor:"start",bold:true});
 
+  /* a long RMU or transformer description runs to the right of the symbol
+     it names: the sheet grows so no label leaves the paper */
+  width=Math.max(width,svg.maxX+24);
+
   /* title block */
   svg.layer="frame";
   const tbW=288,tbH=96,tbX=width-tbW-24,tbY=DIAG_H-tbH-20;
   svg.rect(tbX,tbY,tbW,tbH,1.5);
   svg.line(tbX,tbY+24,tbX+tbW,tbY+24,1.5);
   svg.text(tbX+10,tbY+17,"SLD SKETCH — SITE SURVEY",{size:12,anchor:"start",bold:true});
+  /* the value field runs from the label column to the block's inner edge; a
+     longer entry is cut there rather than running off the sheet */
+  const fits=Math.floor((tbW-58-10)/LABEL_CHAR);
   let ty=tbY+40;
-  for(const [k,v] of [["Site",info.site],["Date",info.date],["By",info.by],["Notes",info.notes]]){
+  for(const [k,v0] of [["Site",info.site],["Date",info.date],["By",info.by],["Notes",info.notes]]){
+    const v=v0||"";
     svg.text(tbX+10,ty,k+":",{size:11,anchor:"start",bold:true});
-    svg.text(tbX+58,ty,(v||"").slice(0,44),{size:11,anchor:"start"});
+    svg.text(tbX+58,ty,v.length<=fits?v:v.slice(0,fits-1).replace(/\s+$/,"")+"…",
+             {size:11,anchor:"start"});
     ty+=16;
   }
 
@@ -2759,6 +2778,7 @@ class DXF extends SVG {
   }
   text(x,y,s,{size=12,anchor="middle",bold=false,rotate=null}={}){
     if(!s) return;
+    this._span(x,s,size,anchor,rotate);
     const pairs=[[0,"TEXT"],[8,this._layer("text")],[7,"STANDARD"],
       [10,x],[20,-y],[30,0],[40,dnum(size*DXF_TEXT_H)],[1,dclean(s)]];
     if(rotate) pairs.push([50,dnum(-rotate)]);     /* SVG rotates clockwise */

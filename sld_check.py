@@ -202,16 +202,34 @@ class Drawing:
                         continue
                 else:
                     x, y = e
-                # anything outside the sheet is a defect in its own right
-                if x < -1 or x > self.w + 1 or y < -1 or y > self.h + 1:
+                # anything reaching outside the sheet is a defect in its
+                # own right, and a label that starts inside but runs past
+                # the edge counts too: measure the extent, not the anchor
+                if k == "lines":
+                    x1, y1 = max(e["x1"], e["x2"]), max(e["y1"], e["y2"])
+                    x0, y0 = min(e["x1"], e["x2"]), min(e["y1"], e["y2"])
+                elif k == "circles":
+                    x0, x1 = e["cx"] - e["r"], e["cx"] + e["r"]
+                    y0, y1 = e["cy"] - e["r"], e["cy"] + e["r"]
+                elif k == "rects":
+                    x0, y0 = e["x"], e["y"]
+                    x1, y1 = e["x"] + e["w"], e["y"] + e["h"]
+                elif k == "texts":
+                    tw = 0.6 * e["size"] * len(e["s"])
+                    if e["rot"]:
+                        x0, x1 = x - e["size"], x + e["size"] * 0.3
+                        y0, y1 = y, y + tw
+                    else:
+                        x0 = {"start": x, "middle": x - tw / 2,
+                              "end": x - tw}[e["anchor"]]
+                        x1, y0, y1 = x0 + tw, y - e["size"], y
+                else:
+                    x0, y0, x1, y1 = x, y, x, y
+                if x0 < -1 or x1 > self.w + 1 or y0 < -1 or y1 > self.h + 1:
                     self.off_sheet += 1
                 if keep(x, y):
                     out.append(e)
             g[k] = out
-        # the legend box itself, when it overflows the sheet
-        for r in g["rects"]:
-            if r["x"] + r["w"] > self.w + 1:
-                self.off_sheet += 1
         self.g = g
 
     # -- symbols by geometry ----------------------------------------------

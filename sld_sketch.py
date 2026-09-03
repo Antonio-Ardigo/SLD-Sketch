@@ -1527,6 +1527,16 @@ class SVG:
         self.parts = []
         self.layer = "drawing"
         self.vlines = []      # vertical conductors, so bar labels can dodge
+        self.max_x = 0        # how far right any label reaches
+
+    def _span(self, x, s, size, anchor, rotate):
+        """How far right a label reaches, so the sheet can be widened to
+        hold it: an RMU or transformer description runs to the right of
+        the symbol it names."""
+        w = len(str(s)) * size * (LABEL_CHAR / 11)
+        right = x + size * 0.3 if rotate is not None else \
+            {"start": x + w, "middle": x + w / 2, "end": x}[anchor]
+        self.max_x = max(self.max_x, right)
 
     def _track(self, x1, y1, x2, y2):
         if abs(x1 - x2) < 0.01 and abs(y1 - y2) > 0.01:
@@ -1569,6 +1579,7 @@ class SVG:
              rotate=None, color="#111"):
         if not s:
             return
+        self._span(x, s, size, anchor, rotate)
         wgt = ' font-weight="bold"' if bold else ""
         tr = (f' transform="translate({n1(x)},{n1(y)}) rotate({rotate})"'
               if rotate is not None else "")
@@ -2978,6 +2989,10 @@ def render(info, items, order, width, canvas=None):
         svg.text(label_x(x_left, x_right, xs, lbl), y, lbl, size=11.5,
                  anchor="start", bold=True)
 
+    # a long RMU or transformer description runs to the right of the
+    # symbol it names: the sheet grows so no label leaves the paper
+    width = max(width, svg.max_x + 24)
+
     # --- title block -----------------------------------------------------
     svg.layer = "frame"
     tb_w, tb_h = 288, 96
@@ -2990,10 +3005,15 @@ def render(info, items, order, width, canvas=None):
             ("Date", info.get("date", "")),
             ("By", info.get("surveyed by", info.get("by", ""))),
             ("Notes", info.get("notes", ""))]
+    # the value field runs from the label column to the block's inner edge;
+    # a longer entry is cut there rather than running off the sheet
+    fits = int((tb_w - 58 - 10) / LABEL_CHAR)
     ty = tb_y + 40
     for k, v in rows:
         svg.text(tb_x + 10, ty, f"{k}:", size=11, anchor="start", bold=True)
-        svg.text(tb_x + 58, ty, v[:44], size=11, anchor="start")
+        svg.text(tb_x + 58, ty,
+                 v if len(v) <= fits else v[:fits - 1].rstrip() + "…",
+                 size=11, anchor="start")
         ty += 16
 
     used = {items[i].type for i in order}
