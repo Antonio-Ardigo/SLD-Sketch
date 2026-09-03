@@ -1381,7 +1381,12 @@ def layout_mv_boards(items, order):
                 it.x_left, it.x_right = it.x - 85, it.x + 85
             x += 130
 
-    return max(x - BUS_GAP + MARGIN, 640) + 230
+    # the cursor only follows the boards placed in a row; a branch placed
+    # in a slot of its own (an RMU hung under another) can reach further
+    far = max([it.x for it in items.values() if it.x is not None]
+              + [b.x_right for b in items.values() if b.x_right is not None]
+              + [0])
+    return max(x - BUS_GAP + MARGIN, far + MARGIN, 640) + 230
 
 
 def sub_levels(items, order):
@@ -1436,17 +1441,19 @@ def layout(items, order):
     place_tx_motors(items, order)
 
     for rmu in rmus:
-        # pump ways sit beside the transformer ways, left to right
-        pumps_r = children_of(items, order, rmu.id, {PUMP})
+        # motor and outgoing ways sit beside the transformer ways, left to
+        # right; without a slot here they fall to the leftover row at the
+        # far right and drag their RMU's enclosure across the sheet
+        ways_r = children_of(items, order, rmu.id, {PUMP} | set(LV_LOADS))
         txs_r = children_of(items, order, rmu.id, {TRANSFORMER})
         placed = [k.x for k in txs_r if k.x is not None]
-        if pumps_r and placed:
-            # clear the last transformer's label block before the first pump
+        if ways_r and placed:
+            # clear the last transformer's label block before the first way
             cursor = max(placed) + TX_R + TX_LABEL_W + PUMP_SLOT / 2
-            for k in pumps_r:
+            for k in ways_r:
                 k.x = cursor
                 cursor += PUMP_SLOT + SLOT_GAP
-        kids = [k for k in txs_r + pumps_r if k.x is not None]
+        kids = [k for k in txs_r + ways_r if k.x is not None]
         if kids:
             rmu.x = sum(k.x for k in kids) / len(kids)
     for rmu in rmus:  # cascaded RMU: centre over the RMUs it feeds
@@ -1483,7 +1490,12 @@ def layout(items, order):
             it.x = x + 40
             x += 130
 
-    width = max(x - BUS_GAP + MARGIN, 640)
+    # the cursor only follows the boards placed in a row; a branch placed
+    # in a slot of its own can reach further
+    far = max([it.x for it in items.values() if it.x is not None]
+              + [b.x_right for b in items.values() if b.x_right is not None]
+              + [0])
+    width = max(x - BUS_GAP + MARGIN, far + MARGIN, 640)
     width += 230  # room for side labels + title block
     return width
 

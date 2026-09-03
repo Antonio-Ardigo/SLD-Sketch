@@ -126,6 +126,18 @@ false nets and overlaps.
 The matrix is empty on every workbook in the repository; the tags stay in
 the checker so a future regression is attributed the same way.
 
+## RMU configurations
+
+Four and five RMUs in every arrangement the reader accepts (chain, closed
+ring, ring fed at both ends, ring plus spur, closed sub-ring, two substations
+per RMU, long descriptions with MCCs, six / seven / eight RMUs) all draw
+inside the sheet. Two arrangements did not, and are now fixtures:
+
+| workbook | was |
+|---|---|
+| `tests/features/f11_rmu_cascade.xlsx` | an RMU feeding two RMUs put 18 items off the right edge: the sheet width followed the row cursor, which never saw a branch placed in a slot of its own |
+| `tests/features/f12_rmu_mv_loads.xlsx` | a capacitor and an arrester on ring RMUs, on a site with no MV busbar, got no slot and fell into the leftover row at the far right, dragging their RMU's enclosure across the sheet: one 476 px superimposed bus and a false net over five items |
+
 ## Audit against the engine 15 commits earlier
 
 Both engines drawing the same 42 workbooks, read back by the same checker

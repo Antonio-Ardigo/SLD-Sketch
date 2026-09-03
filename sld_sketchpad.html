@@ -1375,7 +1375,11 @@ function layoutMvBoards(items, order){
       x+=130;
     }
   }
-  return Math.max(x-BUS_GAP+MARGIN,640)+230;
+  /* the cursor only follows the boards placed in a row; a branch placed in
+     a slot of its own (an RMU hung under another) can reach further */
+  const far=Math.max(0,...Object.values(items).map(t=>t.x).filter(v=>v!==null),
+    ...Object.values(items).map(t=>t.xRight).filter(v=>v!==null&&v!==undefined));
+  return Math.max(x-BUS_GAP+MARGIN,far+MARGIN,640)+230;
 }
 function layout(items, order){
   if(order.some(i=>items[i].type===MV_BUSBAR)
@@ -1417,15 +1421,17 @@ function layout(items, order){
   }
   placeTxMotors(items,order);
   for(const rmu of rmus){
-    /* pump ways sit beside the transformer ways, left to right */
-    const pumpsR=childrenOf(items,order,rmu.id,[PUMP]);
+    /* motor and outgoing ways sit beside the transformer ways, left to
+       right; without a slot here they fall to the leftover row at the far
+       right and drag their RMU's enclosure across the sheet */
+    const waysR=childrenOf(items,order,rmu.id,[PUMP].concat(LV_LOADS));
     const txsR=childrenOf(items,order,rmu.id,[TRANSFORMER]);
     const placed=txsR.filter(k=>k.x!==null).map(k=>k.x);
-    if(pumpsR.length && placed.length){
+    if(waysR.length && placed.length){
       let cursor=Math.max(...placed)+TX_R+TX_LABEL_W+PUMP_SLOT/2;
-      for(const k of pumpsR){ k.x=cursor; cursor+=PUMP_SLOT+SLOT_GAP; }
+      for(const k of waysR){ k.x=cursor; cursor+=PUMP_SLOT+SLOT_GAP; }
     }
-    const kids=txsR.concat(pumpsR).filter(k=>k.x!==null);
+    const kids=txsR.concat(waysR).filter(k=>k.x!==null);
     if(kids.length) rmu.x=kids.reduce((a,k)=>a+k.x,0)/kids.length;
   }
   for(const rmu of rmus){
@@ -1456,7 +1462,11 @@ function layout(items, order){
       x+=130;
     }
   }
-  return Math.max(x-BUS_GAP+MARGIN,640)+230;
+  /* the cursor only follows the boards placed in a row; a branch placed in
+     a slot of its own (an RMU hung under another) can reach further */
+  const far=Math.max(0,...Object.values(items).map(t=>t.x).filter(v=>v!==null),
+    ...Object.values(items).map(t=>t.xRight).filter(v=>v!==null&&v!==undefined));
+  return Math.max(x-BUS_GAP+MARGIN,far+MARGIN,640)+230;
 }
 
 /* ------------------------------------------------ SVG builder */
