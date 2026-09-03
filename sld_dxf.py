@@ -104,6 +104,7 @@ class DXF(S.SVG):
 
     # -- primitives (the engine's symbols call only these) ------------------
     def line(self, x1, y1, x2, y2, w=2, dash=None):
+        self._track(x1, y1, x2, y2)
         if w >= 3:                  # a bar: a polyline with width
             self._e((0, "POLYLINE"), (8, self._layer("busbar")), (66, 1),
                     (70, 0), (40, num(w)), (41, num(w)),

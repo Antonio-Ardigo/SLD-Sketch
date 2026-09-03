@@ -27,8 +27,10 @@ a spur. `BASELINE.md` records the scores at each engine change; re-run and
 diff to measure a change.
 
 ```bash
-python sld_check.py examples/config*.xlsx tests/levels/*.xlsx tests/features/*.xlsx tests/sites/*.xlsx
+python sld_check.py examples/config*.xlsx tests/levels/*.xlsx tests/features/*.xlsx tests/sites/*.xlsx tests/audit/*.xlsx
 ```
 
 The seven `examples/` workbooks must always score clean: all items drawn, all
-edges connected, no overlaps, no false nets, no bypassed transformer.
+edges connected, no overlaps, no false nets, no bypassed transformer. So must
+everything in `tests/audit/` (see its README) except `w08_wrongloads.xlsx`,
+whose rows are wrong on purpose.

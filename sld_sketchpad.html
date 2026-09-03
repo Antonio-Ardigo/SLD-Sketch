@@ -1107,17 +1107,45 @@ function lvKidWidth(items, order, k){
   }
   return FEEDER_SPACING;
 }
+function nSupOf(items, order, bb){   /* supplies standing over an LV bar */
+  return order.filter(i=>items[i].type===TRANSFORMER
+      && childrenOf(items,order,i,[LV_BUSBAR]).includes(bb)).length
+    + order.filter(i=>items[i].type===GENERATOR
+      && genFeeds(items,order,items[i]).some(([b])=>b===bb)).length;
+}
 function barLabel(bb){
   /* the text over a bar: id, description, rating (and voltage) */
   const parts=bb.type===MCC?[bb.id,bb.desc,bb.rating]:[bb.id,bb.desc,bb.rating,bb.voltage];
   return parts.filter(Boolean).join(" ");
+}
+function crossingXs(svg, xLeft, xRight, yTop, yBot){
+  /* vertical conductors already drawn through a label's band */
+  return svg.vlines.filter(([x,y0,y1])=>x>xLeft && x<xRight && y0<yBot && y1>yTop)
+                   .map(([x])=>x);
+}
+function labelX(xLeft, xRight, xs, lbl){
+  /* where a bar's label starts: at the left end unless a conductor landing
+     on the bar would cross it; then after the last landing, or in the widest
+     gap between landings, when the text fits there */
+  const w=lbl.length*6.9;
+  if(!xs.length || Math.min(...xs)-xLeft>=w+6) return xLeft;
+  if(xRight-Math.max(...xs)>=w+6) return Math.max(...xs)+8;
+  const s=[...xs].sort((a,b)=>a-b);
+  for(let i=0;i+1<s.length;i++) if(s[i+1]-s[i]>=w+16) return s[i]+8;
+  /* nowhere on the bar is clear: the least crossed start that still ends on
+     the bar, so the label never drifts away from what it names */
+  let starts=[xLeft,...s.map(x=>x+8)].filter(x0=>x0+w<=xRight+8);
+  if(!starts.length) starts=[xLeft];
+  const score=x0=>s.filter(q=>q>x0 && q<x0+w).length;
+  return starts.reduce((best,x0)=>
+    (score(x0)<score(best) || (score(x0)===score(best) && x0<best))?x0:best, starts[0]);
 }
 function lvBoardWidth(items, order, bb){
   /* wide enough for its ways, and for its label to fit on one side of a
      centred incomer */
   return Math.max(MIN_BUS_WIDTH,
     lvKids(items,order,bb).reduce((a,k)=>a+lvKidWidth(items,order,k),0),
-    2*(barLabel(bb).length*6.9+12));
+    2*(barLabel(bb).length*6.9+12)+Math.max(0,nSupOf(items,order,bb)-1)*90);
 }
 function placeLvBoard(items, order, bb, cx){
   /* an LV busbar on cx with its ways in their slots, and the sub-boards
@@ -1227,7 +1255,8 @@ function mvOwnWidth(items, order, node, depth){
   const tees=(node.type===RMU)?(rmuHang(items,order)[node.id]||new Set()):new Set();
   const nSup=suppliesOf(items,order,node,stepUps(items,order)).length
     +levelLinks(items,order).filter(([,,l])=>l.id===node.id).length;
-  const top=nSup>1?(nSup-1)*90+60:0;
+  const top=Math.max(nSup>1?(nSup-1)*90+60:0,
+    2*(barLabel(node).length*6.9+12)+Math.max(0,nSup-1)*90);
   if(!kids.length) return Math.max(MIN_BUS_WIDTH,top);
   const need=kids.reduce((a,k)=>a+mvWidth(items,order,k,depth),0)
              +SLOT_GAP*(kids.length-1)+(RMU_TEE+SLOT_GAP)*tees.size;
@@ -1435,11 +1464,16 @@ class SVG {
   /* the drawing surface: every symbol is built from these primitives, so
      the DXF writer only overrides them; `layer` is a hint the render sets
      while drawing the frame and the legend */
-  constructor(){ this.parts=[]; this.layer="drawing"; }
+  constructor(){ this.parts=[]; this.layer="drawing"; this.vlines=[]; }
+  _track(x1,y1,x2,y2){   /* vertical conductors, so bar labels can dodge */
+    if(Math.abs(x1-x2)<0.01 && Math.abs(y1-y2)>0.01)
+      this.vlines.push([x1,Math.min(y1,y2),Math.max(y1,y2)]);
+  }
   document(width,height){
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width)}" height="${height}" viewBox="0 0 ${Math.round(width)} ${height}"><rect width="100%" height="100%" fill="white"/>${this.parts.join("")}</svg>`;
   }
   line(x1,y1,x2,y2,w=2,dash=null){
+    this._track(x1,y1,x2,y2);
     this.parts.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#111" stroke-width="${w}"${dash?` stroke-dasharray="${dash}"`:""} stroke-linecap="round"/>`);
   }
   rect(x,y,w,h,sw=2,dash=null,fill="none"){
@@ -1660,6 +1694,8 @@ function drawLegend(svg, extra, width){
 
 function render(info, items, order, width, warnings, canvas){
   const svg=canvas||new SVG();
+  const barLabels=[];   /* [xLeft,xRight,baseline,text]: drawn last, once
+                           every conductor is on the sheet */
   const depth=mvDepth(items,order);
   const sus=stepUps(items,order);
   const gens=mvGens(items,order);
@@ -1875,8 +1911,8 @@ function render(info, items, order, width, warnings, canvas){
     svg.line(mvb.xLeft,yb,mvb.xRight,yb,5.5);
     const [praw,pkind]=protFor(mvb);
     const zone=(praw && !pkind)?(" · "+praw):"";  /* e.g. 87B differential */
-    svg.text(mvb.xLeft,yb-12,[mvb.id,mvb.desc,mvb.rating,mvb.voltage].filter(Boolean).join(" ")+zone,
-             {size:11.5,anchor:"start",bold:true});
+    barLabels.push([mvb.xLeft,mvb.xRight,yb-12,
+      [mvb.id,mvb.desc,mvb.rating,mvb.voltage].filter(Boolean).join(" ")+zone]);
   }
 
   /* feeds from an MV board down to a sub-board or an RMU */
@@ -1985,45 +2021,6 @@ function render(info, items, order, width, warnings, canvas){
   for(const key of Object.keys(lowLane)) if(key in routes) routes[key][1]=lowLane[key];
   const cTop=Y_TX_C1-TX_R;
   const highLane=allocLanes(highRuns,[cTop-22,cTop-34,cTop-88,cTop-100]);
-
-  const landsAbove=bb=>{           /* x of every conductor landing on this bar from above */
-    const xs=[];
-    for(const p of bb.parents){
-      const par=items[p];
-      if(!par || par.x===null) continue;
-      if(par.type===TRANSFORMER){
-        if(routes[par.id+"|"+bb.id]) xs.push(routes[par.id+"|"+bb.id][0]);
-        else {
-          const fed=childrenOf(items,order,par.id,[LV_BUSBAR]);
-          const rest=fed.filter(b=>!routes[par.id+"|"+b.id]);
-          xs.push(rest.length===1 && Math.abs(rest[0].x-par.x)<1?par.x:bb.x);
-        }
-      } else if(par.type===LV_BUSBAR) xs.push(bb.x);
-      else if(par.type===FEEDER){
-        const fsup=bb.parents.filter(q=>items[q] && items[q].type===FEEDER && items[q].x!==null);
-        const i=fsup.indexOf(p), n=fsup.length;
-        xs.push(n===1?bb.x:bb.xLeft+(bb.xRight-bb.xLeft)*(i+0.5)/n);
-      }
-    }
-    for(const i of order){
-      const g=items[i];
-      if(g.type===GENERATOR && g.x!==null && genFeeds(items,order,g).some(([b])=>b===bb)) xs.push(g.x);
-    }
-    for(const key of Object.keys(landX)) if(key.split("|")[1]===bb.id) xs.push(landX[key]);
-    for(const t of Object.keys(suLand)) if(lvsubMid[t][0]===bb) xs.push(suLand[t]);
-    return xs;
-  };
-  const labelX=(xLeft,xRight,xs,lbl)=>{
-    /* where a bar's label starts: at the left end unless a landing
-       conductor would cross it; then after the last landing, or in the
-       widest gap between landings, when the text fits there */
-    const w=lbl.length*6.9;
-    if(!xs.length || Math.min(...xs)-xLeft>=w+6) return xLeft;
-    if(xRight-Math.max(...xs)>=w+6) return Math.max(...xs)+8;
-    const s=[...xs].sort((a,b)=>a-b);
-    for(let i=0;i+1<s.length;i++) if(s[i+1]-s[i]>=w+16) return s[i]+8;
-    return xLeft;
-  };
 
   /* pumps */
   for(const p of pumps){
@@ -2379,9 +2376,7 @@ function render(info, items, order, width, warnings, canvas){
     svg.line(bb.xLeft,yb,bb.xRight,yb,5.5);
     const [praw,pkind]=protFor(bb);
     const zone=(praw && !pkind)?(" · "+praw):"";  /* e.g. 87B differential */
-    const blbl=barLabel(bb)+zone;
-    svg.text(labelX(bb.xLeft,bb.xRight,landsAbove(bb),blbl),yb-12,blbl,
-             {size:11.5,anchor:"start",bold:true});
+    barLabels.push([bb.xLeft,bb.xRight,yb-12,barLabel(bb)+zone]);
   }
 
   /* sub-boards: fed from a feeder or straight from the board above */
@@ -2569,8 +2564,7 @@ function render(info, items, order, width, warnings, canvas){
         svg.rect(f.xLeft-10,yDev-18,f.xRight-f.xLeft+20,yM+10-(yDev-18),1.6,"7 5");
         svg.line(f.x,yArrow,f.x,yM);
         svg.line(f.xLeft,yM,f.xRight,yM,5.5);
-        const mLbl=barLabel(f);
-        svg.text(labelX(f.xLeft,f.xRight,[f.x],mLbl),yM-12,mLbl,{size:11.5,anchor:"start",bold:true});
+        barLabels.push([f.xLeft,f.xRight,yM-12,barLabel(f)]);
         continue;
       }
     } else if(TERMINALS.includes(f.type)){
@@ -2600,6 +2594,12 @@ function render(info, items, order, width, warnings, canvas){
     if(!Object.values(items).some(c=>c.parents.includes(tx.id)))
       svg.openEnd(tx.x,yC1+27+TX_R,yC1+27+TX_R+36,"outgoing not defined");
   }
+
+  /* bar labels: placed now that every conductor is drawn — a label starts
+     at the left end of its bar unless a conductor already crosses it there */
+  for(const [xLeft,xRight,y,lbl] of barLabels)
+    svg.text(labelX(xLeft,xRight,crossingXs(svg,xLeft,xRight,y-11.5,y),lbl),y,lbl,
+             {size:11.5,anchor:"start",bold:true});
 
   /* title block */
   svg.layer="frame";
@@ -2666,6 +2666,7 @@ class DXF extends SVG {
     }).join("\n");
   }
   line(x1,y1,x2,y2,w=2,dash=null){
+    this._track(x1,y1,x2,y2);
     if(w>=3){                       /* a bar: a polyline with width */
       const lay=this._layer("busbar");
       this._e([0,"POLYLINE"],[8,lay],[66,1],[70,0],[40,dnum(w)],[41,dnum(w)],[10,0],[20,0],[30,0]);

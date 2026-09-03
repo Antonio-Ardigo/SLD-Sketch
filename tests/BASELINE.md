@@ -125,3 +125,23 @@ false nets and overlaps.
 
 The matrix is empty on every workbook in the repository; the tags stay in
 the checker so a future regression is attributed the same way.
+
+## Audit against the engine 15 commits earlier
+
+Both engines drawing the same 42 workbooks, read back by the same checker
+(`20bc766` versus `136f2ce`, plus this change):
+
+| counted over the whole corpus | before | after |
+|---|---|---|
+| edges drawn disconnected (of 817) | 89 | 5 |
+| superimposed conductors | 22 | 0 |
+| false nets | 7 | 0 |
+| items off the sheet | 8 | 0 |
+| label collisions | 194 | 12 |
+| crossings (not treated as faults) | 41 | 29 |
+
+The five remaining disconnected edges are `tests/audit/w08_wrongloads.xlsx`,
+whose rows are impossible on purpose. Of the twelve workbooks the older engine
+mis-drew, seven printed no message at all; every one of those rows now names
+itself. The ten independent sites the audit was written against are kept in
+`tests/audit/`.

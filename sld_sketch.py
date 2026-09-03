@@ -885,13 +885,46 @@ def bar_label(bb):
     return " ".join(v for v in parts if v)
 
 
+def crossing_xs(svg, x_left, x_right, y_top, y_bot):
+    """Vertical conductors already drawn through a label's band."""
+    return [x for x, y0, y1 in svg.vlines
+            if x_left < x < x_right and y0 < y_bot and y1 > y_top]
+
+
+def label_x(x_left, x_right, xs, lbl):
+    """Where a bar's label starts: at the left end unless a conductor
+    landing on the bar would cross it; then after the last landing, or in
+    the widest gap between landings, when the text fits there."""
+    w = len(lbl) * 6.9
+    if not xs or min(xs) - x_left >= w + 6:
+        return x_left
+    if x_right - max(xs) >= w + 6:
+        return max(xs) + 8
+    xs = sorted(xs)
+    for a, b in zip(xs, xs[1:]):
+        if b - a >= w + 16:
+            return a + 8
+    # nowhere on the bar is clear: the least crossed start that still ends
+    # on the bar, so the label never drifts away from what it names
+    starts = [x0 for x0 in [x_left] + [x + 8 for x in xs]
+              if x0 + w <= x_right + 8] or [x_left]
+    return min(starts, key=lambda x0: (sum(1 for q in xs if x0 < q < x0 + w),
+                                       x0))
+
+
 def lv_board_width(items, order, bb):
     """Wide enough for its ways, and for its label to fit on one side of
     a centred incomer."""
     kids = lv_kids(items, order, bb)
+    n_sup = sum(1 for i in order if items[i].type == TRANSFORMER
+                and bb in children_of(items, order, i, {LV_BUSBAR}))
+    n_sup += sum(1 for i in order if items[i].type == GENERATOR
+                 and any(b is bb for b, _, _ in gen_feeds(items, order,
+                                                          items[i])))
     return max(MIN_BUS_WIDTH, sum(lv_kid_width(items, order, k)
                                   for k in kids),
-               2 * (len(bar_label(bb)) * 6.9 + 12))
+               2 * (len(bar_label(bb)) * 6.9 + 12)
+               + max(0, n_sup - 1) * 90)
 
 
 def place_lv_board(items, order, bb, center_x):
@@ -1091,6 +1124,8 @@ def mv_own_width(items, order, node, depth=None):
              + sum(1 for _, _, l in level_links(items, order)
                    if l.id == node.id))
     top = (n_sup - 1) * 90 + 60 if n_sup > 1 else 0
+    top = max(top, 2 * (len(bar_label(node)) * 6.9 + 12)
+              + max(0, n_sup - 1) * 90)
     if not kids:
         return max(MIN_BUS_WIDTH, top)
     need = (sum(mv_width(items, order, k, depth) for k in kids)
@@ -1463,6 +1498,11 @@ class SVG:
     def __init__(self):
         self.parts = []
         self.layer = "drawing"
+        self.vlines = []      # vertical conductors, so bar labels can dodge
+
+    def _track(self, x1, y1, x2, y2):
+        if abs(x1 - x2) < 0.01 and abs(y1 - y2) > 0.01:
+            self.vlines.append((x1, min(y1, y2), max(y1, y2)))
 
     def document(self, width, height):
         body = "\n".join(self.parts)
@@ -1472,6 +1512,7 @@ class SVG:
                 f'{body}\n</svg>\n')
 
     def line(self, x1, y1, x2, y2, w=2, dash=None):
+        self._track(x1, y1, x2, y2)
         d = f' stroke-dasharray="{dash}"' if dash else ""
         self.parts.append(
             f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
@@ -1786,7 +1827,8 @@ def render(info, items, order, width, canvas=None):
     """Draw the sheet onto `canvas` (an SVG by default, or any object with
     the same primitives) and return its document."""
     svg = canvas if canvas is not None else SVG()
-    depth = mv_depth(items, order)
+    bar_labels = []       # (x_left, x_right, baseline, text): drawn last,
+    depth = mv_depth(items, order)    # once every conductor is on the sheet
     sus = step_ups(items, order)
     gens = mv_gens(items, order)
     hang = rmu_hang(items, order)
@@ -2060,8 +2102,7 @@ def render(info, items, order, width, canvas=None):
                        if v)
         if zone:
             lbl += " · " + zone
-        svg.text(mvb.x_left, yb - 12, lbl, size=11.5, anchor="start",
-                 bold=True)
+        bar_labels.append((mvb.x_left, mvb.x_right, yb - 12, lbl))
 
     # --- feeds from an MV board down to a sub-board or an RMU -----------
     mv_feeds = []
@@ -2180,53 +2221,6 @@ def render(info, items, order, width, canvas=None):
     c_top = Y_TX_C1 - TX_R
     high_lane = alloc_lanes(high_runs, [c_top - 22, c_top - 34,
                                         c_top - 88, c_top - 100])
-
-    def lands_above(bb):
-        """x of every conductor landing on this bar from above."""
-        xs = []
-        for p in bb.parents:
-            par = items[p]
-            if par.x is None:
-                continue
-            if par.type == TRANSFORMER:
-                if (par.id, bb.id) in routes:
-                    xs.append(routes[(par.id, bb.id)][0])
-                else:
-                    fed = children_of(items, order, par.id, {LV_BUSBAR})
-                    rest = [b for b in fed if (par.id, b.id) not in routes]
-                    xs.append(par.x if len(rest) == 1
-                              and abs(rest[0].x - par.x) < 1 else bb.x)
-            elif par.type == LV_BUSBAR:
-                xs.append(bb.x)
-            elif par.type == FEEDER:
-                fsup = [q for q in bb.parents if items[q].type == FEEDER
-                        and items[q].x is not None]
-                i, n = fsup.index(p), len(fsup)
-                xs.append(bb.x if n == 1 else bb.x_left
-                          + (bb.x_right - bb.x_left) * (i + 0.5) / n)
-        for i in order:
-            g = items[i]
-            if g.type == GENERATOR and g.x is not None and any(
-                    b is bb for b, _, _ in gen_feeds(items, order, g)):
-                xs.append(g.x)
-        xs += [x for (_, b), x in land_x.items() if b == bb.id]
-        xs += [x for t, x in su_land.items() if lvsub_mid[t][0] is bb]
-        return xs
-
-    def label_x(x_left, x_right, xs, lbl):
-        """Where a bar's label starts: at the left end unless a landing
-        conductor would cross it; then after the last landing, or in the
-        widest gap between landings, when the text fits there."""
-        w = len(lbl) * 6.9
-        if not xs or min(xs) - x_left >= w + 6:
-            return x_left
-        if x_right - max(xs) >= w + 6:
-            return max(xs) + 8
-        xs = sorted(xs)
-        for a, b in zip(xs, xs[1:]):
-            if b - a >= w + 16:
-                return a + 8
-        return x_left
 
     # --- pumps / motor loads --------------------------------------------
     for p in pumps:
@@ -2656,8 +2650,7 @@ def render(info, items, order, width, canvas=None):
         lbl = bar_label(bb)
         if zone:
             lbl += " · " + zone
-        svg.text(label_x(bb.x_left, bb.x_right, lands_above(bb), lbl),
-                 yb - 12, lbl, size=11.5, anchor="start", bold=True)
+        bar_labels.append((bb.x_left, bb.x_right, yb - 12, lbl))
 
     # --- sub-boards: fed from a feeder or straight from the board above --
     def two_devices(x, y0, y1, k0, k1, dash=None):
@@ -2882,10 +2875,8 @@ def render(info, items, order, width, canvas=None):
                          sw=1.6, dash="7 5")
                 svg.line(f.x, y_arrow, f.x, y_m)
                 svg.line(f.x_left, y_m, f.x_right, y_m, w=5.5)
-                m_lbl = bar_label(f)
-                svg.text(label_x(f.x_left, f.x_right, [f.x], m_lbl),
-                         y_m - 12, m_lbl, size=11.5, anchor="start",
-                         bold=True)
+                bar_labels.append((f.x_left, f.x_right, y_m - 12,
+                                   bar_label(f)))
                 continue
         elif f.type in TERMINALS:
             svg.drop(f.x, yb, y_arrow - 24, kind, ydev=y_dev, dash=dash)
@@ -2917,6 +2908,14 @@ def render(info, items, order, width, canvas=None):
         if not any(tx.id in c.parents for c in items.values()):
             svg.open_end(tx.x, y_c1 + 27 + TX_R, y_c1 + 27 + TX_R + 36,
                          "outgoing not defined")
+
+    # --- bar labels ------------------------------------------------------
+    # placed now that every conductor is drawn: a label starts at the left
+    # end of its bar unless a conductor already crosses it there
+    for x_left, x_right, y, lbl in bar_labels:
+        xs = crossing_xs(svg, x_left, x_right, y - 11.5, y)
+        svg.text(label_x(x_left, x_right, xs, lbl), y, lbl, size=11.5,
+                 anchor="start", bold=True)
 
     # --- title block -----------------------------------------------------
     svg.layer = "frame"

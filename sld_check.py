@@ -42,7 +42,7 @@ R_LINE = re.compile(r'<line x1="([\d.-]+)" y1="([\d.-]+)" x2="([\d.-]+)" '
 R_CIRC = re.compile(r'<circle cx="([\d.-]+)" cy="([\d.-]+)" r="([\d.]+)" '
                     r'fill="(\w+|#\w+)"')
 R_RECT = re.compile(r'<rect x="([\d.-]+)" y="([\d.-]+)" width="([\d.]+)" '
-                    r'height="([\d.]+)" fill="\w+" stroke="#\w+" '
+                    r'height="([\d.]+)" fill="(\w+)" stroke="#\w+" '
                     r'stroke-width="([\d.]+)"( stroke-dasharray="[^"]*")?')
 R_POLY = re.compile(r'<polygon points="([^"]+)"')
 R_TEXT = re.compile(r'<text x="([\d.-]+)" y="([\d.-]+)"'
@@ -79,7 +79,8 @@ def parse_svg(svg):
         if m:
             rects.append(dict(x=float(m.group(1)), y=float(m.group(2)),
                               w=float(m.group(3)), h=float(m.group(4)),
-                              dash=bool(m.group(6))))
+                              filled=m.group(5) != "none",
+                              dash=bool(m.group(7))))
             continue
         m = R_POLY.match(raw)
         if m:
@@ -160,6 +161,7 @@ class Drawing:
     def __init__(self, svg, items, order):
         g = parse_svg(svg)
         self.w, self.h = g["w"], g["h"]
+        self.rects = g["rects"]
         self.items, self.order = items, order
         self.off_sheet = 0
         self._drop_furniture(g)
@@ -837,9 +839,18 @@ def check(path):
             if segs_cross(a, b):
                 rep["crossings"] += 1
 
-    # label collisions: text boxes hit by a long stroke or another text
+    # label collisions: text boxes hit by a long stroke or another text.
+    # A drawn box with a fill (the VSD drive box) masks the conductor
+    # behind it, so its own text is not a collision.
+    masks = [r for r in d.rects if r.get("filled")]
+
+    def masked(t):
+        return any(r["x"] <= t["x"] <= r["x"] + r["w"]
+                   and r["y"] <= t["y"] <= r["y"] + r["h"] for r in masks)
     boxes = []
     for t in d.texts:
+        if masked(t):
+            continue
         wdt = 0.55 * t["size"] * len(t["s"])
         if t["rot"]:
             boxes.append((t["x"] - t["size"] * 0.8, t["y"],
